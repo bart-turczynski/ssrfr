@@ -145,26 +145,57 @@ and each MUST have a conformance vector:
 | IPv4 reserved / future use | `240.0.0.0/4`, `255.255.255.255/32` | `private` |
 | IPv4 IETF protocol assignments | `192.0.0.0/24` | `private` |
 | IPv4 benchmarking | `198.18.0.0/15` | `private` |
-| IPv6 6to4 | `2002::/16` | see §2.3 |
+| IPv6 transition embeddings | 6to4, Teredo, ISATAP | see §2.3 |
 
-#### 2.3 Embedded addresses: 6to4 is a missing decoder, not a missing range
+#### 2.3 Transition embeddings are missing decoders, not missing ranges
 
 The inherited matcher decodes five IPv6→IPv4 embedding forms (IPv4-mapped,
 IPv4-translated, IPv4-compatible, and both NAT64 prefixes) and re-classifies the
-embedded value. **6to4 (`2002::/16`, RFC 3056) is not among them.**
+embedded value. **Three further RFC-defined mechanisms are not among them.**
 
-6to4 packs the IPv4 address into hextets 2–3 rather than the low 32 bits, so it
-is invisible to every last-32-bit decoder in the file. `2002:7f00:1::` embeds
-`127.0.0.1`; `2002:a00:1::` embeds `10.0.0.1`. Both currently reach the default
-allow.
+All five implemented decoders read the IPv4 address from the low 32 bits
+(`tail32 <- h[7] * 65536 + h[8]`), except the NAT64 local-use case. The three
+missing mechanisms put it somewhere else:
 
-This is the same defect class as `pydantic-ai`'s three CVEs on one blocklist —
-each a different IPv6-transition wrapper of the same metadata address. Adding
-`2002::/16` to a range list does not fix it: the wrapper prefix is legitimately
-globally reachable, and what matters is the value it *wraps*. INV-13's embedded-
-address corollary is therefore load-bearing: **every form that embeds an address
-MUST have the embedded value extracted and classified independently**, and the
-list of such forms is a decoder inventory, not a range table.
+| Mechanism | Prefix | Where the IPv4 lives |
+|---|---|---|
+| 6to4 (RFC 3056) | `2002::/16` | bits 16–47 — hextets 2–3, not the low 32 |
+| Teredo (RFC 4380) | `2001::/32` | low 32 bits, **XOR-obfuscated** with `0xffffffff` |
+| ISATAP (RFC 5214) | any | interface ID, after a `0000:5efe` / `0200:5efe` marker |
+
+**[verified]** against the shipped matcher — every row below reaches the default
+allow today:
+
+```
+2002:7f00:1::             6to4   -> 127.0.0.1              allowed
+2002:a9fe:a9fe::          6to4   -> 169.254.169.254        allowed
+2001:0:0:0:0:0:f5ff:fffe  Teredo -> 10.0.0.1               allowed
+2001:0:0:0:0:0:5601:5601  Teredo -> 169.254.169.254        allowed
+2001:db8::5efe:a00:1      ISATAP -> 10.0.0.1               allowed
+```
+
+ISATAP under a link-local prefix (`fe80::5efe:a00:1`) *is* blocked — but
+incidentally, by the outer `fe80::/10` rule rather than by decoding the embedded
+value. Under a global site prefix nothing catches it. A rule that happens to
+cover a case for an unrelated reason is not coverage.
+
+Adding `2002::/16` and `2001::/32` to a range list does **not** fix this: those
+prefixes are legitimately globally reachable, and what matters is the value they
+*wrap*. Teredo's XOR obfuscation makes the point sharper still — no range rule
+over the literal bits can ever see `10.0.0.1` in `2001:0:0:0:0:0:f5ff:fffe`.
+
+This is the same defect class as `pydantic-ai`'s three CVEs on one blocklist,
+each a different IPv6-transition wrapper of the same metadata address. INV-13's
+embedded-address corollary is therefore load-bearing: **every form that embeds an
+address MUST have the embedded value extracted and classified independently**,
+and the list of such forms is a **decoder inventory, not a range table**.
+
+Exploitability against the siblings is deployment-dependent — reaching such an
+address requires the host to actually route that transition mechanism, and RFC
+7526 deprecated 6to4 anycast. Where it is not routed the connection merely fails,
+which is fail-closed by accident rather than by design, and is not a property
+`ssrfr` may rely on. Tracked in the siblings as `ROBO-laydgesq` /
+`SITE-uxxdadsa`.
 
 #### 2.4 Hostname rules remain a first-class control
 

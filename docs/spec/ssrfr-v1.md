@@ -2,6 +2,11 @@
 
 - **Status:** DRAFT. Sections are marked **[ratified]**, **[proposed]**, or
   **[open]**. Only ratified sections may be implemented against.
+- **Ratification is structural, not behavioural.** §2's primitive is ratified as a
+  *shape* — the branch between refusal and binding, and what a binding carries.
+  The predicate that decides which branch is taken is **§5, which is proposed**,
+  and the codes a refusal reports are **§6.3, which is open**. L2 is therefore
+  implementable as an interface and blocked on §§5 and 6.3 for behaviour.
 - **Version:** `1.0.0-draft` (2026-07-31)
 - **Ticket:** `SSRF-xrlijlqq`
 
@@ -76,7 +81,7 @@ obligation. Neither is the reason the package exists.
 | Layer | I/O | Returns | Guarantee |
 |---|---|---|---|
 | **L0** structural | none | classification facts | the host/scheme is not *self-evidently* prohibited. **Not a defense.** |
-| **L1** resolved | DNS | the resolved address set with per-address classification | every address this host resolved to at check time was permitted |
+| **L1** resolved | DNS | the resolved address set with per-address classification | every address this host resolved to at check time was **classified**; prohibited and indeterminate outcomes are preserved per address |
 | **L2** guarded | DNS + TCP | a refusal or a binding (§2) | the connection went to an address that was validated |
 
 ### 1.1 L0 is a reporter, not a gate
@@ -133,15 +138,15 @@ discouraged. This is the same design move as `connect_to = "HOST::IP:"`
 
 ```
 L0 / L1 inspection            → facts, no security verdict
-ssrf_prepare_hop(url, policy, from = NULL)
+ssrf_prepare_hop(url, request, policy, from = NULL)
                               → refusal  OR  opaque binding
 ssrf_fetch(binding)           → response
 ```
 
-`ssrf_fetch()` takes **one** argument. There is no URL parameter, so there is no
-substitution surface.
+`ssrf_fetch()` takes **one** argument. There is no URL parameter and no header,
+method, or body parameter, so there is no substitution surface.
 
-### 2.3 What a binding contains
+### 2.3 What a binding contains, and what enters at `prepare`
 
 **Security identity** — what was authorized:
 
@@ -155,11 +160,37 @@ substitution surface.
 **Request data** — carried, not authorized:
 
 - the exact sanitized URL `ssrf_fetch()` will request, including path and query
+- the sanitized request plan: method, headers, body **[proposed]**
 
 Binding the full URL closes the substitution surface. The path is not an
 independently authorized network target: for `http`/`https` it cannot be one, and
 the CRLF-in-selector chain that reaches Redis is a `gopher://` property removed by
 scheme allowlisting.
+
+#### The request plan is an input to `prepare`, never to `fetch` **[proposed]**
+
+INV-8 requires dropping `Authorization`, `Cookie`, and any caller-supplied header
+or body carrying a secret on a cross-origin redirect, and SHOULD downgrade the
+method to GET and drop the body on 301/302/303. **None of that is expressible if
+the binding carries only a URL** — the invariant would have nothing to act on. And
+adding headers as extra `ssrf_fetch()` arguments would recreate exactly the
+substitution surface §2.1 exists to remove.
+
+A GET-only v1 does not avoid the problem. `ssrfr` owns the transport, so it owns
+the User-Agent (§8 decision 5); headers exist by necessity from the first request.
+
+So the request plan enters at `prepare`. The guard evaluates it as part of the hop
+decision — userinfo rejection, credential-bearing headers, method and body
+transformation for the status code — and the binding carries the **sanitized**
+plan. The credential drop becomes a recorded fact inside the binding rather than a
+side effect of the fetch, which is what makes it auditable under S4.
+
+**Consequence: a binding may contain secrets.** Its `print` and `format` methods
+MUST redact credential-bearing fields, and §2.4's limits on opacity apply with
+more force, not less.
+
+This does not reopen §3.1. A request plan is not URL components; the URL remains a
+single string that `ssrfr` parses.
 
 ### 2.4 Opacity is ergonomic, not enforceable
 
@@ -169,13 +200,21 @@ capabilities, so a determined caller can reach inside. The value is that the wro
 thing becomes awkward, which is the path-of-least-resistance argument in
 `ssrf-guard-spec.md` §13 — not that detachment is impossible.
 
-### 2.5 Lifecycle: single hop, not single connect
+### 2.5 Lifecycle: single-use publicly, failover internally
 
-A binding is consumed at hop boundaries. Within one hop it MAY drive several
-connect attempts, because `connect_to` does not fail over and failover MUST be
-implemented by retrying the next address from the already-validated set
-(`r-binding.md` §4.3). "Single-use" therefore means single-hop; a wall-clock
-expiry MAY be added as belt-and-braces but single-hop consumption is the control.
+- **`ssrf_fetch()` MUST invalidate the binding on entry.** A second call MUST fail
+  with an *operational* error, never a policy refusal — the caller did not violate
+  policy, they reused a spent object.
+- **Failover is not replay.** Retrying the next address from the already-validated
+  set happens *inside* one `ssrf_fetch()` call, and is required because
+  `connect_to` does not fail over (`r-binding.md` §4.3). Callers never observe it
+  as a second use.
+- **A binding captures its policy by value** at prepare time. It therefore cannot
+  be invalidated by a later policy change, because it holds no reference to one.
+- **A wall-clock expiry SHOULD be set, with a short default.** This is
+  **correctness, not security**: a stale binding still pins to an address that was
+  validated, so using one late is not a bypass. It is a surprise, because the
+  host's DNS answer may legitimately have moved since.
 
 ### 2.6 The chain
 
@@ -325,11 +364,32 @@ fail differently and MUST be separately testable.
 |---|---|---|
 | 1. Reachability | `raddr` fact | `addr_global_reachability()` is `FALSE` **or `NA`** |
 | 2. Multicast | `raddr` fact | the address is multicast |
-| 3. Range rules | caller policy | matches `deny_ranges`; `allow_ranges` never overrides (INV-14) |
-| 4. Hostname rules | caller policy | matches `deny_hosts`; `allow_hosts` never overrides (INV-14) |
+| 3. Range rules | caller policy | matches `deny_ranges` |
+| 4. Hostname rules | caller policy | matches `deny_hosts` |
 
 Gate 2 is not redundant with gate 1: "globally reachable" and "not multicast" are
 different questions, and `ff0e::` is global-scope multicast.
+
+### 5.0 Precedence is three-tier, not two **[proposed]**
+
+"Deny wins" (INV-14) presupposes that an allow match does something. It does — and
+saying only that allow never overrides deny leaves `allow_hosts` and
+`allow_ranges` operationally inert.
+
+```
+explicit deny   >   explicit allow   >   built-in classification
+```
+
+An allow rule overrides **gates 1 and 2**, the built-in facts. That is what makes
+a legitimate internal target reachable at all: `allow_ranges = "10.0.0.0/8"`
+permits an address gate 1 would refuse. An allow rule never overrides **gates 3
+and 4**, so `deny_ranges = "10.0.0.5/32"` still refuses that one host inside the
+allowed range.
+
+Without this tier the only escape from the defaults is the off switch, which is
+precisely the workaround ADR-001 §5 exists to prevent — callers with legitimate
+internal targets would discover that disabling the guard entirely is the
+documented path.
 
 Gate 4 is a permanent, first-class control, not legacy convenience. Some metadata
 services have no link-local address at all and are reached over public DNS and
@@ -386,6 +446,22 @@ reported as `cloud-metadata` while the space containing it went unblocked
 Operators receive the full factual record. Untrusted callers receive a minimized
 result.
 
+**The mechanism, since `ssrfr` cannot infer trust.** In R the caller *is* the
+application, which is the operator; there is no signal distinguishing a trusted
+caller from an untrusted one. Therefore:
+
+- `ssrfr` MUST return the full factual record to its caller.
+- `ssrfr` MUST ship a named minimizing projection — e.g.
+  `ssrf_public_reason(refusal)` — reducing a refusal to a value carrying no
+  predicate, no address, and no hop index.
+- Applying that projection at the boundary where an untrusted party receives the
+  result is the **application's** obligation, and this specification says so
+  explicitly rather than leaving it implied.
+
+Assigning projection to the application boundary *without* shipping the projection
+would guarantee that every consumer writes their own and some of them leak. That
+is the difference between a requirement and a hope.
+
 - **Shape: MUST.** Refusals MUST NOT expose which predicate fired, which address,
   or which hop to an untrusted caller.
 - **Timing: SHOULD, best-effort.** Timing uniformity is in direct conflict with
@@ -441,6 +517,8 @@ claims are unfalsifiable by anyone but their author.
 |---|---|---|
 | 1 | The refusal rule (§5) | **proposed**, awaiting ratification — `SSRF-aqrgqdhi` |
 | 2 | `raddr` ↔ published reason-code alignment (§6.3) | **blocked on verification** |
+| 2a | The request plan as an input to `prepare` (§2.3) | **proposed.** Alternative is a GET-only v1 with INV-8 narrowed to match, which §2.3 argues is not coherent once the guard owns the User-Agent. |
+| 2b | Three-tier allow/deny precedence (§5.0) | **proposed.** Alternative is removing `allow_hosts`/`allow_ranges` entirely and relying on the off switch. |
 | 3 | Whether any limit is a non-overridable floor | open — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution: a bare hostname can resolve through DNS search suffixes to something internal; a root dot defeats it but changes `Host` and SNI | open |
 | 5 | Default User-Agent | open |
@@ -473,7 +551,9 @@ and MUST be resolved in the source documents rather than left standing.
 | `ADR-001` | §7, *"`ssrfr` does not block on `raddr`"* | **Withdrawn** by §4. An accepted ADR must not be silently contradicted by a specification — this needs **ADR-002**, recording that `raddr` and `rurl` become hard dependencies, that release ordering is a submission-time scheduling concern rather than a design input, and that the `ssrf_in_cidr()` seam is therefore unnecessary. |
 | `r-binding.md` | §1 | Dependency position reversed: the offline core is no longer vendored base R. Also record the measured weights — `raddr` → `rlang`, `vctrs`; `rurl` → `stringi`, `punycoder` (Rcpp/C++), `pslr` (cpp11/C++) — which invert BRAINSTORM §8's assumption that `raddr` was the heavy one. |
 | `r-binding.md` | §2 | Add `resolve_url()` and §3.3's verified finding that `curl` cannot resolve references. |
-| `ssrf-guard-spec.md` | §2 | Add the binding to the layer model; L1 exposes no roll-up (§1.2). |
+| `ssrf-guard-spec.md` | §2 | Add the binding to the layer model; L1 exposes no roll-up (§1.2). Its L1 guarantee — *"Every address this host currently resolves to is permitted"* — is a roll-up claim and MUST be restated as *classified*, per §1 above. This document inherited the defective phrasing from there. |
+| `ssrf-guard-spec.md` | §8 | The configuration model lists `allow_hosts` and `allow_ranges` with "deny still wins" but never says what an allow match *does*, which leaves both inert. Adopt §5.0's three-tier precedence. |
+| `ssrf-guard-spec.md` | §4 INV-8 | Record that the invariant is unsatisfiable unless the request plan is part of the guarded call (§2.3). |
 | `ssrf-guard-spec.md` | §2.1 | Replace the L0 naming rationale with §1.1's: L0 is misnamed as a gate because it does not answer that question, not merely because the name is dangerous. |
 | `ssrf-guard-spec.md` | §6 | Classification delegation is concrete: `raddr`, per §4. |
 | `ssrf-guard-spec.md` | §9 | The result model is superseded by the binding model (§2). |

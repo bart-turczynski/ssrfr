@@ -26,12 +26,20 @@ but what it was faithful to is a *denylist with a default allow*, and ADR-001 §
 requires classification to gate on a positive routability predicate. Landing the
 denylist and scheduling "close the gaps" as a follow-up is the treadmill the ADR
 exists to reject — the structure was the defect, the missing ranges only its
-symptoms. Classification is spec work before it is implementation work
-(`SSRF-aqrgqdhi`, then `SSRF-sefcrgrj`).
+symptoms.
 
-Two open decisions block the v1 API freeze: component-wise vs whole-URL API
-(`SSRF-tnxmqvou`) and whether any limit is a non-overridable floor
-(`SSRF-pffrmkdr`).
+**`docs/spec/ssrfr-v1.md` answers that revert** and is now the document to read
+first. Its §4 replaces the vendored classifier with a hard dependency on `raddr`,
+which already implements the positive model. The correct response to `a978f8d` was
+never to close the denylist's gaps range by range; it was to stop having a
+vendored classifier. `SSRF-aqrgqdhi` shrinks accordingly, from "design the
+positive classification model" to "specify the mapping from `raddr` facts to
+refusals and reason codes."
+
+Still open and blocking the v1 API freeze: whether any limit is a non-overridable
+floor (`SSRF-pffrmkdr`), the refusal rule (`ssrfr-v1.md` §5, proposed but
+unratified), and `raddr` ↔ published reason-code alignment (§6.3, unverified).
+Component-wise vs whole-URL API (`SSRF-tnxmqvou`) is closed: URL string only.
 
 ## Commands
 
@@ -73,6 +81,7 @@ enforced deliberately:
 
 | Document | Role |
 |---|---|
+| `docs/spec/ssrfr-v1.md` | **Read first.** `ssrfr`'s own v1 spec: purpose, layer contracts, the guarded-hop binding primitive, URL input contract, dependency contract, refusal rule, result model. Sections are marked `[ratified]` / `[proposed]` / `[open]`; only ratified sections may be implemented against. |
 | `docs/spec/ssrf-guard-spec.md` | The normative contract. Language-agnostic: threat model, L0/L1/L2, request lifecycle, 14 invariants, reason codes, conformance. A second-language implementation shares *this*, not code. |
 | `docs/spec/r-binding.md` | R/libcurl specifics: option names, empirically verified transport constraints, the five-layer test architecture. |
 | `docs/decisions/ADR-001-network-safety-policy.md` | The policy layer. What carries over from `sitemapr` ADR-003, what is reversed, which inherited gaps are closed. |
@@ -125,11 +134,12 @@ it. The ones most likely to be violated by a plausible-looking change:
   when a pooled connection matches.
 - **INV-11** — fail closed. There is no path from "we could not determine this"
   to "proceed". An absent or `NA` host is a refusal.
-- **INV-13** — positive routability predicate, not an enumerated denylist; any
-  address form that embeds another address has the embedded value extracted and
-  classified independently. Transition embeddings (6to4, Teredo, ISATAP) are
-  **missing decoders, not missing ranges** — Teredo XORs the embedded IPv4, so no
-  range rule over the literal bits can ever see it.
+- **INV-13** — positive routability predicate, not an enumerated denylist. This is
+  now `raddr`'s job: `addr_global_reachability()` is registry-driven, returns
+  `TRUE`/`FALSE`/`NA`, and grades embeddings by their extracted address. `ssrfr`
+  MUST NOT re-extract embedded addresses — a second decoder inventory would
+  diverge, and divergence in exactly this code is the documented history of the
+  stack (`ssrfr-v1.md` §5.2).
 - **INV-14** — deny wins over allow, uniformly, with exactly one explicit,
   unmistakably named off switch.
 
@@ -149,10 +159,18 @@ classification tables; `ssrfr` owns L0/L1/L2, the reason-code vocabulary, the
 result model, and the conformance corpus; the consumer owns whether to fetch at
 all and its own `ssrf_guard = FALSE` toggle. Full table in ADR-001 §7.
 
-**`ssrfr` must not block on `raddr`.** The offline core is vendored base R with
-zero dependencies and no compile step; `raddr` later replaces the classification
-tables behind the same seam. A dependency on an unpublished package becomes
-`ssrfr`'s own CRAN blocker.
+**`ssrfr` owns no parser and no classification tables** (`ssrfr-v1.md` §4).
+`curl`, `rurl`, and `raddr` are hard dependencies; `ssrfr` consumes their facts
+and owns policy, refusal semantics, per-hop revalidation, pinning, and the
+conformance corpus. Release ordering is a submission-time scheduling concern, not
+a design input — all local versions are ahead of CRAN and expected to change.
+
+This reverses `ADR-001` §7's *"`ssrfr` does not block on `raddr`"* and the
+vendored-core position in `r-binding.md` §1. Those documents are not yet amended;
+`ssrfr-v1.md` §10 lists every contradiction and calls for **ADR-002** rather than
+silent supersession. Measured weights invert BRAINSTORM §8's assumption: `raddr`
+is `rlang` + `vctrs` with no `src/`, while `rurl` pulls `stringi` plus two
+compiled packages.
 
 ### Testing architecture (r-binding.md §7)
 

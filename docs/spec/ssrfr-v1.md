@@ -4,9 +4,11 @@
   **[open]**. Only ratified sections may be implemented against.
 - **Ratification is structural, not behavioural.** §2's primitive is ratified as a
   *shape* — the branch between refusal and binding, and what a binding carries.
-  The predicate that decides which branch is taken is **§5, which is proposed**,
-  and the codes a refusal reports are **§6.3, which is open**. L2 is therefore
-  implementable as an interface and blocked on §§5 and 6.3 for behaviour.
+  The gate set that decides which branch is taken is **§5's table, which is
+  proposed**, and the codes a refusal reports are **§6.3, which is open**. How the
+  gates combine (§5.0) and how indeterminacy is treated (§5.1) *are* ratified. L2
+  is therefore implementable as an interface, and blocked on §5's table and §6.3
+  for behaviour.
 - **Version:** `1.0.0-draft` (2026-07-31)
 - **Ticket:** `SSRF-xrlijlqq`
 
@@ -138,7 +140,7 @@ discouraged. This is the same design move as `connect_to = "HOST::IP:"`
 
 ```
 L0 / L1 inspection            → facts, no security verdict
-ssrf_prepare_hop(url, request, policy, from = NULL)
+ssrf_prepare_hop(url, request, policy, from = NULL, status = NULL)
                               → refusal  OR  opaque binding
 ssrf_fetch(binding)           → response
 ```
@@ -160,14 +162,14 @@ method, or body parameter, so there is no substitution surface.
 **Request data** — carried, not authorized:
 
 - the exact sanitized URL `ssrf_fetch()` will request, including path and query
-- the sanitized request plan: method, headers, body **[proposed]**
+- the sanitized request plan: method, headers, body
 
 Binding the full URL closes the substitution surface. The path is not an
 independently authorized network target: for `http`/`https` it cannot be one, and
 the CRLF-in-selector chain that reaches Redis is a `gopher://` property removed by
 scheme allowlisting.
 
-#### The request plan is an input to `prepare`, never to `fetch` **[proposed]**
+#### The request plan is an input to `prepare`, never to `fetch` **[ratified]**
 
 INV-8 requires dropping `Authorization`, `Cookie`, and any caller-supplied header
 or body carrying a secret on a cross-origin redirect, and SHOULD downgrade the
@@ -192,6 +194,36 @@ more force, not less.
 This does not reopen §3.1. A request plan is not URL components; the URL remains a
 single string that `ssrfr` parses.
 
+**Redirect status is an argument, because the transformation depends on it.** RFC
+9110 §15.4 makes 301/302/303 downgrade the method to GET and drop the body, while
+307/308 deliberately replay both at the new host. `prepare` cannot derive which
+applies, so `status` is required whenever `from` is non-`NULL` and MUST be absent
+when `from` is `NULL`. A first hop has no status; a redirect hop cannot lack one.
+
+**On a redirect hop the request plan is inherited, not re-supplied.** `request`
+MUST NOT be passed together with `from`. The plan comes from the previous binding
+and is transformed under `status`. This is not ergonomics: allowing a caller to
+restate the plan on a redirect hop would let them re-add the credentials the
+previous hop had just stripped, which is INV-8 defeated by the caller with no
+error raised.
+
+**Sensitivity is an allowlist of carryable headers, not a denylist of secrets.**
+`ssrfr` cannot infer which of `X-Api-Key`, `X-Internal-Token`, or `Cookie2` holds a
+secret. Therefore every caller-supplied header and the body are treated as
+sensitive and dropped cross-origin by default, and the caller MAY nominate specific
+headers as safe to carry.
+
+The inverse — metadata marking headers sensitive — inverts the failure mode:
+forgetting to mark a header leaks it silently, whereas forgetting to nominate one
+as carryable merely breaks a request, loudly. Note that "drop `Authorization` and
+`Cookie`" *is* an enumerated denylist of secrets, and the working token-replay PoC
+against the reference Ruby implementation succeeded precisely because it replayed
+body, params, and custom headers that the enumeration did not name (INV-8). The
+same argument INV-13 makes about address ranges applies to header names.
+
+Headers `ssrfr` itself owns, such as the User-Agent, are not caller-supplied and
+carry normally.
+
 ### 2.4 Opacity is ergonomic, not enforceable
 
 A binding MUST resist casual detachment: accessor discipline, a class, locked
@@ -202,7 +234,20 @@ thing becomes awkward, which is the path-of-least-resistance argument in
 
 ### 2.5 Lifecycle: single-use publicly, failover internally
 
-- **`ssrf_fetch()` MUST invalidate the binding on entry.** A second call MUST fail
+A binding has two independent capabilities, and invalidation removes only the
+first:
+
+| Capability | Meaning | Lifetime |
+|---|---|---|
+| **fetchable** | may be passed to `ssrf_fetch()` | single use |
+| **referenceable** | may be passed as `from` to describe the previous hop | the life of the redirect chain |
+
+Without that split, §2.5 and §2.6 contradict each other: a chain cannot be built
+from bindings that are destroyed by being used. A spent binding remains readable —
+it supplies the base URL, the hop index, the previous authority, and the sanitized
+plan — and carries no ability to open a connection.
+
+- **`ssrf_fetch()` MUST invalidate fetchability on entry.** A second call MUST fail
   with an *operational* error, never a policy refusal — the caller did not violate
   policy, they reused a spent object.
 - **Failover is not replay.** Retrying the next address from the already-validated
@@ -352,10 +397,11 @@ for the corpus being the contract between them, not for vendoring a worse copy.
 
 ---
 
-## 5. The refusal rule **[proposed — not ratified]**
+## 5. The refusal rule **[proposed — not ratified, except §5.0 and §5.1]**
 
-> This section records the recommended position. It is the open question the
-> design session did not close, and it is what `SSRF-aqrgqdhi` now covers.
+> The **gate set** below records the recommended position and is the open question
+> `SSRF-aqrgqdhi` covers. How the gates **combine** (§5.0) and the treatment of
+> indeterminacy (§5.1) are ratified.
 
 Four **independent** gates, not one predicate. Independence matters because they
 fail differently and MUST be separately testable.
@@ -370,26 +416,60 @@ fail differently and MUST be separately testable.
 Gate 2 is not redundant with gate 1: "globally reachable" and "not multicast" are
 different questions, and `ff0e::` is global-scope multicast.
 
-### 5.0 Precedence is three-tier, not two **[proposed]**
+### 5.0 Precedence **[ratified]**
 
-"Deny wins" (INV-14) presupposes that an allow match does something. It does — and
-saying only that allow never overrides deny leaves `allow_hosts` and
-`allow_ranges` operationally inert.
+"Deny wins" (INV-14) presupposes that an allow match does something. Stating only
+that allow never overrides deny leaves `allow_hosts` and `allow_ranges`
+operationally inert.
 
-```
-explicit deny   >   explicit allow   >   built-in classification
-```
+Precedence is four-tier and **dimension-local**: each dimension has its own
+built-in layer, and an allow rule overrides only the built-in layer of **its own**
+dimension.
 
-An allow rule overrides **gates 1 and 2**, the built-in facts. That is what makes
-a legitimate internal target reachable at all: `allow_ranges = "10.0.0.0/8"`
-permits an address gate 1 would refuse. An allow rule never overrides **gates 3
-and 4**, so `deny_ranges = "10.0.0.5/32"` still refuses that one host inside the
-allowed range.
+| Tier | Address dimension | Hostname dimension |
+|---|---|---|
+| **1. Non-overridable** | reachability `NA` (§5.1) | — |
+| **2. Caller deny** | `deny_ranges` | `deny_hosts` |
+| **3. Caller allow** | `allow_ranges` — overrides tier 4 for the matched addresses only | `allow_hosts` — overrides tier 4 for the matched name only |
+| **4. Built-in** | `addr_global_reachability()` is `FALSE`; multicast | the built-in metadata hostname list |
 
-Without this tier the only escape from the defaults is the off switch, which is
-precisely the workaround ADR-001 §5 exists to prevent — callers with legitimate
-internal targets would discover that disabling the guard entirely is the
-documented path.
+Evaluation: tier 1 refuses unconditionally; otherwise any tier-2 match refuses;
+otherwise a tier-3 match permits **within its own dimension**; otherwise tier 4
+applies. A request is permitted only when both dimensions permit.
+
+#### What this settles
+
+- **`allow_hosts = "example.com"` does NOT permit private addresses returned for
+  that name.** The dimensions are separate. A hostname allow that authorized
+  arbitrary DNS answers would convert a configuration convenience into the
+  rebinding attack surface. Reaching an internal target by name requires
+  authorizing the address as well.
+- **`allow_ranges` MAY override multicast.** Multicast is a determinate built-in
+  classification, and tier 3 overrides determinate built-ins. Carving it out would
+  add a rule with no threat behind it and would push an operator with a genuine
+  multicast target toward the off switch, which is strictly worse. *Lowest-confidence
+  call in this table; reversing it costs nothing but a line.*
+- **Neither allow rule overrides `NA`.** §5.1.
+- **Rules are not cross-dimensional.** `allow_ranges` cannot un-deny a hostname;
+  `allow_hosts` cannot un-deny an address.
+
+#### The extension worth flagging
+
+A purely dimension-local reading leaves `allow_hosts` inert after all, because the
+hostname gate as first drafted refused only on a caller `deny_hosts` match — and
+tier 3 cannot override tier 2. So there would be nothing for it to act on.
+
+It has real work because the hostname dimension has a **built-in** denial layer of
+its own: the metadata hostname list that ADR-001 §2.4 establishes as a permanent
+first-class control, needed for services like Equinix Metal and IBM VPC that have
+no link-local address at all. `allow_hosts` overrides that layer, and only that
+layer. Splitting built-in from caller-configured *within each dimension* is what
+makes the model symmetric.
+
+Consequence: in the ordinary case — `internal-api.corp` resolving to `10.0.0.5` —
+only `allow_ranges` is required, because nothing denies the name. `allow_hosts` is
+the narrow tool for when the name itself is denied by a built-in rule. Narrow is
+not inert.
 
 Gate 4 is a permanent, first-class control, not legacy convenience. Some metadata
 services have no link-local address at all and are reached over public DNS and
@@ -400,6 +480,11 @@ including a perfect one.
 
 `ssrfr` MUST refuse on `NA` regardless of `raddr`'s intent for that value
 (INV-11). There is no path from "we could not determine this" to "proceed."
+
+**No allow rule overrides this** (§5.0, tier 1). An allow rule is a statement about
+a *known* range or name; it is not a licence to permit input the classifier could
+not decode. Reading it as one would reinstate exactly the malformed-literal
+fail-open that ADR-001 §3 closed.
 
 ### 5.2 Embeddings belong to `raddr`
 
@@ -517,8 +602,9 @@ claims are unfalsifiable by anyone but their author.
 |---|---|---|
 | 1 | The refusal rule (§5) | **proposed**, awaiting ratification — `SSRF-aqrgqdhi` |
 | 2 | `raddr` ↔ published reason-code alignment (§6.3) | **blocked on verification** |
-| 2a | The request plan as an input to `prepare` (§2.3) | **proposed.** Alternative is a GET-only v1 with INV-8 narrowed to match, which §2.3 argues is not coherent once the guard owns the User-Agent. |
-| 2b | Three-tier allow/deny precedence (§5.0) | **proposed.** Alternative is removing `allow_hosts`/`allow_ranges` entirely and relying on the off switch. |
+| 2a | The request plan as an input to `prepare` (§2.3) | **closed — ratified**, with `status`, mandatory plan inheritance on redirect hops, and carryable-header nomination specified. |
+| 2b | Allow/deny precedence (§5.0) | **closed — ratified** as a four-tier, dimension-local matrix. One low-confidence call inside it: whether `allow_ranges` may override multicast. |
+| 2c | The gate set itself (§5, table) | still **proposed** — `SSRF-aqrgqdhi`. §5.0 settles how gates combine, not which gates exist. |
 | 3 | Whether any limit is a non-overridable floor | open — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution: a bare hostname can resolve through DNS search suffixes to something internal; a root dot defeats it but changes `Host` and SNI | open |
 | 5 | Default User-Agent | open |

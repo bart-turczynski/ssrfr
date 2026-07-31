@@ -638,7 +638,7 @@ and MUST be resolved in the source documents rather than left standing.
 | `r-binding.md` | §1 | Dependency position reversed: the offline core is no longer vendored base R. Also record the measured weights — `raddr` → `rlang`, `vctrs`; `rurl` → `stringi`, `punycoder` (Rcpp/C++), `pslr` (cpp11/C++) — which invert BRAINSTORM §8's assumption that `raddr` was the heavy one. |
 | `r-binding.md` | §2 | Add `resolve_url()` and §3.3's verified finding that `curl` cannot resolve references. |
 | `ssrf-guard-spec.md` | §2 | Add the binding to the layer model; L1 exposes no roll-up (§1.2). Its L1 guarantee — *"Every address this host currently resolves to is permitted"* — is a roll-up claim and MUST be restated as *classified*, per §1 above. This document inherited the defective phrasing from there. |
-| `ssrf-guard-spec.md` | §8 | The configuration model lists `allow_hosts` and `allow_ranges` with "deny still wins" but never says what an allow match *does*, which leaves both inert. Adopt §5.0's three-tier precedence. |
+| `ssrf-guard-spec.md` | §8 | The configuration model lists `allow_hosts` and `allow_ranges` with "deny still wins" but never says what an allow match *does*, which leaves both inert. Adopt §5.0's four-tier, dimension-local precedence matrix. |
 | `ssrf-guard-spec.md` | §4 INV-8 | Record that the invariant is unsatisfiable unless the request plan is part of the guarded call (§2.3). |
 | `ssrf-guard-spec.md` | §2.1 | Replace the L0 naming rationale with §1.1's: L0 is misnamed as a gate because it does not answer that question, not merely because the name is dangerous. |
 | `ssrf-guard-spec.md` | §6 | Classification delegation is concrete: `raddr`, per §4. |

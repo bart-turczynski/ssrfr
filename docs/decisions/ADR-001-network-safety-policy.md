@@ -1,6 +1,6 @@
 # ADR-001: `ssrfr` network safety policy
 
-- Status: Accepted
+- Status: Accepted; §5 and §7 partly superseded by ADR-002
 - Date: 2026-07-25
 - Deciders: Bart Turczyński
 - Supersedes: `sitemapr` `docs/decisions/ADR-003-network-safety-policy.md` §1, §4
@@ -262,6 +262,10 @@ branch on them without string matching.
 
 ### 5. Precedence is conjunctive — deny wins — with one explicit off switch
 
+> **Amended by ADR-002.** Caller deny still wins, but a caller allow rule now
+> overrides a determinate built-in refusal within the same policy dimension. The
+> global off switch is no longer the only route to an intentional exception.
+
 When an allow rule and a deny rule both match, the request is refused (INV-14).
 The alternative — allow overrides deny, so that configuring any allowlist
 silently flips the whole policy to default-deny — makes the effective policy
@@ -311,6 +315,10 @@ ceiling) is a pattern worth reusing if `ssrfr` bounds response size, and is
 noted here so the decision does not have to rediscover it.
 
 ### 7. Ownership across the four-package stack
+
+> **Amended by ADR-002.** `rurl` and `raddr` are hard dependencies. The ownership
+> table remains current; the vendored-classifier and release-order constraints
+> below are superseded.
 
 `ssrfr` sits in the middle of a four-package stack. ADR-003 §4's two-package
 table does not describe it.

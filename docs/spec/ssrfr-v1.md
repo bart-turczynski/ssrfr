@@ -18,7 +18,8 @@
 |---|---|---|
 | [`ssrf-guard-spec.md`](ssrf-guard-spec.md) | language-agnostic contract: threat model, 14 invariants, lifecycle, conformance method | **Upstream.** This document does not restate the invariants; it cites them. Where the two disagree, §10 lists the amendments that document needs. |
 | [`r-binding.md`](r-binding.md) | R/libcurl transport specifics and empirical findings | **Downstream.** Option names and verified transport behaviour stay there. |
-| [`../decisions/ADR-001-network-safety-policy.md`](../decisions/ADR-001-network-safety-policy.md) | policy lineage from `sitemapr` ADR-003 | **Partly superseded** by §4. See §10. |
+| [`../decisions/ADR-001-network-safety-policy.md`](../decisions/ADR-001-network-safety-policy.md) | policy lineage from `sitemapr` ADR-003 | **Partly superseded** by ADR-002. |
+| [`../decisions/ADR-002-v1-dependency-and-policy-model.md`](../decisions/ADR-002-v1-dependency-and-policy-model.md) | v1 dependency and exception policy | **Current.** Records the §4 dependency reversal and §5.0 precedence model. |
 
 This document is `ssrfr`'s own normative specification: what it is for, what it
 guarantees, what it depends on, and what its primitives are. RFC 2119 keywords
@@ -140,7 +141,7 @@ discouraged. This is the same design move as `connect_to = "HOST::IP:"`
 
 ```
 L0 / L1 inspection            → facts, no security verdict
-ssrf_prepare_hop(url, request, policy, from = NULL, status = NULL)
+ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
                               → refusal  OR  opaque binding
 ssrf_fetch(binding)           → response
 ```
@@ -152,7 +153,7 @@ method, or body parameter, so there is no substitution surface.
 
 **Security identity** — what was authorized:
 
-- the canonical authority: scheme, hostname, port, **excluding userinfo**
+- the canonical origin: scheme, hostname, port, **excluding userinfo**
   (INV-8 requires credentials to be droppable, so they MUST NOT be capturable in
   a binding)
 - the policy and hop context under which evaluation occurred
@@ -172,9 +173,10 @@ scheme allowlisting.
 #### The request plan is an input to `prepare`, never to `fetch` **[ratified]**
 
 INV-8 requires dropping `Authorization`, `Cookie`, and any caller-supplied header
-or body carrying a secret on a cross-origin redirect, and SHOULD downgrade the
-method to GET and drop the body on 301/302/303. **None of that is expressible if
-the binding carries only a URL** — the invariant would have nothing to act on. And
+or body carrying a secret on a cross-origin redirect. Redirect semantics also
+transform the method and body for some status/method combinations. **None of that
+is expressible if the binding carries only a URL** — the invariant would have
+nothing to act on. And
 adding headers as extra `ssrf_fetch()` arguments would recreate exactly the
 substitution surface §2.1 exists to remove.
 
@@ -194,35 +196,65 @@ more force, not less.
 This does not reopen §3.1. A request plan is not URL components; the URL remains a
 single string that `ssrfr` parses.
 
-**Redirect status is an argument, because the transformation depends on it.** RFC
-9110 §15.4 makes 301/302/303 downgrade the method to GET and drop the body, while
-307/308 deliberately replay both at the new host. `prepare` cannot derive which
-applies, so `status` is required whenever `from` is non-`NULL` and MUST be absent
-when `from` is `NULL`. A first hop has no status; a redirect hop cannot lack one.
+**Redirect status is transport-derived, not caller-asserted.** `ssrf_fetch()`
+records the transport-observed response status on the binding as it invalidates
+fetchability. On the next hop, `prepare` derives the redirect transformation from
+that recorded status. A caller-supplied `status` argument does not exist: accepting
+one would let a caller accidentally or deliberately select replay semantics that
+the response did not authorize.
 
-**On a redirect hop the request plan is inherited, not re-supplied.** `request`
-MUST NOT be passed together with `from`. The plan comes from the previous binding
-and is transformed under `status`. This is not ergonomics: allowing a caller to
+The previous binding MUST be spent, MUST record a successful HTTP response, and
+MUST record a status that `ssrfr` follows as a redirect before it is accepted as
+`from`. Passing an unspent binding, a binding whose fetch failed, or a binding
+whose response is not a followed redirect is an operational error.
+
+The deterministic v1 transformation is:
+
+| Status | Next-hop method and body |
+|---|---|
+| 301 or 302 | `POST` becomes `GET` and its body is dropped; other methods are preserved |
+| 303 | `HEAD` remains `HEAD`; every other method becomes `GET`; the body is dropped |
+| 307 or 308 | method and body are preserved, subject to the cross-origin rule below |
+
+This is the behavior `ssrfr` chooses from RFC 9110 §15.4. The RFC permits, rather
+than requires, the historical POST-to-GET transformation for 301 and 302; 307 and
+308 prohibit changing the method during automatic redirection. Whenever a method
+transformation drops the body, fields describing that body MUST also be dropped.
+
+**On a redirect hop the request plan is inherited, not re-supplied.** Exactly one
+of `request` and `from` is required. `request` supplies the first-hop plan and
+MUST NOT be passed together with `from`; `from` supplies the previous binding's
+plan and transport-observed status. This is not ergonomics: allowing a caller to
 restate the plan on a redirect hop would let them re-add the credentials the
 previous hop had just stripped, which is INV-8 defeated by the caller with no
 error raised.
 
 **Sensitivity is an allowlist of carryable headers, not a denylist of secrets.**
-`ssrfr` cannot infer which of `X-Api-Key`, `X-Internal-Token`, or `Cookie2` holds a
-secret. Therefore every caller-supplied header and the body are treated as
-sensitive and dropped cross-origin by default, and the caller MAY nominate specific
-headers as safe to carry.
+`ssrfr` cannot infer which of `X-Api-Key` or `X-Internal-Token` holds a secret.
+Therefore every caller-supplied header and the body are treated as sensitive and
+dropped cross-origin by default. The first-hop request plan MAY nominate specific
+headers as safe to carry; nomination is an explicit assertion by the application
+that the field contains no credential or origin-scoped secret.
+
+`Authorization`, `Proxy-Authorization`, and `Cookie` are permanently
+non-carryable, case-insensitively, and nomination MUST NOT override that rule. A
+body is also non-carryable across origins in v1. Transport-controlled routing
+fields, including `Host` and `Connection`, MUST NOT be accepted as caller-supplied
+headers at all. These fixed rules cover protocol-defined credentials and routing
+integrity; the carry allowlist handles unknown application fields without
+pretending that `ssrfr` can identify every secret-bearing name.
 
 The inverse — metadata marking headers sensitive — inverts the failure mode:
 forgetting to mark a header leaks it silently, whereas forgetting to nominate one
-as carryable merely breaks a request, loudly. Note that "drop `Authorization` and
-`Cookie`" *is* an enumerated denylist of secrets, and the working token-replay PoC
-against the reference Ruby implementation succeeded precisely because it replayed
-body, params, and custom headers that the enumeration did not name (INV-8). The
-same argument INV-13 makes about address ranges applies to header names.
+as carryable merely breaks a request, loudly. Relying only on "drop
+`Authorization` and `Cookie`" is an enumerated denylist of secrets, and the
+working token-replay PoC against the reference Ruby implementation succeeded
+precisely because it replayed body, params, and custom headers that the
+enumeration did not name (INV-8). The same argument INV-13 makes about address
+ranges applies to unknown application header names.
 
-Headers `ssrfr` itself owns, such as the User-Agent, are not caller-supplied and
-carry normally.
+Headers `ssrfr` defines as transport-owned and non-secret, such as the User-Agent,
+are not caller-supplied and carry normally.
 
 ### 2.4 Opacity is ergonomic, not enforceable
 
@@ -244,8 +276,9 @@ first:
 
 Without that split, §2.5 and §2.6 contradict each other: a chain cannot be built
 from bindings that are destroyed by being used. A spent binding remains readable —
-it supplies the base URL, the hop index, the previous authority, and the sanitized
-plan — and carries no ability to open a connection.
+it supplies the base URL, the hop index, the previous origin, the sanitized
+plan, and the transport-observed response status — and carries no ability to open
+a connection.
 
 - **`ssrf_fetch()` MUST invalidate fetchability on entry.** A second call MUST fail
   with an *operational* error, never a policy refusal — the caller did not violate
@@ -263,12 +296,13 @@ plan — and carries no ability to open a connection.
 
 ### 2.6 The chain
 
-`from = prev_binding` supplies three things at once:
+`from = prev_binding` supplies four things at once:
 
 1. the base URL for reference resolution (§3.2),
 2. the hop index for the redirect budget,
-3. both authorities, which is what INV-8 needs to decide whether credentials
-   cross an origin boundary.
+3. both origins, which is what INV-8 needs to decide whether credentials
+   cross an origin boundary,
+4. the transport-observed response status that determines method transformation.
 
 The first hop is the call with `from = NULL`, which requires an absolute URL.
 
@@ -403,7 +437,7 @@ for the corpus being the contract between them, not for vendoring a worse copy.
 > `SSRF-aqrgqdhi` covers. How the gates **combine** (§5.0) and the treatment of
 > indeterminacy (§5.1) are ratified.
 
-Four **independent** gates, not one predicate. Independence matters because they
+Five **independent** gates, not one predicate. Independence matters because they
 fail differently and MUST be separately testable.
 
 | Gate | Source | Refuses when |
@@ -412,6 +446,7 @@ fail differently and MUST be separately testable.
 | 2. Multicast | `raddr` fact | the address is multicast |
 | 3. Range rules | caller policy | matches `deny_ranges` |
 | 4. Hostname rules | caller policy | matches `deny_hosts` |
+| 5. Metadata hostname | built-in policy | matches the built-in metadata hostname list |
 
 Gate 2 is not redundant with gate 1: "globally reachable" and "not multicast" are
 different questions, and `ff0e::` is global-scope multicast.
@@ -444,11 +479,11 @@ applies. A request is permitted only when both dimensions permit.
   arbitrary DNS answers would convert a configuration convenience into the
   rebinding attack surface. Reaching an internal target by name requires
   authorizing the address as well.
-- **`allow_ranges` MAY override multicast.** Multicast is a determinate built-in
+- **`allow_ranges` overrides multicast.** Multicast is a determinate built-in
   classification, and tier 3 overrides determinate built-ins. Carving it out would
   add a rule with no threat behind it and would push an operator with a genuine
-  multicast target toward the off switch, which is strictly worse. *Lowest-confidence
-  call in this table; reversing it costs nothing but a line.*
+  multicast target toward the off switch, which is strictly worse. This is a MUST
+  for conforming v1 implementations, not implementation discretion.
 - **Neither allow rule overrides `NA`.** §5.1.
 - **Rules are not cross-dimensional.** `allow_ranges` cannot un-deny a hostname;
   `allow_hosts` cannot un-deny an address.
@@ -602,8 +637,8 @@ claims are unfalsifiable by anyone but their author.
 |---|---|---|
 | 1 | The refusal rule (§5) | **proposed**, awaiting ratification — `SSRF-aqrgqdhi` |
 | 2 | `raddr` ↔ published reason-code alignment (§6.3) | **blocked on verification** |
-| 2a | The request plan as an input to `prepare` (§2.3) | **closed — ratified**, with `status`, mandatory plan inheritance on redirect hops, and carryable-header nomination specified. |
-| 2b | Allow/deny precedence (§5.0) | **closed — ratified** as a four-tier, dimension-local matrix. One low-confidence call inside it: whether `allow_ranges` may override multicast. |
+| 2a | The request plan as an input to `prepare` (§2.3) | **closed — ratified**, with transport-derived redirect status, mandatory plan inheritance, and constrained carryable-header nomination. |
+| 2b | Allow/deny precedence (§5.0) | **closed — ratified** as a four-tier, dimension-local matrix; `allow_ranges` overrides determinate multicast classification. |
 | 2c | The gate set itself (§5, table) | still **proposed** — `SSRF-aqrgqdhi`. §5.0 settles how gates combine, not which gates exist. |
 | 3 | Whether any limit is a non-overridable floor | open — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution: a bare hostname can resolve through DNS search suffixes to something internal; a root dot defeats it but changes `Host` and SNI | open |
@@ -634,12 +669,12 @@ and MUST be resolved in the source documents rather than left standing.
 
 | Document | Section | Change |
 |---|---|---|
-| `ADR-001` | §7, *"`ssrfr` does not block on `raddr`"* | **Withdrawn** by §4. An accepted ADR must not be silently contradicted by a specification — this needs **ADR-002**, recording that `raddr` and `rurl` become hard dependencies, that release ordering is a submission-time scheduling concern rather than a design input, and that the `ssrf_in_cidr()` seam is therefore unnecessary. |
+| `ADR-001` | §5 and §7 | **Resolved by ADR-002.** It records the four-tier exception model and makes `raddr` and `rurl` hard dependencies; release ordering is a submission-time scheduling concern rather than a design input, and the `ssrf_in_cidr()` seam is unnecessary. |
 | `r-binding.md` | §1 | Dependency position reversed: the offline core is no longer vendored base R. Also record the measured weights — `raddr` → `rlang`, `vctrs`; `rurl` → `stringi`, `punycoder` (Rcpp/C++), `pslr` (cpp11/C++) — which invert BRAINSTORM §8's assumption that `raddr` was the heavy one. |
 | `r-binding.md` | §2 | Add `resolve_url()` and §3.3's verified finding that `curl` cannot resolve references. |
 | `ssrf-guard-spec.md` | §2 | Add the binding to the layer model; L1 exposes no roll-up (§1.2). Its L1 guarantee — *"Every address this host currently resolves to is permitted"* — is a roll-up claim and MUST be restated as *classified*, per §1 above. This document inherited the defective phrasing from there. |
-| `ssrf-guard-spec.md` | §8 | The configuration model lists `allow_hosts` and `allow_ranges` with "deny still wins" but never says what an allow match *does*, which leaves both inert. Adopt §5.0's four-tier, dimension-local precedence matrix. |
-| `ssrf-guard-spec.md` | §4 INV-8 | Record that the invariant is unsatisfiable unless the request plan is part of the guarded call (§2.3). |
+| `ssrf-guard-spec.md` | §8 | **Resolved.** The configuration model now adopts §5.0's four-tier, dimension-local precedence matrix. |
+| `ssrf-guard-spec.md` | §4 INV-8 | **Resolved.** The invariant now requires a guarded request plan, transport-derived redirect status, and the constrained cross-origin carry model (§2.3). |
 | `ssrf-guard-spec.md` | §2.1 | Replace the L0 naming rationale with §1.1's: L0 is misnamed as a gate because it does not answer that question, not merely because the name is dangerous. |
 | `ssrf-guard-spec.md` | §6 | Classification delegation is concrete: `raddr`, per §4. |
 | `ssrf-guard-spec.md` | §9 | The result model is superseded by the binding model (§2). |

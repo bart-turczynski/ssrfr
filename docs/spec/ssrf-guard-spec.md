@@ -119,7 +119,8 @@ vulnerabilities are ordering errors.
 10. CONNECT         with transport hardening per §9
 11. VERIFY          the peer is an address that was validated             (INV-5)
 12. RESPONSE        enforce size and time budgets
-13. ON 3xx          strip credentials (INV-8), then goto 1 for the new URL (INV-7)
+13. ON 3xx          record status; strip/transform the guarded plan (INV-8),
+                    then goto 1 for the new URL (INV-7)
 ```
 
 ### 3.1 Notes on ordering
@@ -285,15 +286,35 @@ On a cross-origin redirect the implementation MUST drop credential-bearing
 material: `Authorization`, `Cookie`, and any caller-supplied header or body
 carrying a secret.
 
+This invariant requires the request plan to enter the guarded operation and to
+remain bound to it. A redirect hop MUST inherit that plan; it MUST NOT accept a
+replacement plan from the caller. The redirect status that controls method and
+body transformation MUST be the status observed by the guarded transport, not a
+caller-supplied value.
+
+Because an implementation cannot infer every secret-bearing application header,
+all caller-supplied headers and the body MUST be dropped cross-origin by default.
+An application MAY explicitly nominate a header as cross-origin-safe, which is a
+declaration that the field contains no credential or origin-scoped secret.
+`Authorization`, `Proxy-Authorization`, and `Cookie` remain non-carryable under
+case-insensitive matching and MUST NOT be nominated. Bodies remain non-carryable
+across origins. Transport-controlled routing fields such as `Host` and
+`Connection` MUST NOT be accepted from the caller.
+
 **Rationale.** A working token-replay PoC was filed against the reference Ruby
 implementation, which strips `authorization` and `cookie` but replays `body`,
 `params`, and custom headers verbatim cross-origin. **[sourced]** Note the
 transport's own "don't send credentials to other hosts" flag typically covers
 only credentials the *transport* manages, not ones the caller set.
 
-**SHOULD.** Downgrade the method to GET and drop the body on 301/302/303, per RFC
-9110 §15.4. Note 307/308 deliberately replay method *and* body at the new host —
-which is precisely why the target must be revalidated first.
+**Redirect transformation.** For 301 and 302, a POST SHOULD become GET and its
+body be dropped; other methods are preserved. For 303, HEAD remains HEAD and
+every other method SHOULD become GET, with the body dropped. For 307 and 308 the
+method and body MUST be preserved, subject to the stronger cross-origin body-drop
+rule above. RFC 9110 §15.4 permits, rather than requires, the historical
+POST-to-GET behavior for 301 and 302; an implementation's deterministic choice
+MUST be documented. Whenever the body is dropped, fields describing that body
+MUST also be dropped.
 
 ---
 
@@ -519,15 +540,31 @@ bomb passes. Count bytes as they are delivered. **[sourced]**
 allow_schemes     default: http, https
 allow_ports       default: 80, 443            allowlist only, never a denylist
 deny_hosts        hostname rules (INV-13)
-allow_hosts       hostname rules; deny still wins (INV-14)
+allow_hosts       exceptions to built-in hostname refusals; caller deny still wins
 deny_ranges       additional prohibited ranges
-allow_ranges      explicit escapes; deny still wins (INV-14)
+allow_ranges      exceptions to determinate built-in address refusals; caller deny still wins
 allow_userinfo    default: false
 max_redirects     default: small; 0 MUST be supported and MUST mean "refuse any 3xx"
 connect_timeout   MUST have a finite default
 total_timeout     MUST have a finite default
 max_response_size MUST have a finite default
 ```
+
+Allow fields are exception lists, not default-deny allowlists. Precedence is
+four-tier and dimension-local:
+
+1. indeterminate address classification refuses and is non-overridable;
+2. a matching caller deny rule refuses;
+3. a matching caller allow rule overrides only a built-in refusal in the same
+   dimension;
+4. otherwise the built-in rule applies.
+
+The address dimension's built-ins are non-global reachability and multicast. The
+hostname dimension's built-in is the metadata hostname list. `allow_ranges` MUST
+override determinate multicast classification; `allow_hosts` MUST override a
+matching built-in metadata hostname. Neither has cross-dimensional effect, so a
+hostname exception cannot authorize a prohibited DNS answer. Caller deny rules
+always win over caller allow rules (INV-14).
 
 Ports MUST be an allowlist. Browser "bad port" denylists omit both Redis and
 Memcached **[sourced]**, and the reference Ruby implementation has no port

@@ -85,6 +85,7 @@ enforced deliberately:
 | `docs/spec/ssrf-guard-spec.md` | The normative contract. Language-agnostic: threat model, L0/L1/L2, request lifecycle, 14 invariants, reason codes, conformance. A second-language implementation shares *this*, not code. |
 | `docs/spec/r-binding.md` | R/libcurl specifics: option names, empirically verified transport constraints, the five-layer test architecture. |
 | `docs/decisions/ADR-001-network-safety-policy.md` | The policy layer. What carries over from `sitemapr` ADR-003, what is reversed, which inherited gaps are closed. |
+| `docs/decisions/ADR-002-v1-dependency-and-policy-model.md` | The current dependency and exception model. Makes `rurl`/`raddr` hard dependencies and amends ADR-001 §5/§7. |
 
 Keep libcurl detail out of the spec — it belongs in `r-binding.md`. ADR-001
 supersedes `sitemapr` ADR-003 §1 and §4 **for `ssrfr`'s scope only**; ADR-003
@@ -140,8 +141,9 @@ it. The ones most likely to be violated by a plausible-looking change:
   MUST NOT re-extract embedded addresses — a second decoder inventory would
   diverge, and divergence in exactly this code is the documented history of the
   stack (`ssrfr-v1.md` §5.2).
-- **INV-14** — deny wins over allow, uniformly, with exactly one explicit,
-  unmistakably named off switch.
+- **INV-14** — caller deny wins over caller allow. Allow rules are narrow,
+  dimension-local exceptions to determinate built-in refusals; they never
+  override indeterminate classification or policy in the other dimension.
 
 ### Reason codes are a public compatibility surface
 
@@ -165,12 +167,11 @@ and owns policy, refusal semantics, per-hop revalidation, pinning, and the
 conformance corpus. Release ordering is a submission-time scheduling concern, not
 a design input — all local versions are ahead of CRAN and expected to change.
 
-This reverses `ADR-001` §7's *"`ssrfr` does not block on `raddr`"* and the
-vendored-core position in `r-binding.md` §1. Those documents are not yet amended;
-`ssrfr-v1.md` §10 lists every contradiction and calls for **ADR-002** rather than
-silent supersession. Measured weights invert BRAINSTORM §8's assumption: `raddr`
-is `rlang` + `vctrs` with no `src/`, while `rurl` pulls `stringi` plus two
-compiled packages.
+ADR-002 records the reversal of ADR-001 §7's *"`ssrfr` does not block on
+`raddr`"* and its §5 precedence model. `r-binding.md` §1 still needs its
+consequential amendment; `ssrfr-v1.md` §10 tracks remaining document alignment.
+Measured weights invert BRAINSTORM §8's assumption: `raddr` is `rlang` + `vctrs`
+with no `src/`, while `rurl` pulls `stringi` plus two compiled packages.
 
 ### Testing architecture (r-binding.md §7)
 

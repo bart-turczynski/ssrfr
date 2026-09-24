@@ -739,13 +739,22 @@ not decode. Reading it as one would reinstate exactly the malformed-literal
 fail-open that ADR 0001 §3 closed.
 
 *Consequence, recorded 2026-09-24:* `raddr` maps IANA's "Globally Reachable: N/A"
-to `NA`. Every 6to4 (`2002::/16`) and Teredo (`2001::/32`) address therefore
-refuses at tier 1, whatever it wraps — `2002:808:808::1`, the 6to4 image of
-`8.8.8.8`, included — as does `192.88.99.0/24` **[verified]** (evidence script,
-block 2). No allow rule can reach them. That follows from the ratified rule, and
-it costs little: neither prefix is a direct HTTP destination (the 6to4 V4ADDR is the encapsulating router; Teredo
-carries separate server and client fields), and "not applicable" gives no basis
-to proceed. The reason codes are `6to4` and `teredo` (§6.5).
+to `NA`, with no argument that changes it. Four registry blocks carry it: 6to4
+`2002::/16`, Teredo `2001::/32`, and the deprecated `192.88.99.0/24` and ORCHID
+`2001:10::/28` **[verified]** (evidence script, block 2). Every 6to4 and Teredo
+address therefore refuses at tier 1, whatever it wraps — `2002:808:808::1`, the
+6to4 image of `8.8.8.8`, included — and no allow rule can reach them.
+
+`raddr` does not mean the two `N/A`s the same way. For 6to4 it documents "the
+embedded v4 decides" and answers that question on the embedding row
+(`addr_global_reachability(addr_embeddings(x)[[1]])` is `TRUE` for
+`2002:808:808::1`). For Teredo, relay advertisement is per-deployment and no bits
+in the address answer it (`raddr` `R/transition.R`). Refusing both anyway follows
+from this ratified section, and it costs little: neither prefix is a direct HTTP
+destination (the 6to4 V4ADDR is the encapsulating router; Teredo carries
+separate server and client fields). Grading 6to4 by its embedding instead would
+mean amending §5.1 (`SSRF-foggmyfe`). The reason codes are `6to4` and `teredo`
+(§6.5).
 
 ### 5.2 Embeddings belong to `raddr`
 

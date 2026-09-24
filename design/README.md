@@ -16,6 +16,8 @@ Design docs never live in `docs/`, which belongs to pkgdown.
   [`adr/0000-template.md`](adr/0000-template.md).
 - [`evidence/`](evidence/) — probe scripts that reproduce `[verified]` claims.
   Name them `YYYY-MM-DD-topic.R` and record the environment in the header.
+- [`references.md`](references.md) — pinned source URLs for `[sourced]` claims,
+  keyed by spec section. Non-normative.
 
 See also [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the structural map.
 

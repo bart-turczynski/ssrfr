@@ -1,14 +1,21 @@
 Package: ssrfr
 Type: Package
-Title: One Line Description in Title Case
+Title: Server-Side Request Forgery Guard for Outbound Requests
 Version: 0.0.0.9000
 Authors@R:
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: A single paragraph describing what the package does and why it is
-    useful. End the description with a full stop. Replace this placeholder text
-    before submitting to CRAN.
+    person("Bart", "Turczynski", email = "bartek@turczynski.pl", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-8788-7980"))
+Description: Protects R applications that fetch URLs an attacker can
+    influence from server-side request forgery. Each redirect hop is parsed
+    once, resolved once, and every resolved address is classified before the
+    connection is pinned to a validated address, so a hostname cannot be
+    rebound between check and connect. Refusals carry stable reason codes.
+    Under development; the design is documented but not yet implemented.
 License: MIT + file LICENSE
+URL: https://gitlab.com/bart-turczynski/ssrfr
+BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
 Encoding: UTF-8
+Language: en-US
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Depends:

@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-07-25
+tracking: SSRF-qenuhetw
+---
+
 # ADR-001: `ssrfr` network safety policy
 
 - Status: Accepted; §2, §5 and §7 partly superseded by ADR-002

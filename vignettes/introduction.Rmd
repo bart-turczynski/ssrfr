@@ -18,8 +18,12 @@ knitr::opts_chunk$set(
 library(ssrfr)
 ```
 
-Replace this vignette with a real introduction to your package: what it does,
-the problem it solves, and a worked example or two.
+`ssrfr` is in its design phase and exports no guard functions yet. The
+contract it will implement is `design/specs/ssrfr-v1.md` in the source
+repository. This vignette will show a guarded fetch and a caller-owned redirect
+loop once `ssrf_prepare_hop()` and `ssrf_fetch()` exist.
+
+For now the package exports only a placeholder:
 
 ```{r}
 scaffold_ready()

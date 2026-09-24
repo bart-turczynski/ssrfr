@@ -1,65 +1,141 @@
+---
+status: draft
+version: 0.2.0-draft
+date: 2026-09-24
+tracking: SSRF-ibxdyzcy
+---
+
 # `ssrfr` — R binding notes
 
-- **Status:** DRAFT. Companion to `ssrf-guard-spec.md`; that document is
-  language-agnostic, this one is R- and libcurl-specific.
-- **Version:** `0.1.0-draft` (2026-07-25)
-- **Environment for all [verified] claims:** R 4.6.0, `curl` 7.1.0,
-  libcurl 8.14.1 (LibreSSL 3.3.6), macOS / Darwin 25.4.0. **Single platform —
-  Linux and Windows confirmation is outstanding.**
+Evidence, not policy. This file records how each requirement in
+[`ssrfr-v1.md`](ssrfr-v1.md) is met in R and libcurl, and the empirical findings
+that constrain the implementation. Where it and the spec disagree, the spec wins
+and this file has a defect.
 
-This document says how each requirement in the specification is met in R, and
-records the empirical findings that constrain the implementation.
+**Environments for [verified] claims.** Single platform; Linux and Windows
+confirmation is outstanding (`ssrfr-v1.md` §8 item 6).
+
+| Date | Environment | Evidence |
+|---|---|---|
+| 2026-07-25 | R 4.6.0, `curl` 7.1.0, libcurl 8.14.1 (LibreSSL 3.3.6), macOS / Darwin 25.4.0 | `_scratch/research/00b-local-empirical.md` (uncommitted) |
+| 2026-09-24 | R 4.6.0, `curl` 8.0.0, libcurl 8.14.1 (LibreSSL 3.3.6, IDN off), `rurl` 3.0.1.9000, `raddr` 0.1.2.9000, macOS / Darwin 25.6.0 | [`../evidence/2026-09-24-dependency-probes.R`](../evidence/2026-09-24-dependency-probes.R) |
 
 ---
 
 ## 1. Dependency position
 
 ```
-ssrfr  ->  raddr   IP parse + classify, offline        (spec §6)
-       ->  rurl    URL parse/normalize, whatwg mode    (spec INV-1)
-       ->  curl    transport
+ssrfr  ->  raddr   address parse + classify, offline       (spec §5)
+       ->  rurl    URL parse, reference resolution, IDNA    (spec §3, §4)
+       ->  curl    transport, and libcurl's own URL parse   (spec §4.1, INV-1)
 ```
 
-The offline core is vendored base R initially — zero dependencies, no compile
-step — so `raddr` upgrades the classification tables later rather than blocking
-the start. The pitch is a small auditable trust boundary; adding seven transitive
-dependencies plus a compile step for classification would undercut it.
+All three are hard dependencies (ADR 0002). The July plan to start with a
+vendored, zero-dependency base-R core and adopt `raddr` later is withdrawn, and
+with it the release-order hazard: `rurl` 3.0.1 (2026-09-09) and `raddr` 0.1.2
+(2026-09-21) are both on CRAN **[verified]**.
 
-**Release-order hazard.** If `ssrfr` depends on `rurl` it inherits `rurl`'s
-CRAN-publication status as a blocker, and if published consumers then depend on
-`ssrfr` the chain lengthens rather than shortens. This is why the extraction
-tickets say keep the existing copies for now.
+Measured transitive weight: `raddr` → `rlang`, `vctrs`; `rurl` → `stringi`,
+`punycoder` (Rcpp, C++), `pslr` (cpp11, C++, also `digest`). `rurl` is the heavy
+one, which inverts the July assumption. `rurl` no longer imports `curl` (§2).
 
 ---
 
 ## 2. Parsing — INV-1, INV-2
 
+### 2.1 What changed in `rurl` 3.0
+
+Until `rurl` 3.0.0 its `whatwg` mode handed `http`/`https` to
+`curl::curl_parse_url()`, and ssrfr's INV-1 argument rested on that. **`rurl`
+3.0.0 removed `curl` from its imports and parses those schemes in-tree**
+(`rurl/R/parse-web.R`) **[verified]**. The swap was checked against
+`curl_parse_url()` on 106,898 inputs with zero component differences at the time;
+`rurl`'s own source notes that its serialized `url` field differs from libcurl's
+re-serialization in about 20% of a 53k corpus. The July result — 16/16 agreement
+with what libcurl dials across the obfuscation corpus, including
+`010.0.0.1 → 8.0.0.1` — predates the change. `rurl` still normalizes the same
+way on its side (`0177.0.0.1`, `0x7f.1`, `2130706433`, `127.1` → `127.0.0.1`;
+`010.0.0.1` → `8.0.0.1`) **[verified]**; the libcurl dial side was not re-run.
+
+The spec suspends its old INV-1 argument and proposes libcurl's own parse as the
+pin host (`ssrfr-v1.md` §4.1–§4.2). The R mechanics for that proposal:
+
 ```r
-parsed <- rurl::safe_parse_url(url, url_standard = "whatwg")
+v    <- rurl::get_parse_verdicts(url, url_standard = "whatwg")   # gate
+p    <- rurl::safe_parse_url(url, url_standard = "whatwg",
+                             host_encoding = "idna")              # A-label host
+wire <- serialized_sanitized_url                                 # what libcurl gets
+host <- curl::curl_parse_url(wire)$host                          # the pin key
 ```
 
-`url_standard` is **fixed internally and MUST NOT be exposed**. `rurl` is built
-on `curl_parse_url`, so `whatwg` mode agrees with what libcurl dials — 16/16
-across the obfuscation corpus **[verified]**, including `010.0.0.1 → 8.0.0.1`.
-The agreement is architectural, not luck, which is the whole basis of INV-1.
+`url_standard` is **fixed internally and MUST NOT be exposed**. Since `rurl`
+3.0.0 it is required, not defaulted.
+
+### 2.2 The gate is the layered verdict, not `parse_status`
+
+**[verified]** `parse_status` carries Public Suffix List annotations as well as
+syntax: `internal-api.corp` returns `warning-invalid-tld` and `localhost`
+returns `warning-no-tld`. Blocking on `parse_status != "ok"` would refuse the
+internal hosts `allow_ranges` exists to reach. `get_parse_verdicts()` separates
+the layers. The resulting codes are `ssrfr-v1.md` §6.5's mapping:
+
+| Column | Blocks when | Code |
+|---|---|---|
+| `layer1_syntax_verdict` | `"fail"` | `parse` |
+| `layer2_policy_verdict` | anything but `"admitted"` (e.g. `"rejected-scheme"` for `gopher:`) | `scheme` |
+| `layer3_annotation_state` | never — PSL annotation only | — |
 
 `rfc3986` mode returns the **un-normalized** host (`0177.0.0.1` stays literal),
 and that string is what reproduces the silent bypass. It is correct for its own
 purpose and unsafe for this one.
 
-`parse_status != "ok"` is a **block** (INV-2). Under `rfc3986` the same inputs
-return a warning plus a usable reg-name; that path MUST NOT be accepted.
+### 2.3 Host handling details **[verified]**
 
-**Never parse addresses with `ipaddress`.** **[verified]**
-`ip_address("0177.0.0.1")` returns `177.0.0.1`, which classifies as global, so
-the guard allows — and curl connects to `127.0.0.1`. Confirmed end to end:
-`curl -v http://0177.0.0.1/` → `Trying 127.0.0.1:80`. Classification-only use is
-acceptable; parsing is not.
+- **IDN.** libcurl's IDN support is build-optional and is off in the 2026-09-24
+  build: `curl_parse_url("http://bücher.example/")` returns the U-label unchanged.
+  `rurl`'s default `host_encoding = "keep"` also returns U-labels. Pass
+  `host_encoding = "idna"` and hand libcurl the A-label URL.
+- **IPv6 spelling.** `curl_parse_url()` now compresses `fd00:0ec2::254` to
+  `[fd00:ec2::254]` (the July note said it did not); it leaves
+  `[::ffff:127.0.0.1]` unconverted, where `rurl` gives `[::ffff:7f00:1]`.
+  Compare addresses as `raddr` values, never as strings.
+- **Brackets.** Both parsers keep IPv6 brackets. `raddr::addr_whatwg("[::1]")`
+  silently returns `NA`, so strip brackets, and only when the host type is IPv6.
+- **Trailing root dot.** Both keep it; hostname matching strips one
+  (`ssrfr-v1.md` §5.0).
+- **Scalar vs vector.** `safe_parse_url()` is scalar; vectors need
+  `safe_parse_urls()`.
+- **Userinfo.** Exposed as the `user` and `password` columns plus the
+  `invalid-credentials` diagnostic. `credential_handling = "reject"` only affects
+  the cleaned URL; `parse_status` stays `ok`. Userinfo refusal is ssrfr's step 4.
+- **Numeric literals.** `rurl` reports the shape (`ipv4-octal`,
+  `ipv4-non-dotted`, `ipv4-short-form`, `ipv4-non-decimal`, `ipv4-leading-zero`,
+  …) as diagnostics, which can drive the published `numeric-literal` code without
+  a separate raw-host argument. The inherited signature's vestigial `is_ip_host`
+  argument is dropped (ADR 0001 §2.4).
 
-**Dual-host requirement.** The numeric-literal check (`numeric-literal`) runs on
-the **pre-normalization** host while range checks run on the normalized one. The
-L0 entry point therefore takes both, and the inherited signature's vestigial
-`is_ip_host` argument (accepted and explicitly ignored) is dropped.
+### 2.4 Reference resolution
+
+`curl` cannot resolve a relative reference: `curl_modify_url()` substitutes
+components without merging dot segments, and `curl_parse_url()` rejects a bare
+relative reference **[verified]**. `rurl::resolve_url()` performs the RFC 3986
+§5.2 merge, and since 3.0.0 parses the reference under the selected standard
+first, so `//evil.example/x` resolves to `http://evil.example/x`. The merged URL
+is then re-parsed like any other input (`ssrfr-v1.md` §3.2–§3.3).
+
+### 2.5 Never parse addresses with `ipaddress`
+
+**[verified]** `ip_address("0177.0.0.1")` returns `177.0.0.1`, which classifies
+as global, so the guard allows — and curl connects to `127.0.0.1`. Confirmed end
+to end: `curl -v http://0177.0.0.1/` → `Trying 127.0.0.1:80`.
+
+### 2.6 `raddr` needs a reading
+
+`raddr` classifies a `raddr_address`, not a string or a four-reading
+`raddr_parse`. Resolved addresses from `nslookup()` are canonical text: parse them
+with `addr_pton()`. Host literals come from libcurl's parse and are parsed the same
+way after bracket stripping. `raddr::addr_curl()` is not a substitute for the URL
+parse: `rurl`'s ADR 0018 measured it regressing 7 of 18 hosts.
 
 ---
 
@@ -69,17 +145,23 @@ L0 entry point therefore takes both, and the inherited signature's vestigial
 addrs <- curl::nslookup(host, ipv4_only = FALSE, multiple = TRUE)
 ```
 
-`multiple = TRUE` returns **all** A/AAAA records **[verified]** (`localhost` →
-`::1`, `127.0.0.1`). Validating only the first is the classic bug.
+`multiple = TRUE` returns every address the system resolver call yields
+**[verified]** (`localhost` → `::1`, `127.0.0.1`). That set is shaped by the hosts
+file, the name-service configuration and address-selection filtering; it is the
+set the guard validates and the only set the pin draws from (INV-4).
 
 Called through a **3-line internal, unexported wrapper** so tests can mock the
-seam (§7). There MUST be **no public resolver argument** — an attacker-supplied
-resolver would defeat the guard, and R's mocking facilities need no public seam.
+seam (§7). There is **no public resolver argument** (`ssrfr-v1.md` INV-5); R's
+mocking facilities need no public seam.
+
+`nslookup()` takes no timeout argument and blocks in the system resolver
+**[assumption]**. `total_timeout` therefore cannot bound resolution unless the
+implementation finds a way to; this is part of `ssrfr-v1.md` §8 item 3.
 
 **`dns_servers` is listed by `curl_options()` but FAILS at `setopt`**
 **[verified]** — it requires a c-ares build. Do not design around it. This also
 means the guard cannot pin its own resolver, so a compromised system resolver is
-out of scope (spec §1.2).
+out of scope (spec §11.2).
 
 ---
 
@@ -127,6 +209,12 @@ connect_to = "h.invalid::127.0.0.1:"     # request :8080 -> Trying 127.0.0.1:808
 
 Always emit the trailing colon: `"HOST::IP:80"` silently rewrites the port too.
 
+The `HOST` field is matched against libcurl's own parse of the request URL. A
+host key that differs from it — a U-label where libcurl holds an A-label, a
+different IPv6 spelling — disengages the pin the same way a port mismatch does
+**[assumption]**, by analogy with the verified port case. This is why the spec
+proposes taking the key from `curl_parse_url()` (`ssrfr-v1.md` §4.2).
+
 ### 4.3 Failover
 
 `connect_to` does not fail over, so failover is implemented in R by retrying with
@@ -144,7 +232,7 @@ IPv6 pinning with a bracketed literal (`"HOST::[::1]:"`) is **unverified**, and
 
 ---
 
-## 5. Handle configuration — spec §7
+## 5. Handle configuration — spec §14
 
 | Option | Value | Requirement met |
 |---|---|---|
@@ -194,7 +282,7 @@ present and libcurl percent-decodes the gopher selector, so `%0d%0a` becomes rea
 CRLF — the SSRF→Redis-RCE chain, live in R today.
 
 Base `download.file()` and `url()` cannot be guarded by this package; document
-them as dangerous primitives (spec §13).
+them as dangerous primitives (spec §9).
 
 ---
 
@@ -225,10 +313,11 @@ verification requirement and the offline pinning proofs in §7.
 > something unsafe.
 
 The trace is human-readable diagnostic output, not an API, so its stability
-across libcurl versions and platforms is **unverified**. Any matching MUST fail
-safe: absence of an expected line is not evidence of a correct connection. Prefer
-confirming the address we pinned appears over extracting an arbitrary address
-from prose.
+across libcurl versions and platforms is **unverified**. Matching MUST fail safe:
+absence of an expected line, or a line that cannot be read, is the operational
+cause `pin-mismatch` (`ssrfr-v1.md` §6.6), never evidence of a correct
+connection. Prefer confirming the address we pinned appears over extracting an
+arbitrary address from prose.
 
 **Not settable** (fail with "unknown or unsupported type") **[verified]**:
 `prereqfunction`, `opensocketfunction`, `sockoptfunction`. The last of these is
@@ -240,7 +329,8 @@ R would mean C code in `ssrfr` linking libcurl — the coupling that killed
 
 ## 7. Testing architecture
 
-Five layers. Demonstrated working in a throwaway package: 9/9 expectations pass.
+These L0–L4 are **test layers**, not the guard layers of the spec. Demonstrated
+working in a throwaway package: 9/9 expectations pass.
 
 | Layer | Technique | CRAN |
 |---|---|---|
@@ -258,6 +348,14 @@ negative control is free. Confirmed by the inverse: pinning a `.invalid` host ov
 HTTPS fails with `no alternative certificate subject name matches`, which is also
 an independent demonstration of INV-9 (verification stays bound to the hostname).
 
+### Getting past the guard's own loopback refusal
+
+The policy refuses loopback, so an L2 test that goes through `ssrf_prepare_hop()`
+reaches a `webfakes` app only with `allow_ranges` covering `127.0.0.0/8` — which
+also exercises tier 3 of `ssrfr-v1.md` §5.0. Tests of the transport itself call
+the internal fetch below the policy. `linklint` hit the same problem and splits
+its live tests the same way (`node-transport-live.test.ts`).
+
 ### Rules
 
 - **No public `resolver` argument, ever.** `local_mocked_bindings()` needs no
@@ -266,6 +364,12 @@ an independent demonstration of INV-9 (verification stays bound to the hostname)
   outside the namespace.
 - Port the inherited IPv6 **spelling tables** for INV-3 verbatim; they already
   encode the two production bugs.
+- **Proxy isolation (INV-10):** point every proxy variable at a dead loopback
+  port, so a leak fails at once with a refused connection instead of racing a
+  timeout; test anything read once at startup in a child R process
+  (`callr`). Pattern from `linklint`'s `proxy-isolation-harness.ts`.
+- **`Alt-Svc` (INV-10):** serve an `Alt-Svc` header and assert it causes no
+  resolution, connection or request on the next hop.
 
 ### Hard limits
 
@@ -280,19 +384,19 @@ an independent demonstration of INV-9 (verification stays bound to the hostname)
 
 ## 8. Consumers
 
-| Package | Status |
+| Package | Status (2026-09-24) |
 |---|---|
-| `robotstxtr` | vendored copy of the matcher; extraction ticket open; publishes the reason-code values in its reference docs |
-| `sitemapr` | vendored twin; owns the policy ADR |
+| `robotstxtr` | vendored matcher in `R/ssrf.R`, fetches with `httr2`; publishes the 17 reason codes in `ssrfr-v1.md` §6.5; extraction ticket `ROBO-mgumaoyf` closed with a pointer to `ssrfr`; no ticket tracks adopting `ssrfr` |
+| `sitemapr` | vendored twin in `R/ssrf.R`, `httr2`; owns ADR-003, which it amended on 2026-07-25 to fail closed on malformed literals and to cover the three transition embeddings; `SITE-yeozymry` closed the same way |
 | `mcptools` (Posit) | ships a guard it self-describes as "literal-only block, not a DNS-rebinding defense" — prospective consumer |
 
-Both existing consumers call the guard **once per redirect hop from their own
-loop**, and both are `R CMD check`-clean offline. That forces the L0/L1/L2
-layering and confirms spec §2.2: the guard must support being called per hop by
-someone else's loop.
+Neither existing consumer depends on `raddr` or `ssrfr`. Both call the guard
+**once per redirect hop from their own loop**, and both are `R CMD check`-clean
+offline. That forces the L0/L1/L2 layering and confirms the spec's §1.3: the guard
+must support being called per hop by someone else's loop.
 
 Both also ship a caller-side `ssrf_guard = FALSE` toggle, which is the precedent
-for spec INV-14's explicit off switch.
+for INV-14's explicit off switch.
 
 Positioning: `firesafety` (Posit) is the inbound web-security half for `fiery`.
 `ssrfr` is the outbound half. Non-competing, and the cleanest available anchor.
@@ -301,13 +405,16 @@ Positioning: `firesafety` (Posit) is the inbound web-security half for `fiery`.
 
 ## 9. Reproduction
 
-Probes for every **[verified]** claim above:
+Dependency facts dated 2026-09-24: run
+[`../evidence/2026-09-24-dependency-probes.R`](../evidence/2026-09-24-dependency-probes.R).
+
+Transport probes from July, not yet committed (`ssrfr-v1.md` §7.1):
 
 ```r
 # settable options
 o <- curl::curl_options(); c("resolve","connect_to","dns_cache_timeout") %in% names(o)
 
-# all A/AAAA records
+# all A/AAAA records the resolver returns
 curl::nslookup("localhost", ipv4_only = FALSE, multiple = TRUE)
 
 # protocol list

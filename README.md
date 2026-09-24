@@ -1,6 +1,23 @@
 # ssrfr
 
-One-sentence package purpose goes here.
+Server-side request forgery (SSRF) protection for R applications that fetch URLs
+an attacker can influence: `plumber` endpoints, Shiny apps, webhook receivers,
+crawlers following redirects.
+
+**Status: design phase.** There is no usable API yet. The contract is
+[`design/specs/ssrfr-v1.md`](design/specs/ssrfr-v1.md); its §8 lists what is
+still undecided. [`ARCHITECTURE.md`](ARCHITECTURE.md) is the map.
+
+The planned shape: `ssrf_prepare_hop()` parses a URL, resolves it once,
+classifies every address, and returns either a refusal with a stable reason code
+or an opaque binding; `ssrf_fetch(binding)` connects only to the validated,
+pinned address. Callers with their own redirect loops call it once per hop.
+Parsing comes from [`rurl`](https://gitlab.com/bart-turczynski/rurl) and libcurl,
+address classification from [`raddr`](https://gitlab.com/bart-turczynski/raddr).
+
+`ssrfr` is defense in depth. It does not replace egress firewalls or network
+isolation, and it cannot protect code that fetches through R's unguarded
+primitives (`download.file()`, `url()`, direct `curl` or `httr2` calls).
 
 ## Setup
 
@@ -15,10 +32,11 @@ Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
 
 ```sh
 Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }' && Rscript -e 'rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+python3 scripts/check-design.py
 ```
 
 `R CMD check` runs the testthat and cucumber specs, so the behaviour specs are
-verified as part of the check.
+verified as part of the check. Both commands run as pre-push hooks.
 
 ## Project Layout
 
@@ -28,5 +46,6 @@ verified as part of the check.
 - `tests/testthat/` contains testthat tests and the cucumber feature specs.
 - `vignettes/` contains long-form documentation.
 - `DESCRIPTION` declares package metadata and dependencies.
-- `docs/architecture.md` contains durable project context.
+- `design/` contains the specification, ADRs and committed evidence; `ARCHITECTURE.md` maps them.
+- `docs/` is reserved for pkgdown output.
 - `_scratch/` is local-only planning space and is ignored by git.

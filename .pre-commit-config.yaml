@@ -16,6 +16,15 @@ repos:
       - id: check-case-conflict
   - repo: local
     hooks:
+      # Design-doc hygiene: frontmatter, frozen accepted ADRs, ARCHITECTURE.md
+      # naming every source directory. Copied from seor; stdlib only.
+      - id: check-design
+        name: design-doc hygiene
+        entry: python3 scripts/check-design.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       - id: verify
         name: verify (mirrors CI)
         entry: Rscript -e

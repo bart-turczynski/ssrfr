@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-07-31
+tracking: SSRF-xrlijlqq
+---
+
 # ADR-002: v1 dependency and policy model
 
 - Status: Accepted

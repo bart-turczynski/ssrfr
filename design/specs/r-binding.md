@@ -174,14 +174,17 @@ Both preserve the hostname for TLS and `Host`. They fail differently.
 | Property | `resolve` | `connect_to` |
 |---|---|---|
 | Multi-address failover in one entry | yes **[verified]** | no — first match wins **[verified]** |
-| Survives connection reuse | **no** | yes |
+| Survives connection reuse | **no** **[verified]** | yes **[verified]** |
 | Port-key mismatch | fails open **[verified]** | fails open **[verified]** |
 | Empty-field wildcard form | — | yes **[verified]** |
 
 libcurl's connection-reuse check runs *before* DNS and is hostname-based; only
 `CONNECT_TO` creates the peer record that check compares. **A `resolve` pin is
 never consulted when a pooled connection matches** — a silent bypass on the second
-request to a host. (Established by reading `lib/url.c`; reproduction outstanding.)
+request to a host, even from a fresh handle, because R's `curl` shares one
+connection pool across synchronous fetches. **[verified]** on the R build
+(libcurl 8.14.1, LibreSSL), macOS only; `forbid_reuse` closes it. The
+`lib/url.c` reading behind it was done at tag `curl-8_14_1`.
 
 ### 4.2 The fail-open, and the form that removes it
 
@@ -219,9 +222,10 @@ proposes taking the key from `curl_parse_url()` (`ssrfr-v1.md` §4.2).
 
 `connect_to` does not fail over, so failover is implemented in R by retrying with
 the next address from the already-validated set. We own the redirect loop anyway,
-so a per-address retry costs little. This matters: the reference Ruby
-implementation pinned one *randomly sampled* address with no fallback and broke
-~60% of dual-stack fetches from IPv4-only networks.
+so a per-address retry costs little. This matters: through 1.5.0 the reference
+Ruby implementation pinned one *randomly sampled* address with no fallback, and a
+user measured ~60% of dual-stack fetches failing from an IPv4-only host. 1.6.0
+(September 2026) retries the other validated addresses.
 
 `dns_shuffle_addresses` stays off so ordering remains ours.
 
@@ -274,8 +278,10 @@ Ubuntu 22.04 or Rocky 9, the floor becomes 7.85.
 - **`unrestricted_auth = 0` covers libcurl's own auth only**, not
   caller-supplied `Authorization` headers or bodies. INV-8 must be implemented in
   our redirect loop.
-- **`maxfilesize` is advisory**: a no-op without `Content-Length`, and measured on
-  wire bytes so a compressed bomb passes. A real cap needs a write-callback byte
+- **`maxfilesize` is advisory**: before libcurl 8.4.0 it is a no-op without
+  `Content-Length`; from 8.4.0 it also aborts a transfer mid-stream
+  (**[verified]** on 8.14.1 with a chunked response, §9). Either way it counts
+  wire bytes, so a compressed bomb passes. A real cap needs a write-callback byte
   counter.
 - **`redir_protocols_str` is less load-bearing than it looks**: libcurl already
   restricts redirect hops to `http https ftp ftps` **[verified]**, so
@@ -334,9 +340,11 @@ connection. Prefer confirming the address we pinned appears over extracting an
 arbitrary address from prose.
 
 **Not settable** (fail with "unknown or unsupported type") **[verified]**:
-`prereqfunction`, `opensocketfunction`, `sockoptfunction`. The last of these is
-what `safeurl-python` uses via pycurl to validate at socket open; reaching it from
-R would mean C code in `ssrfr` linking libcurl — the coupling that killed
+`prereqfunction`, `opensocketfunction`, `sockoptfunction`. `opensocketfunction`
+is what `safeurl-python` uses via pycurl to validate at socket open, and
+`prereqfunction` is the one that also sees reused connections, after connect and
+before the request. `sockoptfunction` never sees the address. Reaching either
+from R would mean C code in `ssrfr` linking libcurl — the coupling that killed
 `advocate`. Escalation path, not a plan.
 
 ---

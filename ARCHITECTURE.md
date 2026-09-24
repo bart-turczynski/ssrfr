@@ -1,15 +1,70 @@
 # Architecture
 
-This document captures durable project context, constraints, and design decisions that should survive beyond temporary planning notes.
+`ssrfr` is an SSRF guard for R applications that fetch URLs an attacker can
+influence: `plumber` endpoints, Shiny apps, webhook receivers, crawlers. It is in
+its design phase. `R/` holds only the scaffold's placeholder function; nothing
+described below is implemented yet.
 
-## Documents
+## Where the design lives
 
 | Path | Role |
 |---|---|
-| [`spec/ssrf-guard-spec.md`](spec/ssrf-guard-spec.md) | The normative contract. Language-agnostic: threat model, L0/L1/L2 layers, request lifecycle, 14 invariants, reason codes, conformance. A second-language implementation shares this, not code. |
-| [`spec/ssrfr-v1.md`](spec/ssrfr-v1.md) | `ssrfr`'s own v1 specification: purpose, layer contracts, the guarded-hop binding primitive, URL input contract, dependency contract, refusal rule, result model. §10 lists the amendments it requires in the documents below. |
-| [`spec/r-binding.md`](spec/r-binding.md) | R/libcurl specifics: transport option names, empirically verified constraints, test architecture. |
-| [`decisions/ADR-001-network-safety-policy.md`](decisions/ADR-001-network-safety-policy.md) | The policy layer. What carries over from `sitemapr` ADR-003, what is reversed, and which inherited gaps are closed. |
-| [`decisions/ADR-002-v1-dependency-and-policy-model.md`](decisions/ADR-002-v1-dependency-and-policy-model.md) | The current dependency and exception model. Makes `rurl`/`raddr` hard dependencies and amends ADR-001's allow/built-in precedence. |
+| [`design/specs/ssrfr-v1.md`](design/specs/ssrfr-v1.md) | **The contract**, and the only normative document: purpose, guard layers, the guarded-hop binding, input and dependency contracts, refusal rule, reason codes, conformance (Part I); threat model, lifecycle, invariants INV-1 to INV-14, transport requirements (Part II). §8 lists the open decisions. |
+| [`design/specs/r-binding.md`](design/specs/r-binding.md) | R and libcurl evidence: option names, verified transport behaviour, test layers L0–L4. No policy of its own. |
+| [`design/adr/`](design/adr/) | Why. 0001 network-safety policy lineage, 0002 dependency and precedence model, 0003 the single-spec layout and what 0001/0002 no longer get right. Accepted ADRs are frozen. |
+| [`design/evidence/`](design/evidence/) | Committed probe scripts behind `[verified]` claims from 2026-09-24 on. |
+| [`design/README.md`](design/README.md) | The lifecycle: markers, ADRs, specs, evidence. |
 
-Keep libcurl detail out of `spec/ssrf-guard-spec.md`; it belongs in `spec/r-binding.md`.
+The retired `ssrf-guard-spec.md` lives on as Part II of the contract; its section
+map is `ssrfr-v1.md` §10.
+
+## Guard layers
+
+| Layer | Does | Is a defense |
+|---|---|---|
+| L0 structural | classifies a URL and host with no I/O | no |
+| L1 resolved | resolves once and classifies every returned address | no |
+| L2 guarded hop | `ssrf_prepare_hop()` returns a refusal or a binding; `ssrf_fetch(binding)` connects only to a validated, pinned address | **yes** |
+
+L0–L4 in `r-binding.md` §7 are *test* layers, a different thing.
+
+## Ownership across the stack
+
+The living version of ADR 0001 §7's table.
+
+| Concern | Owner |
+|---|---|
+| URL components, reference resolution, IDNA, layered parse verdicts | `rurl` (IDNA via `punycoder`, public suffixes via `pslr`) |
+| The host libcurl dials, and the pin key | libcurl's own parse, `curl::curl_parse_url()` — proposed, `ssrfr-v1.md` §4.1 |
+| Address parsing, IANA registry snapshots, reachability facts, embedding extraction | `raddr` |
+| Policy, precedence, refusal semantics, reason codes, operational causes | `ssrfr` |
+| Metadata hostname list; provider-endpoint address table (proposed) | `ssrfr` (policy data; separate versioning proposed) |
+| DNS resolution and answer-set validation (L1) | `ssrfr` |
+| Pinning, transport hardening, the per-hop contract (L2) | `ssrfr` |
+| Conformance corpus and parse-vector table | `ssrfr` |
+| Whether to fetch a URL at all; protocol-layer URL rules | the consumer |
+| Consumer-facing opt-out (`ssrf_guard = FALSE`) | the consumer |
+| `X-Forwarded-For` extraction; "most restrictive reading" convenience | assigned to `ssrfr` by `raddr`; undecided (`ssrfr-v1.md` §8 item 12) |
+
+`ssrfr` owns no parser and no classification tables: `rurl` parses, `raddr`
+classifies. (A proposed amendment narrows this to *general* classification
+tables, so that `ssrfr` can own provider-endpoint data; `ssrfr-v1.md` §4.) A
+vendored matcher was tried and reverted (`19f08fb`).
+
+## Package layout
+
+- `R/` — package source (scaffold placeholder only).
+- `tests/testthat/` — testthat tests and cucumber feature specs.
+- `vignettes/` — long-form documentation.
+- `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/`.
+- `design/` — specs, ADRs, evidence (above). Not built into the package.
+- `scripts/check-design.py` — design-doc hygiene: frontmatter, frozen ADRs, this
+  file naming every source directory.
+- `docs/` — reserved for pkgdown output. Never design documents.
+- `_scratch/` — local-only research and drafts, git-ignored.
+
+## Consumers
+
+`robotstxtr` and `sitemapr` each ship a vendored structural matcher and publish
+the 17 reason codes `ssrfr` must keep (`ssrfr-v1.md` §6.5). Neither depends on
+`ssrfr` or `raddr` yet. Details: `r-binding.md` §8.

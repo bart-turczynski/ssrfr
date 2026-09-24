@@ -25,11 +25,15 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      # The middle step runs the tests with NOT_CRAN=true and fails on any
+      # skipped test; testthat reports a test with no expectation as skipped
+      # too (ssrfr-v1.md §7.2). The --as-cran check then runs as CRAN would,
+      # where skip_on_cran() tests skip without failing it.
       - id: verify
         name: verify (mirrors CI)
         entry: Rscript -e
         args:
-          - 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }; rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+          - 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }; Sys.setenv(NOT_CRAN = "true"); res <- as.data.frame(testthat::test_local(reporter = "summary", stop_on_failure = TRUE)); skipped <- res[res$skipped, c("file", "test")]; if (nrow(skipped)) { cat("Skipped or expectation-free tests fail the gate (ssrfr-v1.md 7.2):\n"); print(skipped); quit(status = 1) }; Sys.unsetenv("NOT_CRAN"); rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
         language: system
         pass_filenames: false
         always_run: true

@@ -44,8 +44,9 @@ and §6.5 for behaviour.
 
 **Evidence tags.** **[verified]** was tested empirically; **[sourced]** cites
 external evidence; **[assumption]** is neither. A tag is promoted only with new
-evidence. Claims verified before 2026-09-24 cite the git-ignored
-`_scratch/research/`; §7.1 makes committing that base a requirement.
+evidence. Probe scripts are in [`../evidence/`](../evidence/) and source
+citations in [`../references.md`](../references.md); §7.1 makes committing that
+base a requirement.
 
 ---
 
@@ -1018,16 +1019,16 @@ Corpus components:
 
 ### 7.1 The evidence base MUST be committed
 
-Every `[verified]` and `[sourced]` claim dated before 2026-09-24 cites
-`_scratch/research/`, which is git-ignored by policy. For a security library whose
+Every `[verified]` and `[sourced]` claim dated before 2026-09-24 cited local
+research notes that are git-ignored by policy. For a security library whose
 central claim is that its properties are tested rather than asserted, the
 citation chain MUST live in the repository: reproducible probe scripts, distilled
 test fixtures, and source citations. Until then those claims are unfalsifiable by
 anyone but their author.
 
-`design/evidence/` holds the committed part. It starts with the 2026-09-24
-dependency probes; porting the July probes (`r-binding.md` §9) remains open,
-`SSRF-ssldkvmd`.
+`design/evidence/` holds the probe scripts, including the July probes re-run on
+2026-09-24 (`r-binding.md` §9), and `design/references.md` the pinned source
+citations (`SSRF-ssldkvmd`).
 
 ---
 
@@ -1507,7 +1508,8 @@ Explicitly **not** permitted:
 
 ## 16. References
 
-Full citations with URLs are in `_scratch/research/` (uncommitted; §7.1).
+Full citations with pinned URLs are in [`../references.md`](../references.md)
+(non-normative; §7.1).
 Primary sources:
 
 - OWASP SSRF Prevention Cheat Sheet; OWASP ASVS 5.0; OWASP WSTG; OWASP API

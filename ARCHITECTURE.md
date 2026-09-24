@@ -12,7 +12,8 @@ described below is implemented yet.
 | [`design/specs/ssrfr-v1.md`](design/specs/ssrfr-v1.md) | **The contract**, and the only normative document: purpose, guard layers, the guarded-hop binding, input and dependency contracts, refusal rule, reason codes, conformance (Part I); threat model, lifecycle, invariants INV-1 to INV-14, transport requirements (Part II). §8 lists the open decisions. |
 | [`design/specs/r-binding.md`](design/specs/r-binding.md) | R and libcurl evidence: option names, verified transport behaviour, test layers L0–L4. No policy of its own. |
 | [`design/adr/`](design/adr/) | Why. 0001 network-safety policy lineage, 0002 dependency and precedence model, 0003 the single-spec layout and what 0001/0002 no longer get right. Accepted ADRs are frozen. |
-| [`design/evidence/`](design/evidence/) | Committed probe scripts behind `[verified]` claims from 2026-09-24 on. |
+| [`design/evidence/`](design/evidence/) | Committed probe scripts behind `[verified]` claims, including the July transport probes re-run on 2026-09-24. |
+| [`design/references.md`](design/references.md) | Pinned source URLs for `[sourced]` claims, keyed by spec section. Non-normative. |
 | [`design/README.md`](design/README.md) | The lifecycle: markers, ADRs, specs, evidence. |
 
 The retired `ssrf-guard-spec.md` lives on as Part II of the contract; its section

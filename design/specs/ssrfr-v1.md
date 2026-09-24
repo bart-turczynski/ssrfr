@@ -833,7 +833,6 @@ There is no proxy field: v1 has no proxy mode (INV-10). The default `user_agent`
 is assembled at runtime from the package's `DESCRIPTION`, so no version or URL is
 hard-coded; it is transport-owned and non-secret, so it carries across origins
 (§2.3).
-```
 
 Allow fields are exception lists, not default-deny allowlists. How they combine
 with deny rules and built-ins is §5.0 and nowhere else.

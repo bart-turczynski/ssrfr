@@ -26,10 +26,19 @@ addr_global_reachability(addr_embeddings(a)[[1]])  # FALSE
 
 # 2. Every 6to4 and Teredo outer address is NA (IANA "Globally Reachable: N/A"),
 #    whatever it wraps. 64:ff9b:1::/48 is a determinate FALSE.
+#    No argument changes this: both functions take only `x`. The registry rows
+#    behind it are the four with no globally_reachable value.
 x <- c("2002:808:808::1", "2002:c058:6301::", "2001::1",
-       "2001:0:4136:e378:8000:63bf:3fff:fdd2", "192.88.99.1", "64:ff9b:1::1")
+       "2001:0:4136:e378:8000:63bf:3fff:fdd2", "192.88.99.1", "2001:10::1",
+       "64:ff9b:1::1")
 data.frame(x, reachable = addr_global_reachability(addr_pton(x)))
-# NA NA NA NA NA FALSE
+# NA NA NA NA NA NA FALSE
+r <- addr_registry()
+r[is.na(r$globally_reachable), c("block", "name")]
+# 192.88.99.0/24, 2001::/32 TEREDO, 2001:10::/28 ORCHID, 2002::/16 6to4
+# For 6to4, raddr's intended answer is on the embedding row:
+addr_global_reachability(addr_embeddings(addr_pton("2002:808:808::1"))[[1]])
+# TRUE (8.8.8.8)
 
 # 3. Multicast is already FALSE under gate 1.
 addr_global_reachability(addr_pton(c("ff0e::1", "ff02::1", "224.0.0.1")))

@@ -570,8 +570,9 @@ hop proceeds only when every address in the answer set passes every gate.
 
 Classification is delegated to `raddr`, which drives it from the IANA
 special-purpose address registries rather than a hand-maintained list. Evidence:
-two independent hand-rolled implementations missed the *same* provider's metadata
-address **[verified]**.
+two independent implementations, `ipaddress::is_global()` and a hand-rolled
+matcher, missed the *same* provider's metadata address, which `raddr` classifies
+correctly **[verified]**.
 
 Independent gates, not one predicate. Independence matters because they fail
 differently and MUST be separately testable.
@@ -846,8 +847,8 @@ count is 20, then return a network error"), which Chrome and Firefox implement;
 RFC 9110 §15.4 sets no number. A redirect beyond the budget refuses as
 `redirect-limit` (§6.5).
 
-`max_redirects = 0` is required because four independent OWASP sources — and
-ASVS 5.0 V15.3.2 — recommend disabling redirects outright. Following them with
+`max_redirects = 0` is required because four OWASP sources, ASVS 5.0 V15.3.2
+among them, recommend disabling redirects outright. Following them with
 per-hop revalidation is a deliberate, documented deviation, not the standard
 position.
 
@@ -1103,7 +1104,7 @@ citations (`SSRF-ssldkvmd`).
 | 4 | Search-domain resolution | **closed — ratified** (§5.0): names resolve as absolute, with no opt-out in v1 — `SSRF-ighscodn` |
 | 5 | Default User-Agent | **closed — ratified** (§5.3) — `SSRF-uitcvnif` |
 | 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker — `SSRF-rcwugkqo` |
-| 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | unverified — `SSRF-rcwugkqo` |
+| 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | IPv6 unverified; the reuse bypass of a `resolve` pin reproduced on macOS (`r-binding.md` §4.1), other platforms under item 6 — `SSRF-rcwugkqo` |
 | 8 | Chain-scoped redirect budget under per-hop policy (§2.5) | **closed — ratified**, and extended to `total_timeout` — `SSRF-pipbsrtr` |
 | 9 | Hostname rule normalization and suffix syntax (§5.0) | **closed — ratified** — `SSRF-pipbsrtr` |
 | 10 | The parse boundary after `rurl` 3.0 (§4.1, §4.2) | **closed — replacement ratified** — `SSRF-foggmyfe` |
@@ -1119,7 +1120,9 @@ citations (`SSRF-ssldkvmd`).
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
 posture (§4); whether to build a C core (no — a shared parser would undermine
 INV-1, and the only prize is a pre-connect veto, which is better pursued as an
-upstream `curl` enhancement exposing `sockoptfunction`).
+upstream enhancement to R's `curl` package exposing `opensocketfunction`, the
+pre-connect veto `safeurl-python` uses, and `prereqfunction`, which also sees
+reused connections; `r-binding.md` §6).
 
 ---
 
@@ -1399,8 +1402,9 @@ sufficient to revalidate the address alone.
 
 **Rationale.** A mature Go implementation revalidates address, port, and family
 per hop but checks scheme, host rules, and credentials only once — so all three
-are bypassable via redirect. **[sourced]** Five Gitea CVEs and two Grafana CVEs
-cluster on redirect-after-validation.
+are bypassable via redirect. **[sourced]** Three CVEs are exactly this bug,
+validation followed by an unvalidated redirect: Grafana `CVE-2022-29170` and
+Gitea `CVE-2026-58418` and `-57894`.
 
 **Corollary.** The guard MUST own the redirect loop or be invoked per hop by a
 caller that does (§1.3). Automatic transport-level redirect following MUST be
@@ -1423,8 +1427,9 @@ are not restated here. `Authorization`, `Proxy-Authorization` and `Cookie` MUST
 NOT be nominated as carryable.
 
 **Rationale.** A working token-replay PoC was filed against the reference Ruby
-implementation, which strips `authorization` and `cookie` but replays `body`,
-`params`, and custom headers verbatim cross-origin. **[sourced]** The transport's
+implementation. Its fix, in 1.5.0 (April 2026), strips `authorization` and
+`cookie` cross-origin, but 1.6.0 still replays `body`, `params`, and custom
+headers verbatim. **[sourced]** The transport's
 own "don't send credentials to other hosts" flag typically covers only
 credentials the *transport* manages, not ones the caller set.
 
@@ -1438,7 +1443,9 @@ independent methods: a correct pin changes only the TCP peer, leaving SNI, the
 `Host` header, and certificate validation bound to the hostname. What breaks TLS
 is rewriting the URL's host to an IP literal — and the usual "fix" for that is
 disabling verification, converting an SSRF mitigation into a MITM vulnerability.
-Several PHP and Laravel packages ship exactly that trade-off. **[sourced]**
+The PHP library SafeCurl ships exactly that trade-off: its DNS-pinning mode puts
+the IP in the URL, sends a `Host` header and turns off peer verification.
+**[sourced]**
 
 **Corollary.** The implementation MUST NOT rewrite the URL host to an IP literal.
 
@@ -1454,11 +1461,12 @@ claim narrows to match, is deferred beyond v1. *Amended 2026-09-24* (was "unless
 the caller explicitly opts in").
 
 **Rationale.** A proxy resolves the hostname *itself*, discarding the pin
-entirely — a total bypass. This went unnoticed for nine years in the reference
-Ruby implementation, and exactly one project in the surveyed corpus closes it.
-**[sourced]** Beware channels that are not obviously proxies: an `Alt-Svc` cache
-remaps an origin to a different protocol, host, and port for *later* requests and
-emits no redirect, so a manual redirect loop cannot see it. **[sourced]**
+entirely — a total bypass. The reference Ruby implementation followed ambient
+proxies from its first release in 2017 until 1.6.0 (September 2026); MLflow's
+webhook client is another surveyed project that ignores them. **[sourced]**
+Beware channels that are not obviously proxies: an `Alt-Svc` cache remaps an
+origin to a different protocol, host, and port for *later* requests and emits no
+redirect, so a manual redirect loop cannot see it. **[sourced]**
 
 **Test.** Set each ambient variable to a sentinel and assert the connection still
 went to the pinned address; and serve an `Alt-Svc` header and assert it causes no
@@ -1496,12 +1504,16 @@ Classification MUST be expressed as a positive routability predicate applied to
 the resolved address, not as an enumerated list of prohibited ranges.
 
 **Rationale.** `pydantic-ai` shipped **three CVEs against one blocklist in about
-four months** (`CVE-2025-25580` → `-46678` → `-48782`), each an IPv6-transition
+four months** (`CVE-2026-25580` → `-46678` → `-48782`), each an IPv6-transition
 wrapper of the metadata address, the last unfixable *in principle* because NAT64
 prefixes are operator-chosen. **[sourced]**
 
-**Corollary — embedded addresses.** Any address form that embeds another address
-MUST have the embedded value extracted and classified independently. A
+**Corollary — embedded addresses.** Any address form that carries another
+address MUST have the carried value extracted and classified independently. The
+carried value is not always the destination: IPv4-mapped and NAT64 forms carry
+the address the connection reaches, while the 6to4 `V4ADDR`, Teredo's server and
+client fields and the ISATAP locator are tunnel underlay (§5.1). The refusal is
+the same either way, and its code names the embedding kind (§6.5). A
 registry-driven "globally reachable" flag does **not** cover this: IANA correctly
 marks the NAT64 well-known prefix as globally reachable, because it maps onto
 global IPv4 — so the wrapper is reachable while what it *wraps* may not be.
@@ -1547,13 +1559,14 @@ these effects:
 | Connect timeout and total timeout both set | port scanning by timing; resource exhaustion |
 | Response size bounded by counting delivered bytes | decompression bombs; header-declared size is advisory only |
 
-**Note.** A declared-size limit is not a size limit: it is typically a no-op when
-the server omits a length header, and is measured on wire bytes so a compressed
-bomb passes. Count bytes as they are delivered. **[sourced]** A timer alone does
-not preempt synchronous decoding either: an independently reproduced run returned
-success after a 1 ms total deadline because decompression blocked the timer
-**[sourced]**. The total deadline therefore covers decoding, and header bytes and
-field counts have limits of their own (§5.3).
+**Note.** A declared-size limit is not a size limit: older transports ignore it
+when the server omits a length header, and it is measured on wire bytes so a
+compressed bomb passes. Count bytes as they are delivered. **[sourced]** A timer
+alone does not preempt synchronous decoding either: `linklint` races its total
+deadline, an event-loop timer, against a synchronous decompression call, and the
+timer cannot fire until the decode returns **[sourced]**. The total deadline
+therefore covers decoding, and header bytes and field counts have limits of their
+own (§5.3).
 
 ---
 

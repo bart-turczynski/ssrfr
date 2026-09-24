@@ -96,16 +96,16 @@ Pinned revisions used throughout:
 | INV-5: WordPress `wp_http_validate_url()` validated, then the transport re-resolved | Sonar, *WordPress Core — Unauthenticated Blind SSRF* | not yet pinned (below) | — |
 | INV-5: WordPress's opt-in fix (the validated address returned by reference) | `wp-includes/http.php` at 6.8.0 | <https://github.com/WordPress/wordpress-develop/blob/a33a49e2e7f7e47656bc835996c692593edeba00/src/wp-includes/http.php> | 2026-09-24 |
 | INV-5: LangChain `CVE-2026-41488` | as §1 | as §1 | 2026-09-24 |
-| INV-7: five Gitea CVEs on redirect-after-validation and related bypasses (`CVE-2026-22874`, `-57894`, `-58314`, `-58418`, `-59765`) | GitLab advisory database | not yet pinned (below) | — |
+| INV-7: Gitea `CVE-2026-58418` (migration validates, then follows the redirect unvalidated) and `CVE-2026-57894` (migration follows git HTTP redirects after validation) | GitLab advisory database | not yet pinned (below) | — |
 | INV-7: Grafana `CVE-2022-29170`, datasource restrictions bypassed via redirects | Grafana GHSA-9rrr-6fq2-4f99 | <http://web.archive.org/web/20250422121301/https://github.com/grafana/grafana/security/advisories/GHSA-9rrr-6fq2-4f99> | 2026-09-24 |
-| INV-7: the second Grafana CVE | not identified in the notes | — | — |
 | INV-7: `CVE-2023-28155`, the agent deleted on protocol switch (`request`) | GHSA-p8p7-x288-28g6 | not yet pinned (below) | — |
 | INV-8: a token-replay PoC was filed against the reference Ruby implementation | HackerOne #3642600 | not yet pinned (below) | — |
-| INV-8: cross-origin stripping of `authorization` and `cookie` | `ssrf_filter` 1.5.0 changelog and source | <https://github.com/arkadiyt/ssrf_filter/blob/847abaf76841cdc630752c13c0cd3528f7fdc102/CHANGELOG.md>, <https://github.com/arkadiyt/ssrf_filter/blob/847abaf76841cdc630752c13c0cd3528f7fdc102/lib/ssrf_filter/ssrf_filter.rb> | 2026-09-24 |
+| INV-8: cross-origin stripping of `authorization` and `cookie` since 1.5.0; 1.6.0 still passes the same method, body and params to every hop | `ssrf_filter` changelog and source at 1.6.0 | <https://github.com/arkadiyt/ssrf_filter/blob/847abaf76841cdc630752c13c0cd3528f7fdc102/CHANGELOG.md>, <https://github.com/arkadiyt/ssrf_filter/blob/847abaf76841cdc630752c13c0cd3528f7fdc102/lib/ssrf_filter/ssrf_filter.rb> | 2026-09-24 |
 | INV-8: the transport's own flag covers only transport-managed credentials | libcurl `CURLOPT_UNRESTRICTED_AUTH` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_UNRESTRICTED_AUTH.md> | 2026-09-24 |
+| INV-9: SafeCurl's DNS-pinning mode puts the resolved IP in the URL, sends a `Host` header and sets `CURLOPT_SSL_VERIFYPEER` to false | `j0k3r/safecurl` 3.0.1 (the maintained fork) `src/Url.php`, `src/SafeCurl.php`; the original `fin1te/safecurl` does the same | <https://github.com/j0k3r/safecurl/blob/da8215615c92b6550c2db51dba80ba6b0c92070c/src/Url.php#L58-L62>, <https://github.com/j0k3r/safecurl/blob/da8215615c92b6550c2db51dba80ba6b0c92070c/src/SafeCurl.php#L109-L116>, <https://github.com/fin1te/safecurl/blob/a7c3d703c06e827b33f1dcdbdcbe0796beb5a86d/src/fin1te/SafeCurl/SafeCurl.php> | 2026-09-24 |
 | INV-9: a pin changes only the TCP peer; SNI and verification stay on the URL host | libcurl `CURLOPT_CONNECT_TO` (the `[verified]` part is [`evidence/2026-09-24-tls-pin-probes.R`](evidence/2026-09-24-tls-pin-probes.R)) | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_CONNECT_TO.md> | 2026-09-24 |
-| INV-10: `ssrf_filter` routed through ambient proxies until "Ignore proxies" (PR #89) | `ssrf_filter` commit `d401e93` | <https://github.com/arkadiyt/ssrf_filter/commit/d401e9353a5f053c6a7252d53696cdc30ce837f2> | 2026-09-24 |
-| INV-10: the one surveyed project that closes the proxy hole (`trust_env = False`) | MLflow `mlflow/webhooks/delivery.py` | <https://github.com/mlflow/mlflow/blob/21a620e1f52713d30e274ca5b303332a8ca8643e/mlflow/webhooks/delivery.py> | 2026-09-24 |
+| INV-10: `ssrf_filter` routed through ambient proxies until "Ignore proxies" (PR #89), first released in 1.6.0 on 2026-09-08 | `ssrf_filter` commit `d401e93`; changelog at 1.6.0 | <https://github.com/arkadiyt/ssrf_filter/commit/d401e9353a5f053c6a7252d53696cdc30ce837f2> | 2026-09-24 |
+| INV-10: MLflow's webhook client ignores ambient proxies (`trust_env = False`) | MLflow `mlflow/webhooks/delivery.py` | <https://github.com/mlflow/mlflow/blob/21a620e1f52713d30e274ca5b303332a8ca8643e/mlflow/webhooks/delivery.py> | 2026-09-24 |
 | INV-10: libcurl reads proxy environment variables by default | libcurl `CURLOPT_PROXY` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_PROXY.md> | 2026-09-24 |
 | INV-10: an `Alt-Svc` cache remaps an origin for later requests | RFC 7838; libcurl `CURLOPT_ALTSVC` | <https://www.rfc-editor.org/rfc/rfc7838.html>, <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_ALTSVC.md> | 2026-09-24 |
 | INV-13: `pydantic-ai` `CVE-2026-25580` | GHSA-2jrp-274c-jhv3 | <http://web.archive.org/web/20260701122622/https://github.com/pydantic/pydantic-ai/security/advisories/GHSA-2jrp-274c-jhv3> | 2026-09-24 |
@@ -116,14 +116,13 @@ Pinned revisions used throughout:
 | INV-14: one Go implementation lets an allow match win, and any allowlist flips it to default-deny | `doyensec/safeurl` `client.go` | <https://github.com/doyensec/safeurl/blob/bfe6b43562f4f4787b124a821eeb4b2bd138f9d8/client.go> | 2026-09-24 |
 | INV-14: the conjunctive alternative (deny always wins) | Gitea `modules/hostmatcher` | <https://github.com/go-gitea/gitea/blob/05f049e8bb1eabb8f9b2b967062524839f7e36aa/modules/hostmatcher/hostmatcher.go> | 2026-09-24 |
 
-The advisory the spec cites for the first `pydantic-ai` CVE is identified as
-`CVE-2026-25580` by GitHub's advisory database; INV-13 writes `CVE-2025-25580`.
-
 ### §14 Transport hardening
 
 | Claim | Source | Pinned URL | Accessed |
 |---|---|---|---|
-| A declared-size limit is a no-op without a length header and counts wire bytes | libcurl `CURLOPT_MAXFILESIZE_LARGE` (measured in [`evidence/2026-09-24-hermetic-test-probes.R`](evidence/2026-09-24-hermetic-test-probes.R), EXP4-EXP5) | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_MAXFILESIZE_LARGE.md> | 2026-09-24 |
+| A declared-size limit has no effect without a length header before libcurl 8.4.0, and counts wire bytes | libcurl `CURLOPT_MAXFILESIZE_LARGE` ("Since 8.4.0, this option also stops ongoing transfers"; measured in [`evidence/2026-09-24-hermetic-test-probes.R`](evidence/2026-09-24-hermetic-test-probes.R), EXP4-EXP5) | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_MAXFILESIZE_LARGE.md> | 2026-09-24 |
+| `linklint` races its total deadline (a `setTimeout` sleep) against work that decompresses synchronously | `linklint` `safe-transport.ts` (the race, and the decode call) and `decompression.ts` (`gunzipSync`, `inflateSync`, `brotliDecompressSync`) | <https://gitlab.com/bart-turczynski/linklint/-/blob/8830901a6c9e95a69b110b06db01bd97fa2aabb9/packages/online/src/transport/safe-transport.ts#L128-137>, <https://gitlab.com/bart-turczynski/linklint/-/blob/8830901a6c9e95a69b110b06db01bd97fa2aabb9/packages/online/src/transport/safe-transport.ts#L278>, <https://gitlab.com/bart-turczynski/linklint/-/blob/8830901a6c9e95a69b110b06db01bd97fa2aabb9/packages/online/src/transport/decompression.ts#L60-64> | 2026-09-24 |
+| A timer callback cannot run while synchronous work holds the event loop | Node.js timers, "Scheduling timers" | not yet pinned (below) | — |
 
 ### §15 Compliance claims
 
@@ -137,7 +136,7 @@ The advisory the spec cites for the first `pydantic-ai` CVE is identified as
 | CWE-918 | MITRE CWE | <http://web.archive.org/web/20260724102025/https://cwe.mitre.org/data/definitions/918.html> | 2026-09-24 |
 | CAPEC-664 | MITRE CAPEC | <http://web.archive.org/web/20251209150722/https://capec.mitre.org/data/definitions/664.html> | 2026-09-24 |
 | WSTG SSRF tests (WSTG-INJT-19; formerly WSTG-INPV-19) | OWASP WSTG | <https://github.com/OWASP/wstg/blob/ea174034f91439a17a1595e57d51e5b461820273/document/4-Web_Application_Security_Testing/07-Injection/19-Server-Side_Request_Forgery.md> | 2026-09-24 |
-| RFC 6874 §4 zone-ID handling | RFC 6874 | <https://www.rfc-editor.org/rfc/rfc6874.html#section-4> | 2026-09-24 |
+| Refusal of IPv6 zone-ID literals: RFC 9844 obsoletes RFC 6874 and with it the URI syntax for a zone ID | RFC 9844 | <https://www.rfc-editor.org/rfc/rfc9844.html> | 2026-09-24 |
 | In the 2025 Top 10, SSRF is folded into A01:2025 Broken Access Control | OWASP Top 10 2025, A01 | <https://github.com/OWASP/Top10/blob/3a31f35346c3f4e90f350395124382fa53af2afe/2025/docs/en/A01_2025-Broken_Access_Control.md> | 2026-09-24 |
 | A10:2025 is a different category | OWASP Top 10 2025, A10 | <https://github.com/OWASP/Top10/blob/3a31f35346c3f4e90f350395124382fa53af2afe/2025/docs/en/A10_2025-Mishandling_of_Exceptional_Conditions.md> | 2026-09-24 |
 
@@ -150,7 +149,8 @@ The advisory the spec cites for the first `pydantic-ai` CVE is identified as
 | RFC 3986 | <https://www.rfc-editor.org/rfc/rfc3986.html> | 2026-09-24 |
 | WHATWG URL Standard | <https://url.spec.whatwg.org/commit-snapshots/8e14777cfa145b08a9fb735fe580ec0c366564c3/> | 2026-09-24 |
 | RFC 9110 §15.4 | <https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4> | 2026-09-24 |
-| RFC 6874 | <https://www.rfc-editor.org/rfc/rfc6874.html> | 2026-09-24 |
+| RFC 9844 | <https://www.rfc-editor.org/rfc/rfc9844.html> | 2026-09-24 |
+| RFC 6874 (obsoleted by RFC 9844) | <https://www.rfc-editor.org/rfc/rfc6874.html> | 2026-09-24 |
 | RFC 2606 | <https://www.rfc-editor.org/rfc/rfc2606.html> | 2026-09-24 |
 | UTS #46, revision 36 | <https://www.unicode.org/reports/tr46/tr46-36.html> | 2026-09-24 |
 | RFC 6052 | <https://www.rfc-editor.org/rfc/rfc6052.html> | 2026-09-24 |
@@ -186,6 +186,10 @@ The advisory the spec cites for the first `pydantic-ai` CVE is identified as
 | §5 | Redirect protocol default | libcurl `CURLOPT_REDIR_PROTOCOLS_STR` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_REDIR_PROTOCOLS_STR.md> | 2026-09-24 |
 | §5 | `fresh_connect` does not cover redirect follow-ups; use `forbid_reuse` | libcurl `CURLOPT_FRESH_CONNECT`; `lib/url.c` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_FRESH_CONNECT.md> | 2026-09-24 |
 | §6 | R's `curl` marshals only xferinfo/progress, read, debug, SSL-context and seek callbacks (checked in [`evidence/2026-09-24-curl-callback-options.R`](evidence/2026-09-24-curl-callback-options.R)) | `jeroen/curl` `src/handle.c` | <https://github.com/jeroen/curl/blob/4092c366c27c8b64528b493be5e09fb6484a1172/src/handle.c> | 2026-09-24 |
+| §4.3 | Through 1.5.0 `ssrf_filter` pinned one random address; a user measured ~60% failures on dual-stack hosts from an IPv4-only host | `ssrf_filter` issue #92 | not yet pinned (below) | — |
+| §4.3 | 1.6.0 retries the other validated addresses | `ssrf_filter` PR #93, commit `c9a0784` | <https://github.com/arkadiyt/ssrf_filter/commit/c9a078481984356ce41cf0af247caa819c74b676> | 2026-09-24 |
+| §5 | `maxfilesize` stops ongoing transfers only since libcurl 8.4.0 | as `ssrfr-v1.md` §14 | as §14 | 2026-09-24 |
+| §6 | `safeurl-python` validates in `CURLOPT_OPENSOCKETFUNCTION` | `safeurl-python` `safeurl/safeurl.py` | <https://github.com/IncludeSecurity/safeurl-python/blob/1656c92e7580423e961ce13a348cc2a640ab62ac/safeurl/safeurl.py> | 2026-09-24 |
 | §6 | The hook other ecosystems validate in runs after connect or reuse, before the request | libcurl `CURLOPT_PREREQFUNCTION` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_PREREQFUNCTION.md> | 2026-09-24 |
 | §7 | `.invalid` never resolves | RFC 2606 §2 | <https://www.rfc-editor.org/rfc/rfc2606.html#section-2> | 2026-09-24 |
 | §7 | `local_mocked_bindings()` and its `.package` guidance | `testthat` 3.3.2 `R/mock2.R` | <https://github.com/r-lib/testthat/blob/ace29c526f93b6ae1a402d93e6b1ccaf65de1e61/R/mock2.R> | 2026-09-24 |
@@ -215,10 +219,9 @@ the snapshot URL into the table above, or replace the source.
 | INV-1 | Spring `CVE-2024-22259` | <https://spring.io/security/cve-2024-22259/> |
 | INV-4 | `january` GHSA-4mcc-p83c-r77q | no working URL found; the repository-level advisory did not resolve under `stoatchat/january` or `revoltchat/january` |
 | INV-5 | Sonar, WordPress blind SSRF | <https://www.sonarsource.com/blog/wordpress-core-unauthenticated-blind-ssrf/> |
-| INV-7 | Gitea `CVE-2026-22874` | <https://advisories.gitlab.com/golang/code.gitea.io/gitea/CVE-2026-22874/> |
 | INV-7 | Gitea `CVE-2026-57894` | <https://advisories.gitlab.com/golang/code.gitea.io/gitea/CVE-2026-57894/> |
-| INV-7 | Gitea `CVE-2026-58314` | <https://advisories.gitlab.com/golang/code.gitea.io/gitea/CVE-2026-58314/> |
 | INV-7 | Gitea `CVE-2026-58418` | <https://advisories.gitlab.com/golang/code.gitea.io/gitea/CVE-2026-58418/> |
-| INV-7 | Gitea `CVE-2026-59765` | <https://advisories.gitlab.com/golang/code.gitea.io/gitea/CVE-2026-59765/> |
 | INV-7 | `request` `CVE-2023-28155` | <https://github.com/advisories/GHSA-p8p7-x288-28g6> |
+| §4.3 (r-binding) | `ssrf_filter` issue #92 | <https://github.com/arkadiyt/ssrf_filter/issues/92> |
+| §14 | Node.js timers, "Scheduling timers" | <https://nodejs.org/api/timers.html#scheduling-timers> |
 | INV-13 | `pydantic-ai` `CVE-2026-48782` | <https://github.com/pydantic/pydantic-ai/security/advisories/GHSA-cg7w-rg45-pc59> |

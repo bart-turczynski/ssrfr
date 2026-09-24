@@ -251,6 +251,20 @@ IPv6 pinning with a bracketed literal (`"HOST::[::1]:"`) is **unverified**, and
 | `altsvc`, `hsts` | never set | INV-10 |
 | `unix_socket_path`, `abstract_unix_socket` | never set | container control planes |
 | `dns_shuffle_addresses` | `0L` | ordering stays ours |
+| `accept_encoding` | set explicitly | the decoded-byte cap (spec §5.3) knows which encodings can arrive |
+
+### Minimum libcurl
+
+`protocols_str` and `redir_protocols_str` need libcurl 7.85. Below that, `ssrfr`
+sets the older `protocols` and `redir_protocols` bitmasks to HTTP and HTTPS
+instead. The supported floor is the `curl` package's own, libcurl 7.73; below it
+the package builds against a bundled static libcurl. Ubuntu 22.04 ships 7.81 and
+RHEL 9 ships 7.76.1 **[sourced]**, and on Linux R's `curl` links the system
+libcurl. Below 7.77, libcurl's URL API does not normalize numeric IPv4 hosts; the
+`rurl`-versus-libcurl disagreement refusal (spec §4.1) keeps that case
+fail-closed, and a test must show it. The floor is conditional on the Linux
+matrix (spec §8 items 6 and 16): if the protocol restriction or the pin fails on
+Ubuntu 22.04 or Rocky 9, the floor becomes 7.85.
 
 ### Traps in this table
 

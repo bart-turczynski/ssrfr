@@ -11,7 +11,7 @@ described below is implemented yet.
 |---|---|
 | [`design/specs/ssrfr-v1.md`](design/specs/ssrfr-v1.md) | **The contract**, and the only normative document: purpose, guard layers, the guarded-hop binding, input and dependency contracts, refusal rule, reason codes, conformance (Part I); threat model, lifecycle, invariants INV-1 to INV-14, transport requirements (Part II). §8 lists the open decisions. |
 | [`design/specs/r-binding.md`](design/specs/r-binding.md) | R and libcurl evidence: option names, verified transport behaviour, test layers L0–L4. No policy of its own. |
-| [`design/adr/`](design/adr/) | Why. 0001 network-safety policy lineage, 0002 dependency and precedence model, 0003 the single-spec layout and what 0001/0002 no longer get right. Accepted ADRs are frozen. |
+| [`design/adr/`](design/adr/) | Why. 0001 network-safety policy lineage, 0002 dependency and precedence model, 0003 the single-spec layout and what 0001/0002 no longer get right, 0004 the v1 decision-brief rulings that supersede parts of 0001 and 0002. Accepted ADRs are frozen. |
 | [`design/evidence/`](design/evidence/) | Committed probe scripts behind `[verified]` claims, including the July transport probes re-run on 2026-09-24. |
 | [`design/references.md`](design/references.md) | Pinned source URLs for `[sourced]` claims, keyed by spec section. Non-normative. |
 | [`design/README.md`](design/README.md) | The lifecycle: markers, ADRs, specs, evidence. |
@@ -36,21 +36,21 @@ The living version of ADR 0001 §7's table.
 | Concern | Owner |
 |---|---|
 | URL components, reference resolution, IDNA, layered parse verdicts | `rurl` (IDNA via `punycoder`, public suffixes via `pslr`) |
-| The host libcurl dials, and the pin key | libcurl's own parse, `curl::curl_parse_url()` — proposed, `ssrfr-v1.md` §4.1 |
+| The host libcurl dials, and the pin key | libcurl's own parse, `curl::curl_parse_url()` (`ssrfr-v1.md` §4.1) |
 | Address parsing, IANA registry snapshots, reachability facts, embedding extraction | `raddr` |
 | Policy, precedence, refusal semantics, reason codes, operational causes | `ssrfr` |
-| Metadata hostname list; provider-endpoint address table (proposed) | `ssrfr` (policy data; separate versioning proposed) |
+| Metadata hostname list; provider-endpoint address table | `ssrfr` (policy data, versioned separately, `ssrfr-v1.md` §6.1) |
 | DNS resolution and answer-set validation (L1) | `ssrfr` |
 | Pinning, transport hardening, the per-hop contract (L2) | `ssrfr` |
 | Conformance corpus and parse-vector table | `ssrfr` |
 | Whether to fetch a URL at all; protocol-layer URL rules | the consumer |
 | Consumer-facing opt-out (`ssrf_guard = FALSE`) | the consumer |
-| `X-Forwarded-For` extraction; "most restrictive reading" convenience | assigned to `ssrfr` by `raddr`; undecided (`ssrfr-v1.md` §8 item 12) |
+| `X-Forwarded-For` extraction; "most restrictive reading" convenience | declined by `ssrfr` (`ssrfr-v1.md` §8 item 12); `raddr`'s ownership table is to be corrected |
 
-`ssrfr` owns no parser and no classification tables: `rurl` parses, `raddr`
-classifies. (A proposed amendment narrows this to *general* classification
-tables, so that `ssrfr` can own provider-endpoint data; `ssrfr-v1.md` §4.) A
-vendored matcher was tried and reverted (`19f08fb`).
+`ssrfr` owns no parser and no general classification tables: `rurl` parses,
+`raddr` classifies, and `ssrfr` owns only policy data such as the
+provider-endpoint table (`ssrfr-v1.md` §4, ADR 0004). A vendored matcher was
+tried and reverted (`19f08fb`).
 
 ## Package layout
 

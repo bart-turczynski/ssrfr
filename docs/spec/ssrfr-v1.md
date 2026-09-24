@@ -284,7 +284,8 @@ first:
 | **fetchable** | may be passed to `ssrf_fetch()` | single use |
 | **referenceable** | may be passed as `from` to describe the previous hop | the life of the redirect chain |
 
-Without that split, §2.5 and §2.6 contradict each other: a chain cannot be built
+Without that split, the single-use rule and the chain (§2.6) contradict each
+other: a chain cannot be built
 from bindings that are destroyed by being used. A spent binding remains readable —
 it supplies the base URL, the hop index, the previous origin, the sanitized
 plan, and the transport-observed response status — and carries no ability to open

@@ -1,6 +1,6 @@
 # ADR-001: `ssrfr` network safety policy
 
-- Status: Accepted; §5 and §7 partly superseded by ADR-002
+- Status: Accepted; §2, §5 and §7 partly superseded by ADR-002
 - Date: 2026-07-25
 - Deciders: Bart Turczyński
 - Supersedes: `sitemapr` `docs/decisions/ADR-003-network-safety-policy.md` §1, §4
@@ -97,6 +97,12 @@ separate DNS resolution"). The connection MUST target a validated address
 (INV-5), via a pin whose engagement cannot silently fail (INV-6).
 
 ### 2. Classification gates on a positive routability predicate
+
+> **Amended by ADR-002.** Multicast and non-global addresses are no longer refused
+> "outright": a matching `allow_ranges` entry overrides either when the
+> classification is determinate and not derived from an embedded address. Caller
+> deny rules, indeterminate classification, and embedded-address refusals remain
+> non-overridable. The predicate and its registry source below are unchanged.
 
 An address is refused unless it is affirmatively globally reachable, and is
 refused outright if it is multicast, matches a configured deny rule, or embeds an
@@ -265,6 +271,10 @@ branch on them without string matching.
 > **Amended by ADR-002.** Caller deny still wins, but a caller allow rule now
 > overrides a determinate built-in refusal within the same policy dimension. The
 > global off switch is no longer the only route to an intentional exception.
+> Superseded below: "both beat the built-in defaults only in the deny direction",
+> and the premise that the off switch is a caller's only way past the defaults to
+> a legitimate internal target. There is still exactly one off switch, constrained
+> as described. INV-14 now governs caller rules only (`ssrf-guard-spec.md` §4).
 
 When an allow rule and a deny rule both match, the request is refused (INV-14).
 The alternative — allow overrides deny, so that configuring any allowlist

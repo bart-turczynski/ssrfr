@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-31
 - Deciders: Bart Turczyński
-- Amends: `ADR-001-network-safety-policy.md` §5 and §7
+- Amends: `ADR-001-network-safety-policy.md` §2, §5 and §7
 - Related: `docs/spec/ssrfr-v1.md` §4 and §5.0
 
 ## Context

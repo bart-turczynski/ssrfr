@@ -10,9 +10,11 @@ Run verification:
 
 ```sh
 Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }' && Rscript -e 'rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+python3 scripts/check-design.py
 ```
 
-Source lives in `src/`, behavior features live in `features/`, tests live in `tests/`, and durable project context lives in `docs/`.
+Source lives in `R/`, tests and cucumber feature specs live in `tests/testthat/`,
+and the design — specification, ADRs, evidence — lives in `design/`. Implement
+only against `[ratified]` sections of `design/specs/ssrfr-v1.md`.
 
 Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
-

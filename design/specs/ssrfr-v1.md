@@ -38,7 +38,8 @@ Only **[ratified]** text may be implemented against.
 **Ratified 2026-09-24:** the gate set (§5), the reason-code mapping (§6.5), the
 parse boundary (§4.1, §4.2), embedding evaluation (§5.2), limits and policy
 fields (§5.3), and Part II, as answered in the v1 decision brief (fp brainstorm
-`nftbfuli`; ADR 0004). No text is marked **[proposed]**.
+`nftbfuli`; ADR 0004). Text marked **[proposed]** since then is listed in §8
+item 23.
 The transport findings are unverified off macOS (§8 items 6 and 7), so L2 stays
 blocked on them.
 
@@ -94,7 +95,10 @@ around the guarded path, and it cannot secure R's unguarded primitives
 (`download.file()`, `url()`, `readLines()`, and direct `curl` use), nor the
 packages that read URLs through them: `jsonlite::fromJSON(url)` reaches `url()`
 and `data.table::fread(url)` reaches `download.file()` **[verified]**
-(`design/evidence/2026-09-24-r-http-clients.R`). It is not a
+(`design/evidence/2026-09-24-r-http-clients.R`). *[proposed]*
+`xml2::read_xml(url)` and `read_html(url)` belong to the same list: they open the
+URL with `curl::curl()`, or `url()` without `curl` **[verified]**
+(`design/evidence/2026-09-24-content-fetches.R`). It is not a
 general-purpose URL parser or validator. DNS integrity is out of scope: a
 compromised resolver defeats it, and `ssrfr` cannot pin its own resolver because
 `dns_servers` requires a c-ares build. Inbound request security is a different
@@ -192,6 +196,13 @@ ssrf_fetch(binding)           → response
 `ssrf_fetch()` takes **one** argument. There is no URL parameter and no header,
 method, or body parameter, so there is no substitution surface.
 
+**[proposed] The response owns nothing.** `ssrf_fetch()` reads and decodes the
+whole body within `max_response_size` and `total_timeout` before it returns, and
+the connection is closed (§14, no reuse). The response is a plain R value —
+status, response headers, decoded body — holding no handle, connection or file,
+so the caller has nothing to close. The transport facts stay on the spent
+binding (§2.5). Streaming the body or writing it to a file is beyond v1.
+
 ### 2.3 What a binding contains, and what enters at `prepare`
 
 **Security identity** — what was authorized:
@@ -207,6 +218,13 @@ method, or body parameter, so there is no substitution surface.
 
 - the exact sanitized URL `ssrf_fetch()` will request, including path and query
 - the sanitized request plan: method, headers, body
+
+**[proposed]** The sanitized URL carries no fragment. A fragment is not part of
+the target URI (RFC 9110 §7.1) and is never sent, so `prepare` removes it, from a
+first-hop URL and a resolved `Location` alike, before serializing the string
+libcurl parses (§4.2). The fragment inheritance RFC 9110 §10.2.2 asks of a user
+agent changes only the reference, never the target URI, and `ssrfr` does not
+perform it.
 
 Binding the full URL closes the substitution surface. The path is not an
 independently authorized network target: for `http`/`https` it cannot be one, and
@@ -233,7 +251,10 @@ side effect of the fetch, which is what makes it auditable under S4.
 
 **Consequence: a binding may contain secrets.** Its `print` and `format` methods
 MUST redact credential-bearing fields, and §2.4's limits on opacity apply with
-more force, not less.
+more force, not less. **[proposed]** The same holds for every refusal,
+operational failure and R condition `ssrfr` produces: none quotes userinfo, a
+request-plan header value or body, or the value of an ambient proxy setting it
+neutralized (INV-10), and a URL in one is rendered without userinfo.
 
 This does not reopen §3.1. A request plan is not URL components; the URL remains a
 single string that `ssrfr` parses.
@@ -249,6 +270,13 @@ The previous binding MUST be spent, MUST record a successful HTTP response, and
 MUST record a status that `ssrfr` follows as a redirect before it is accepted as
 `from`. Passing an unspent binding, a binding whose fetch failed, or a binding
 whose response is not a followed redirect is an operational error.
+
+**[proposed]** A response is a *followed redirect* when its status is 301, 302,
+303, 307 or 308 (the Fetch Standard's redirect statuses) and it carries exactly
+one `Location` field line. A redirect status without `Location` is a final
+response, as in Fetch, so its binding is not accepted as `from`. More than one
+`Location` field line is `protocol-error` (§6.6). No other 3xx status is
+followed.
 
 The deterministic v1 transformation is:
 
@@ -296,6 +324,15 @@ NUL, is refused rather than sanitized. Violations are operational errors raised 
 integrity; the carry allowlist handles unknown application fields without
 pretending that `ssrfr` can identify every secret-bearing name.
 
+**[proposed]** Metadata-service request markers are refused at `prepare` the same
+way, unless the policy's `allow_ranges` names a provider endpoint exactly (§5.0):
+`Metadata`, `Metadata-Flavor`, `X-Google-Metadata-Request`,
+`X-aws-ec2-metadata-token`, `X-aws-ec2-metadata-token-ttl-seconds`,
+`X-aliyun-ecs-metadata-token` and `X-aliyun-ecs-metadata-token-ttl-seconds`.
+They exist only to show a metadata service that a request was meant for it. The
+list cannot be complete: Oracle's marker is `Authorization: Bearer Oracle`, which
+no header rule can refuse.
+
 The inverse — metadata marking headers sensitive — inverts the failure mode:
 forgetting to mark a header leaks it silently, whereas forgetting to nominate one
 as carryable merely breaks a request, loudly. Relying only on "drop
@@ -338,7 +375,18 @@ and carries no ability to open a connection.
 - **Failover is not replay.** Retrying the next address from the already-validated
   set happens *inside* one `ssrf_fetch()` call, and is required because
   `connect_to` does not fail over (`r-binding.md` §4.3). Callers never observe it
-  as a second use.
+  as a second use. **[proposed]** Failover advances only after an attempt that
+  ended before a connection was established, so no request byte reached any
+  peer; an elapsed `connect_timeout` is such an attempt. Every other outcome ends
+  the fetch with its own cause (§6.6). `pin-mismatch` is never followed by
+  another attempt: it means the pin did not hold, and a further attempt would
+  open a further unvalidated connection.
+- **[proposed] No retries.** `ssrf_fetch()` sends the request at most once;
+  failover to another validated address after a failed connection is its only
+  re-attempt. An application that retries calls `ssrf_prepare_hop()` again,
+  which resolves and validates afresh; on a redirect hop it passes the same
+  `from`, which stays referenceable. `total_timeout` bounds one pass down the
+  chain; it does not count attempts the caller discarded.
 - **A binding captures its policy by value** at prepare time. It therefore cannot
   be invalidated by a later policy change, because it holds no reference to one.
 - **Per-hop policy, chain-scoped budgets.** On a redirect hop, the `policy`
@@ -560,6 +608,12 @@ the same IPv6 address differently (`r-binding.md` §2.3).
 `ssrfr`'s guarantee rests on a `raddr` that is at 0.1.x. That is an argument for
 the corpus being the contract between them, not for vendoring a worse copy.
 
+**[proposed]** Registry age is not a refusal. `raddr` stamps its snapshot with
+IANA's own "Last Updated" date, so age measures how long IANA has been quiet, not
+how stale the copy is **[sourced]**. `ssrfr` does not check age at runtime. When
+IANA adds a special-purpose block, `ssrfr` raises its minimum `raddr` version
+once `raddr` ships it.
+
 ---
 
 ## 5. The refusal rule **[ratified]**
@@ -622,7 +676,9 @@ category. Without an address table `ssrfr` cannot report the published
 `cloud-metadata` code for any of them. The table is
 vendor-sourced data with its own version stamp, separate from the IANA snapshot;
 each row cites current vendor documentation and a kind (`instance-metadata` or
-`provider-internal`). Both kinds report the one public code `cloud-metadata`
+`provider-internal`). **[proposed]** Each row also records the date that
+documentation was retrieved and quotes, verbatim, the vendor sentence that names
+the address. Both kinds report the one public code `cloud-metadata`
 (§6.5); the kind is operator detail. `linklint`'s ten-row table
 (`packages/core/src/data/cloud-metadata.ts`) is the starting point. Ownership:
 `ssrfr`, per `raddr`'s architecture and the §4 amendment.
@@ -713,6 +769,14 @@ dials (INV-1), in IDNA A-label form, **ASCII-lowercased**, with a single trailin
 root dot removed. `metadata.google.internal.`, `METADATA.google.internal` and
 their U-label spellings therefore all match the built-in entry.
 
+**[proposed]** A host with no A-label refuses as `parse`: when domain-to-ASCII
+fails, including for a label beginning `xn--` that does not decode, the input
+spelling MUST NOT stand in for the A-label, whether in hostname rules, in the
+resolver query or in the URL handed to libcurl. The parse-vector table MUST carry
+such hosts. `rurl` 3.0.1 passes `xn--a.example` through unchanged, and so does
+libcurl, so today neither the layer-1 verdict nor §4.1's disagreement check
+refuses it **[verified]** (`design/evidence/2026-09-24-idna-fallback.R`).
+
 Case folding MUST be ASCII-only, as WHATWG host processing is, and MUST NOT depend
 on the session locale. `rurl` shipped the Turkish-I defect (`RURL-ugfpuotu`), and
 `stringi`'s `"root"` locale does not override the ambient one **[sourced]**
@@ -724,6 +788,14 @@ There are no other wildcards; a rule using any other wildcard form is a
 construction error (§5.3). The built-in metadata list is exact names only.
 
 Stripping the trailing dot for matching does not change what is dialed.
+
+**[proposed]** Hostname rules see the URL's host only. An alias is not resolved
+to its CNAME target for matching: `curl::nslookup()` calls `getaddrinfo()`
+without `AI_CANONNAME` and returns addresses only, and that flag would expose only
+the final canonical name, not the chain **[sourced]**. A name that aliases a
+`deny_hosts` entry or a built-in metadata name is therefore not refused by gate 4
+or 5; its addresses meet gates 1–3 like any other answer, and over HTTPS the
+certificate must match the alias (INV-9).
 
 #### Names resolve as absolute
 
@@ -875,6 +947,23 @@ bytes as they are delivered, and the transport sends an explicit
 non-overridable ceiling, and "0 = unlimited" is a foot-gun several of them do
 ship.
 
+**[proposed]** `max_response_size` is checked on each delivery from the
+transport, so the transfer ends on the first delivery that passes the limit: at
+most one delivery is held beyond it (libcurl delivers at most
+`CURL_MAX_WRITE_SIZE`, 16 KiB, per write callback **[sourced]**), and the hop
+fails as `response-too-large` (§6.6), so none of it is returned. There is no
+limit on the number of resolved addresses: INV-4 forbids truncating the set, and
+failover over it is bounded by `total_timeout`.
+
+**[proposed]** A further limit, `max_url_length`, defaults to 8000 octets per
+hop, RFC 9110 §4.1's minimum-support recommendation. It counts the UTF-8 octets
+of the URL string `ssrf_prepare_hop()` receives, before either parser runs, and a
+longer URL refuses as `parse`. A condition raised by `rurl` or `curl_parse_url()`
+while parsing is a `parse` refusal, never an R error to the caller (INV-11):
+`rurl` 3.0.1 raises one for non-ASCII inputs under the default **[verified]**
+(`design/evidence/2026-09-24-content-fetches.R`), and libcurl refuses any URL
+over 8,000,000 bytes.
+
 ---
 
 ## 6. Result and reason model
@@ -937,6 +1026,13 @@ caller from an untrusted one. Therefore:
 - `ssrfr` MUST ship a named minimizing projection — e.g.
   `ssrf_public_reason(refusal)` — reducing a refusal to a value carrying no
   predicate, no address, and no hop index.
+- **[proposed]** The projection MUST also accept an operational failure (§6.6)
+  and return for it the same value it returns for a refusal. Across an untrusted
+  boundary the outcome class is an oracle too: `connect-failed` against
+  `timeout` separates closed from filtered ports inside any range `allow_ranges`
+  opened, and a refusal where `unresolvable` was the alternative tells the
+  prober that an internal name exists and resolves to prohibited space. §6.2's
+  branch stays available to the caller.
 - Applying that projection at the boundary where an untrusted party receives the
   result is the **application's** obligation, and this specification says so
   explicitly rather than leaving it implied.
@@ -1073,7 +1169,9 @@ Corpus components:
 3. **Requirement coverage** — external requirement IDs (OWASP cheat sheet items,
    ASVS requirement IDs, CWE mitigations) mapped to demonstrating tests, each
    marked enforced-by-library, enforced-by-application, or out of scope.
-4. **Dependency pinning** — §4.3.
+4. **Dependency pinning** — §4.3. **[proposed]** Published results name the
+   `raddr` version and its `addr_registry_version()`,
+   `addr_address_space_version()` and `addr_registry_snapshot()` values.
 
 ### 7.1 The evidence base MUST be committed
 
@@ -1087,6 +1185,19 @@ anyone but their author.
 `design/evidence/` holds the probe scripts, including the July probes re-run on
 2026-09-24 (`r-binding.md` §9), and `design/references.md` the pinned source
 citations (`SSRF-ssldkvmd`).
+
+### 7.2 What counts as a pass **[proposed]**
+
+A conformance run MUST count a skipped test, and a test that makes no
+assertion, as not passed. Skipping is legitimate where others check the
+package, such as CRAN's farm (`r-binding.md` §7); it is never legitimate in the
+run that declares conformance. A platform on which a security test skips has
+not shown conformance there (§8 item 6).
+
+Each corpus file MUST be committed with its row count and a content checksum,
+and the test that loads it MUST assert both before it evaluates any row.
+Regenerating a corpus (component 2) changes both in the same commit, so the
+change shows in review.
 
 ---
 
@@ -1114,6 +1225,12 @@ citations (`SSRF-ssldkvmd`).
 | 15 | Items outside the 2026-09-24 brief: operational causes (§6.6); gate 2 on embedded addresses (§5); minimum `rurl` and `raddr` versions (§4) | **closed — ratified** 2026-09-24, after a second opinion; adds the `redirect-limit` refusal code, and the redirect default becomes 20 (ADR 0005) |
 | 16 | Minimum libcurl (`r-binding.md` §5) | **closed — ratified, conditionally**: libcurl ≥ 7.73, the `curl` package's own floor, with the `protocols` bitmask below 7.85. If the Ubuntu 22.04 and Rocky 9 probes (item 6) show the protocol restriction or the pin failing there, the floor becomes 7.85 — `SSRF-arbcwamd` |
 | 17 | v1 transport scope | **closed — ratified**: the `curl` package only; `httr2`, `httr` and `crul` adapters come after v1 — `SSRF-arbcwamd` |
+| 18 | The host's own public addresses: a connection to an address assigned to the host is delivered locally (a Mattermost `IsOwnIP`-style check) | **open** — recommended: no detection in v1. The operator lists the host's public addresses in `deny_ranges`, and §9 records the residual. Interface enumeration needs a dependency §4 does not have; it is deferred to the "Ideas beyond v1" brainstorm (`iqupwehm`) — `SSRF-aylqwknz` |
+| 19 | CNAME targets are never checked by hostname rules | **open** — recommended: no check in v1, documented in §5.0. `curl::nslookup()` returns addresses only, and `getaddrinfo()` exposes at most the final canonical name, never the chain; the address gates classify every answer whatever name produced it — `SSRF-aylqwknz` |
+| 20 | Freshness of `raddr`'s IANA registry snapshot | **open** — recommended: no runtime age check (§4.3). `raddr`'s stamp is IANA's editorial date, so `addr_registry_outdated()` measures how long IANA has been quiet (it turns `TRUE` on 2026-10-10 for a snapshot that matches IANA today). Conformance results record the snapshot (§7), and a new IANA entry reaches `ssrfr` by raising the minimum `raddr` version (§4) — `SSRF-aylqwknz` |
+| 21 | Retry lifecycle and response ownership (§2.2, §2.5) | **open** — recommended: `ssrf_fetch()` sends the request at most once; its only re-attempt is failover after a failed connection. A caller retry is a new `ssrf_prepare_hop()`. The response is read and decoded in full inside `ssrf_fetch()` and returned as a plain R value that owns no handle, connection or file. Streaming is beyond v1 — `SSRF-aylqwknz` |
+| 22 | Maximum URL length | **open** — recommended: `max_url_length`, default 8000 octets (RFC 9110 §4.1), checked on the URL string `ssrf_prepare_hop()` receives before any parse; a longer URL refuses as `parse`. Independently, an error raised by either parser is a `parse` refusal (INV-11) (§5.3) — `SSRF-aylqwknz` |
+| 23 | The `_scratch` findings brought in on 2026-09-24: every **[proposed]** passage in §2.2, §2.3, §2.5, §4.3, §5, §5.0, §5.3, §6.4, §7, §7.2, §9, S5, §13 (INV-10) and §14–§15 | **open** — awaiting ratification in one round — `SSRF-aylqwknz` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1136,6 +1253,30 @@ reused connections; `r-binding.md` §6).
   detached." `ssrfr` SHOULD make the guarded path the path of least resistance
   and SHOULD document the unguarded R primitives that remain dangerous (S5).
 - Protection against a compromised system resolver.
+- **[proposed]** Refusing the host's own public addresses. A connection to an
+  address assigned to one of the host's interfaces is delivered locally (Linux
+  `ip-route(8)`, `local` routes) and can reach services that a host firewall
+  shields from outside; Mattermost refuses such addresses for this reason
+  **[sourced]**. Gate 1 sees only a globally reachable address. `ssrfr` v1 does
+  not enumerate interfaces; an operator whose host holds a public address lists
+  it in `deny_ranges`.
+- **[proposed]** Keeping attacker-chosen names out of DNS. Resolution is how a
+  hop is validated (§12 step 7), so every hostname that passes steps 1–6 is
+  queried through the system resolver, and whoever runs that zone sees the
+  query and whatever its labels encode. §11.1's blind-SSRF goal covers error
+  shape and timing (INV-12), not the fact that a lookup happened. A
+  `deny_hosts` match stops the query, because step 6 precedes step 7.
+- **[proposed]** Requests that response content causes other code to make.
+  `ssrfr` follows 3xx responses only (§2.3). An HTML `<meta
+  http-equiv="refresh">`, a `Refresh` header and script navigation are content
+  to it. An application that follows one starts a new chain with `from = NULL`:
+  the target is fully validated, but the chain's budgets and INV-8's
+  cross-origin stripping do not carry over, and whatever request plan the
+  application passes is its own. Parsers that fetch are outside the guarded path
+  too: `xml2` loads external DTDs and entities over `http(s)` and `file` when
+  `DTDLOAD` or `NOENT` is set, and requests nothing with its default options
+  **[verified]** (`design/evidence/2026-09-24-content-fetches.R`). Parse fetched
+  XML with `xml2`'s defaults.
 - Compliance claims beyond those permitted in §15.
 
 ---
@@ -1459,8 +1600,27 @@ trusted-proxy mode, in which the proxy enforces destination policy and `ssrfr`'s
 claim narrows to match, is deferred beyond v1. *Amended 2026-09-24* (was "unless
 the caller explicitly opts in").
 
-**Rationale.** A proxy resolves the hostname *itself*, discarding the pin
-entirely — a total bypass. The reference Ruby implementation followed ambient
+**Rationale.**
+
+> **[suspended]** A proxy resolves the hostname *itself*, discarding the pin
+> entirely — a total bypass.
+>
+> **Correction.** That holds for a proxy given the hostname, which is how the
+> reference Ruby implementation lost its pin. Under a `connect_to` pin, libcurl
+> 8.14.1 gives the proxy the pinned address instead: an HTTP proxy receives
+> `CONNECT <pinned IP>:<port>`, even for `http://`, and a SOCKS5 or `socks5h`
+> proxy the IPv4 literal **[verified]**
+> (`design/evidence/2026-09-24-proxy-probes.R`). The pin's address survives; the
+> TCP peer does not. The same premise appears in the rule above ("resolves the
+> hostname after `ssrfr` validated it") and in §14's "total pin bypass".
+>
+> **[proposed]** A proxy moves the connection off the pinned path. The TCP peer
+> becomes the proxy, which reaches the destination from its own network, where
+> the address was never classified, and INV-5's peer check can no longer
+> confirm the pin. A proxy given the hostname also resolves it itself and
+> discards the pin entirely. **[sourced]** **[verified]**
+
+The reference Ruby implementation followed ambient
 proxies from its first release in 2017 until 1.6.0 (September 2026); MLflow's
 webhook client is another surveyed project that ignores them. **[sourced]**
 Beware channels that are not obviously proxies: an `Alt-Svc` cache remaps an
@@ -1557,6 +1717,8 @@ these effects:
 | Local-socket transports disabled | container control-plane access |
 | Connect timeout and total timeout both set | port scanning by timing; resource exhaustion |
 | Response size bounded by counting delivered bytes | decompression bombs; header-declared size is advisory only |
+| **[proposed]** Transport-managed credentials and cookie state disabled (netrc, the cookie engine, cookie files) | credentials the request plan did not carry: a `401` answered from an ambient netrc; a replayed `Set-Cookie` (INV-8, INV-10) |
+| **[proposed]** The transport handle is built by `ssrfr` for each fetch; no public argument, policy field or request plan accepts a `curl` handle, `curl` options or a callback | a caller option silently undoing a row above: `unix_socket_path` skips resolution and the pin entirely; `proxy`, `connect_to`, `resolve` or `followlocation` replace the pin or the loop |
 
 **Note.** A declared-size limit is not a size limit: older transports ignore it
 when the server omits a length header, and it is measured on wire bytes so a
@@ -1586,6 +1748,10 @@ Explicitly **not** permitted:
   A01:2025 Broken Access Control; A10:2025 is a different category. Cite an
   edition.
 - "ASVS V50" — no such chapter exists in 5.0.
+- **[proposed]** "Zero bypasses", "zero false positives", or any safety rate
+  derived from the project's own corpus. A published result names the corpus
+  version and its per-group counts (§7); passing it shows those vectors are
+  handled, not that no bypass exists.
 - ASVS 5.0 V13.2.5. It requires the web or application server itself to be
   configured with an allowlist, which a library cannot satisfy.
 - PCI DSS or CIS benchmark compliance. Neither has citable SSRF text.

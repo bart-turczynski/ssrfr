@@ -38,7 +38,7 @@ Only **[ratified]** text may be implemented against.
 **Ratified 2026-09-24:** the gate set (§5), the reason-code mapping (§6.5), the
 parse boundary (§4.1, §4.2), embedding evaluation (§5.2), limits and policy
 fields (§5.3), and Part II, as answered in the v1 decision brief (fp brainstorm
-`nftbfuli`; ADR 0004). Text still marked **[proposed]** is listed in §8 item 15.
+`nftbfuli`; ADR 0004). No text is marked **[proposed]**.
 The transport findings are unverified off macOS (§8 items 6 and 7), so L2 stays
 blocked on them.
 
@@ -464,9 +464,12 @@ tables" (ADR 0004).
 | `raddr` | address parsing, `addr_global_reachability()`, `addr_embeddings()`, `addr_within_any()`, IANA registry snapshots |
 
 As of 2026-09-24 all three are on CRAN: `rurl` 3.0.1 (2026-09-09) and `raddr`
-0.1.2 (2026-09-21) **[verified]**. **[proposed]** Minimum versions: `rurl
-(>= 3.0.0)`, the first release where `url_standard` is required and the parser is
-in-tree; `raddr (>= 0.1.2)`, the first with a versioned code registry.
+0.1.2 (2026-09-21) **[verified]**. Minimum versions: `rurl (>= 3.0.0)`, the
+first release with the parser in-tree, the layered verdicts §4.2 gates on and
+standard-aware `resolve_url()`; `raddr (>= 0.1.2)`, its first published release.
+`url_standard` still defaults to `NULL` in `rurl` 3.0.0, so `ssrfr` MUST pass
+`url_standard = "whatwg"` on every call **[verified]** (`rurl` `R/verdicts.R`,
+`R/resolve.R`).
 
 ### 4.1 Why delegation rather than vendoring
 
@@ -623,7 +626,7 @@ each row cites current vendor documentation and a kind (`instance-metadata` or
 (`packages/core/src/data/cloud-metadata.ts`) is the starting point. Ownership:
 `ssrfr`, per `raddr`'s architecture and the §4 amendment.
 
-**[proposed]** Gate 2 also reads every row of `addr_embeddings()`: an embedded
+Gate 2 also reads every row of `addr_embeddings()`: an embedded
 address in the table refuses at tier 1, like any refusal derived from an
 embedding (§5.0). Otherwise a NAT64 wrapper of WireServer, whose embedded address
 is globally reachable, passes gate 1c and never meets gate 2.
@@ -816,7 +819,7 @@ allow_hosts       exceptions to built-in hostname refusals; caller deny still wi
 deny_ranges       additional prohibited ranges
 allow_ranges      exceptions to determinate built-in address refusals; caller deny still wins
 allow_userinfo    default: false
-max_redirects     default: 10; 0 MUST be supported and MUST mean "refuse any 3xx"
+max_redirects     default: 20; 0 MUST be supported and MUST mean "refuse any 3xx"
 connect_timeout   default: 3 s, per connection attempt
 total_timeout     default: 30 s, for the whole redirect chain (§2.5)
 max_response_size default: 10 MiB of decoded body, per hop
@@ -837,6 +840,11 @@ with deny rules and built-ins is §5.0 and nowhere else.
 Ports MUST be an allowlist. Browser "bad port" denylists omit both Redis and
 Memcached **[sourced]**, and the reference Ruby implementation has no port
 restriction at all. CWE-918's own alternate name is *Cross Site Port Attack*.
+
+The default of 20 is the WHATWG Fetch Standard's limit ("If request's redirect
+count is 20, then return a network error"), which Chrome and Firefox implement;
+RFC 9110 §15.4 sets no number. A redirect beyond the budget refuses as
+`redirect-limit` (§6.5).
 
 `max_redirects = 0` is required because four independent OWASP sources — and
 ASVS 5.0 V15.3.2 — recommend disabling redirects outright. Following them with
@@ -990,6 +998,7 @@ reference pages list the same set is unchecked.
 | `range-denied` | matched a caller `deny_ranges` rule | gate 3 |
 | `parse` | syntax failure, or `rurl` and libcurl disagree on the host | INV-2, §4.1 |
 | `multicast` | multicast address | gate 1a |
+| `redirect-limit` | a 3xx arrived after the chain's redirect budget was spent, including any 3xx under `max_redirects = 0` | §2.5, §5.3 |
 | `reserved` | reserved, documentation, benchmarking, IETF-protocol and other special-purpose space no code above names | ADR 0004, superseding ADR 0001 §2.2's `private` for this space |
 
 `unresolvable` and `pin-mismatch` were listed here in the retired guard spec.
@@ -1015,10 +1024,9 @@ the decoded category is carried in operator detail (§6.4).
 | `rurl` `layer2_policy_verdict` other than `"admitted"` (e.g. `"rejected-scheme"`) | `scheme` |
 | `rurl` numeric-literal shape diagnostic on the input host | `numeric-literal` |
 
-### 6.6 Operational causes **[proposed]**
+### 6.6 Operational causes **[ratified]**
 
-A separate closed enum, `kebab-case`. The initial list, awaiting ratification
-(§8 item 15):
+A separate closed enum, `kebab-case`:
 
 | Cause | Meaning |
 |---|---|
@@ -1027,8 +1035,11 @@ A separate closed enum, `kebab-case`. The initial list, awaiting ratification
 | `connect-failed` | no validated address accepted a connection |
 | `tls-failed` | certificate or hostname verification failed |
 | `timeout` | a connect or total deadline elapsed, including work done after bytes arrived |
-| `response-too-large` | the delivered-byte cap was reached |
-| `protocol-error` | malformed response the transport could not complete |
+| `response-too-large` | a size or count limit was reached: decoded body bytes, header bytes or header fields (§5.3); operator detail names which |
+| `protocol-error` | a malformed, truncated or undecodable response |
+
+When several limits trip during one transfer, the first one reached ends it and
+names the cause.
 
 Misuse of the API — a spent binding, a `from` that is not a followed redirect, an
 invalid request-plan header, a malformed policy — is an operational *error* raised
@@ -1100,7 +1111,7 @@ citations (`SSRF-ssldkvmd`).
 | 12 | Ownership items `raddr` assigns to `ssrfr`: `X-Forwarded-For` extraction and a "most restrictive reading wins" convenience (`raddr` `docs/architecture.md`) | **closed — declined**: `X-Forwarded-For` is inbound request security (S5), and INV-1 fixes a single reading — `SSRF-dppgkbac` |
 | 13 | Policy validation at construction; versioning mechanism for code domains (§5.3, §6.1) | **closed — ratified** — `SSRF-aqrgqdhi` |
 | 14 | Ratify the inherited text: §5.3 and Part II (§11–§15), plus sentences tagged *[inherited]* in Part I | **closed — ratified**, with §11 widened to match S1, INV-10 without a proxy opt-in, and §15 narrowed — `SSRF-iuqixghb` |
-| 15 | Items outside the 2026-09-24 brief: operational causes (§6.6); gate 2 on embedded addresses (§5); minimum `rurl` and `raddr` versions (§4) | **proposed** |
+| 15 | Items outside the 2026-09-24 brief: operational causes (§6.6); gate 2 on embedded addresses (§5); minimum `rurl` and `raddr` versions (§4) | **closed — ratified** 2026-09-24, after a second opinion; adds the `redirect-limit` refusal code, and the redirect default becomes 20 (ADR 0005) |
 | 16 | Minimum libcurl (`r-binding.md` §5) | **closed — ratified, conditionally**: libcurl ≥ 7.73, the `curl` package's own floor, with the `protocols` bitmask below 7.85. If the Ubuntu 22.04 and Rocky 9 probes (item 6) show the protocol restriction or the pin failing there, the floor becomes 7.85 — `SSRF-arbcwamd` |
 | 17 | v1 transport scope | **closed — ratified**: the `curl` package only; `httr2`, `httr` and `crul` adapters come after v1 — `SSRF-arbcwamd` |
 
@@ -1237,8 +1248,9 @@ are ordering errors.
 10. CONNECT         with transport hardening per §14
 11. VERIFY          the peer is an address that was validated             (INV-5)
 12. RESPONSE        enforce size and time budgets
-13. ON 3xx          record status; strip/transform the guarded plan (INV-8),
-                    then goto 1 for the new URL (INV-7)
+13. ON 3xx          record status; if the redirect budget is spent, refuse as
+                    `redirect-limit`; else strip/transform the guarded plan
+                    (INV-8), then goto 1 for the new URL (INV-7)
 ```
 
 *Added 2026-09-24:* the `downgrade` and `numeric-literal` checks in steps 3 and

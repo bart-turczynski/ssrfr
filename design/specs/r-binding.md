@@ -17,8 +17,8 @@ confirmation is outstanding (`ssrfr-v1.md` §8 item 6).
 
 | Date | Environment | Evidence |
 |---|---|---|
-| 2026-07-25 | R 4.6.0, `curl` 7.1.0, libcurl 8.14.1 (LibreSSL 3.3.6), macOS / Darwin 25.4.0 | `_scratch/research/00b-local-empirical.md` (uncommitted) |
-| 2026-09-24 | R 4.6.0, `curl` 8.0.0, libcurl 8.14.1 (LibreSSL 3.3.6, IDN off), `rurl` 3.0.1.9000, `raddr` 0.1.2.9000, macOS / Darwin 25.6.0 | [`../evidence/2026-09-24-dependency-probes.R`](../evidence/2026-09-24-dependency-probes.R) |
+| 2026-07-25 | R 4.6.0, `curl` 7.1.0, libcurl 8.14.1 (LibreSSL 3.3.6), macOS / Darwin 25.4.0 | re-run on 2026-09-24 by the transport scripts in §9; the July output is kept in them where it differs |
+| 2026-09-24 | R 4.6.0, `curl` 8.0.0, libcurl 8.14.1 (LibreSSL 3.3.6, IDN off), `rurl` 3.0.1.9000, `raddr` 0.1.2.9000, macOS / Darwin 25.6.0 | [`../evidence/`](../evidence/), listed in §9 |
 
 ---
 
@@ -405,28 +405,17 @@ Positioning: `firesafety` (Posit) is the inbound web-security half for `fiery`.
 
 ## 9. Reproduction
 
-Dependency facts dated 2026-09-24: run
-[`../evidence/2026-09-24-dependency-probes.R`](../evidence/2026-09-24-dependency-probes.R).
+Each script records its environment and expected output; run it with
+`Rscript` from the repository root.
 
-Transport probes from July, not yet committed (`ssrfr-v1.md` §7.1):
+| Script | Covers |
+|---|---|
+| [`2026-09-24-dependency-probes.R`](../evidence/2026-09-24-dependency-probes.R) | `rurl`, `raddr` and `curl_parse_url()` facts (§1, §2) |
+| [`2026-09-24-transport-probes.R`](../evidence/2026-09-24-transport-probes.R) | settable options, `dns_servers`, `nslookup()`, protocol exposure on the first and redirect hops, what libcurl dials for `0177.0.0.1`, the pinning primitives (failover, port-key fail-open, empty-field form), the proxy-environment hijack, `resolve` versus connection reuse, the `debugfunction` trace (§2.5, §3–§6) |
+| [`2026-09-24-tls-pin-probes.R`](../evidence/2026-09-24-tls-pin-probes.R) | TLS under a pin and INV-9's three methods (§7) |
+| [`2026-09-24-hermetic-test-probes.R`](../evidence/2026-09-24-hermetic-test-probes.R) | the L1–L3 mechanics, `maxfilesize`, timeouts, the raw listener, mocking the resolver, `webfakes` and `::1` (§5, §7) |
+| [`2026-09-24-curl-callback-options.R`](../evidence/2026-09-24-curl-callback-options.R) | callback options R's `curl` can and cannot set (§6) |
+| [`2026-09-24-r-http-clients.R`](../evidence/2026-09-24-r-http-clients.R) | reach of `curl`-based clients on CRAN; which clients accept a pin |
+| [`2026-09-24-oracle-metadata-miss.R`](../evidence/2026-09-24-oracle-metadata-miss.R) | `192.0.0.192` against `ipaddress` and a hand-rolled matcher (`ssrfr-v1.md` §5) |
 
-```r
-# settable options
-o <- curl::curl_options(); c("resolve","connect_to","dns_cache_timeout") %in% names(o)
-
-# all A/AAAA records the resolver returns
-curl::nslookup("localhost", ipv4_only = FALSE, multiple = TRUE)
-
-# protocol list
-curl::curl_version()$protocols
-
-# what does curl ACTUALLY dial?
-system("curl -s -v --connect-timeout 2 http://0177.0.0.1/ 2>&1 | grep Trying")
-
-# callback options that fail
-curl::handle_setopt(curl::new_handle(), prereqfunction = function(...) 0L)
-```
-
-Pin behaviour, the port-key fail-open, and the empty-field form are reproduced in
-`_scratch/research/00b-local-empirical.md` §4–§6. The CRAN landscape scan is
-`_scratch/research/scan-cran.R`.
+External sources for this file are in [`../references.md`](../references.md).

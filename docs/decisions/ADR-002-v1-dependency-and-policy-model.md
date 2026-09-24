@@ -38,7 +38,8 @@ reason to duplicate security-sensitive logic.
 
 Each of the address and hostname dimensions is evaluated independently:
 
-1. indeterminate address classification refuses and cannot be overridden;
+1. indeterminate address classification, and a non-global verdict derived from
+   an embedded address, refuse and cannot be overridden;
 2. a matching caller deny rule refuses;
 3. a matching caller allow rule overrides only a built-in refusal in the same
    dimension;
@@ -67,5 +68,10 @@ deliberately authorized internal target.
   hostname. It does not authorize arbitrary DNS answers.
 - `allow_ranges` can authorize private, link-local, or multicast destinations
   without weakening hostname policy or allowing indeterminate classifications.
+- `allow_ranges` cannot authorize a destination reached through an address
+  embedding (NAT64, 6to4, and the other forms `raddr` decodes). An allow range can
+  only match the outer wrapper, so an override would admit every internal target
+  wrapped in an allowed prefix. Callers reach such targets by their direct
+  address (`ssrfr-v1.md` §5.0).
 - ADR-001 §5's statement that built-ins are overridable only in the deny direction
   and §7's vendored-classifier dependency posture are superseded.

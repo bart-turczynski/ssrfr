@@ -298,8 +298,12 @@ An application MAY explicitly nominate a header as cross-origin-safe, which is a
 declaration that the field contains no credential or origin-scoped secret.
 `Authorization`, `Proxy-Authorization`, and `Cookie` remain non-carryable under
 case-insensitive matching and MUST NOT be nominated. Bodies remain non-carryable
-across origins. Transport-controlled routing fields such as `Host` and
-`Connection` MUST NOT be accepted from the caller.
+across origins. Transport-controlled routing and framing fields MUST NOT be
+accepted from the caller, under case-insensitive matching against a closed list:
+`Host`, `Connection`, `Proxy-Connection`, `Keep-Alive`, `Transfer-Encoding`, `TE`,
+`Trailer`, `Upgrade`, `Content-Length`, and pseudo-header names beginning with
+`:`. Field names that are not valid tokens, and values containing CR, LF, or NUL,
+MUST be refused rather than sanitized.
 
 **Rationale.** A working token-replay PoC was filed against the reference Ruby
 implementation, which strips `authorization` and `cookie` but replays `body`,
@@ -416,7 +420,10 @@ first-class control, not a convenience.
 
 ### INV-14 — Deny wins
 
-When both an allow rule and a deny rule match, the request MUST be refused.
+When both a caller allow rule and a caller deny rule match, the request MUST be
+refused. Built-in refusals are not deny rules for this purpose: §8 defines how a
+caller allow rule interacts with them, and which of them no allow rule can
+override.
 
 **Rationale.** The alternative — allow overrides deny, as one Go implementation
 does, where configuring any allowlist silently flips the whole policy to
@@ -503,6 +510,10 @@ specification constrains the interface, not the tables.
 
 An address MUST be refused if it is not globally reachable, is multicast, matches
 a configured deny rule, or embeds an address that is itself refused (INV-13).
+The first two are built-in refusals: a matching caller allow rule overrides them
+under §8's precedence when the classification is determinate and was not derived
+from an embedded address. A caller deny rule, an indeterminate classification,
+and an embedded-address refusal are never overridden.
 
 Implementations SHOULD drive classification from the IANA special-purpose address
 registries rather than a hand-maintained list. Evidence: two independent
@@ -553,7 +564,9 @@ max_response_size MUST have a finite default
 Allow fields are exception lists, not default-deny allowlists. Precedence is
 four-tier and dimension-local:
 
-1. indeterminate address classification refuses and is non-overridable;
+1. indeterminate address classification refuses and is non-overridable, and so
+   does a refusal derived from an embedded address (INV-13), because an allow
+   rule can only match the outer wrapper;
 2. a matching caller deny rule refuses;
 3. a matching caller allow rule overrides only a built-in refusal in the same
    dimension;

@@ -218,8 +218,13 @@ The deterministic v1 transformation is:
 
 This is the behavior `ssrfr` chooses from RFC 9110 §15.4. The RFC permits, rather
 than requires, the historical POST-to-GET transformation for 301 and 302; 307 and
-308 prohibit changing the method during automatic redirection. Whenever a method
-transformation drops the body, fields describing that body MUST also be dropped.
+308 prohibit changing the method during automatic redirection. Whenever the body
+is dropped, whether by a method transformation or by the cross-origin rule below,
+fields describing that body (`Content-Type`, `Content-Encoding`,
+`Content-Language`, `Content-Length`, and the other content-specific fields RFC
+9110 §15.4 names) MUST also be dropped. Nomination as carryable does not survive
+the body it describes: a cross-origin 307 or 308 therefore sends the preserved
+method with neither the body nor a nominated `Content-Type`.
 
 **On a redirect hop the request plan is inherited, not re-supplied.** Exactly one
 of `request` and `from` is required. `request` supplies the first-hop plan and
@@ -238,9 +243,14 @@ that the field contains no credential or origin-scoped secret.
 
 `Authorization`, `Proxy-Authorization`, and `Cookie` are permanently
 non-carryable, case-insensitively, and nomination MUST NOT override that rule. A
-body is also non-carryable across origins in v1. Transport-controlled routing
-fields, including `Host` and `Connection`, MUST NOT be accepted as caller-supplied
-headers at all. These fixed rules cover protocol-defined credentials and routing
+body is also non-carryable across origins in v1. Transport-controlled routing and
+framing fields MUST NOT be accepted as caller-supplied headers at all, matched
+case-insensitively: `Host`, `Connection`, `Proxy-Connection`, `Keep-Alive`,
+`Transfer-Encoding`, `TE`, `Trailer`, `Upgrade`, and `Content-Length`, plus any
+name beginning with `:` (HTTP/2 and HTTP/3 pseudo-headers). A caller-supplied
+field whose name is not a valid RFC 9110 token, or whose value contains CR, LF, or
+NUL, is refused rather than sanitized. Violations are operational errors raised at
+`prepare`. These fixed rules cover protocol-defined credentials and routing
 integrity; the carry allowlist handles unknown application fields without
 pretending that `ssrfr` can identify every secret-bearing name.
 
@@ -289,6 +299,14 @@ a connection.
   as a second use.
 - **A binding captures its policy by value** at prepare time. It therefore cannot
   be invalidated by a later policy change, because it holds no reference to one.
+- **Per-hop policy, chain-scoped budget** **[proposed]**. On a redirect hop, the
+  `policy` argument governs that hop's evaluation; that is what §1.3's per-hop
+  policy means, and the caller could have supplied the same rules on the first
+  hop anyway. The redirect budget is not per-hop: `max_redirects` is fixed by the
+  first hop's policy and inherited through `from`, together with the hop index. A
+  redirect-hop policy that states a different `max_redirects` is an operational
+  error, not a silent override, so a loop cannot extend its own budget mid-chain
+  by rebuilding its policy object.
 - **A wall-clock expiry SHOULD be set, with a short default.** This is
   **correctness, not security**: a stale binding still pins to an address that was
   validated, so using one late is not a bypass. It is a surprise, because the
@@ -463,7 +481,7 @@ dimension.
 
 | Tier | Address dimension | Hostname dimension |
 |---|---|---|
-| **1. Non-overridable** | reachability `NA` (§5.1) | — |
+| **1. Non-overridable** | reachability `NA` (§5.1); reachability `FALSE` derived from an embedded address (§5.2) | — |
 | **2. Caller deny** | `deny_ranges` | `deny_hosts` |
 | **3. Caller allow** | `allow_ranges` — overrides tier 4 for the matched addresses only | `allow_hosts` — overrides tier 4 for the matched name only |
 | **4. Built-in** | `addr_global_reachability()` is `FALSE`; multicast | the built-in metadata hostname list |
@@ -485,8 +503,37 @@ applies. A request is permitted only when both dimensions permit.
   multicast target toward the off switch, which is strictly worse. This is a MUST
   for conforming v1 implementations, not implementation discretion.
 - **Neither allow rule overrides `NA`.** §5.1.
+- **`allow_ranges` does not override a refusal derived from an embedded
+  address.** `raddr` grades an embedding by the address it extracts, and §5.2
+  forbids `ssrfr` from extracting it again, so an allow range can only ever match
+  the outer wrapper. Letting it override would turn `allow_ranges =
+  "64:ff9b::/96"` (or `2002::/16`) into permission for every internal target
+  wrapped inside that prefix, including `64:ff9b::a9fe:a9fe` → `169.254.169.254`:
+  the `pydantic-ai` NAT64 chain INV-13 cites, reopened by configuration. The
+  converse is an accepted v1 limit: `allow_ranges = "10.0.0.0/8"` does not
+  authorize the NAT64 or 6to4 form of `10.0.0.5`; the caller must use the direct
+  address. The rule requires `raddr` to report that a `FALSE` came from an
+  embedding, which §5.2's reason-code obligation already assumes **[assumption]**
+  (unverified until §6.3 is checked). If `raddr` cannot attribute it, every
+  address `raddr` reports as an embedding form is non-overridable.
 - **Rules are not cross-dimensional.** `allow_ranges` cannot un-deny a hostname;
   `allow_hosts` cannot un-deny an address.
+
+#### Hostname matching **[proposed]**
+
+Hostname rules match a normalized value, never the literal string, for the same
+reason INV-3 forbids literal address matching. Both the rule and the host are
+normalized the same way: the host is the one `rurl` parsed from the URL the
+transport dials (INV-1), lowercased, in IDNA A-label form, with a single trailing
+root dot removed. `metadata.google.internal.`, `METADATA.google.internal` and
+their U-label spellings therefore all match the built-in entry.
+
+A rule matches exactly unless it begins with `.`, in which case it matches any
+proper subdomain and not the bare name: `.corp` matches `api.corp`, not `corp`.
+There are no other wildcards. The built-in metadata list is exact names only.
+
+Stripping the trailing dot for matching does not change what is dialed. The
+search-domain question (§8 decision 4) remains open and is independent.
 
 #### The extension worth flagging
 
@@ -645,6 +692,8 @@ claims are unfalsifiable by anyone but their author.
 | 5 | Default User-Agent | open |
 | 6 | Cross-platform re-verification of every transport finding (all are macOS-only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker |
 | 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | unverified |
+| 8 | Chain-scoped redirect budget under per-hop policy (§2.5) | **proposed**, awaiting ratification |
+| 9 | Hostname rule normalization and suffix syntax (§5.0) | **proposed**, awaiting ratification |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -674,6 +723,7 @@ and MUST be resolved in the source documents rather than left standing.
 | `r-binding.md` | §2 | Add `resolve_url()` and §3.3's verified finding that `curl` cannot resolve references. |
 | `ssrf-guard-spec.md` | §2 | Add the binding to the layer model; L1 exposes no roll-up (§1.2). Its L1 guarantee — *"Every address this host currently resolves to is permitted"* — is a roll-up claim and MUST be restated as *classified*, per §1 above. This document inherited the defective phrasing from there. |
 | `ssrf-guard-spec.md` | §8 | **Resolved.** The configuration model now adopts §5.0's four-tier, dimension-local precedence matrix. |
+| `ssrf-guard-spec.md` | §6 and §4 INV-14 | **Resolved.** §6's refusal list names which refusals a caller allow may override under §8, and INV-14's "deny wins" now covers caller rules only; both previously contradicted §8's `allow_ranges` MUST. |
 | `ssrf-guard-spec.md` | §4 INV-8 | **Resolved.** The invariant now requires a guarded request plan, transport-derived redirect status, and the constrained cross-origin carry model (§2.3). |
 | `ssrf-guard-spec.md` | §2.1 | Replace the L0 naming rationale with §1.1's: L0 is misnamed as a gate because it does not answer that question, not merely because the name is dangerous. |
 | `ssrf-guard-spec.md` | §6 | Classification delegation is concrete: `raddr`, per §4. |

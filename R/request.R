@@ -114,7 +114,7 @@ check_headers <- function(headers, policy) {
     if (!grepl(http_token, fields[[i]])) {
       request_error(paste0(
         label(i),
-        " has a field name that is not a valid token (RFC 9110 §5.1)."
+        " has a field name that is not a valid token (RFC 9110 \u00a75.1)."
       ))
     }
     if (lower[[i]] %in% transport_owned_fields) {

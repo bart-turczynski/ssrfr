@@ -283,7 +283,7 @@ domain_metadata_hostnames <- function() {
 # an endpoint of gate 2's table; the rows cite that section. The list cannot
 # be complete: Oracle's marker is `Authorization: Bearer Oracle`.
 domain_metadata_headers <- function() {
-  spec <- "ssrfr-v1.md §2.3"
+  spec <- "ssrfr-v1.md \u00a72.3"
   rows <- list(
     c("Metadata", "Azure", spec),
     c("Metadata-Flavor", "GCP", spec),

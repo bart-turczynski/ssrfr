@@ -343,6 +343,12 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   if (transfer$aborted) {
     return(ended("protocol-error", 12L, "aborted"))
   }
+  # The header is complete before libcurl ends a transfer on its own limits,
+  # so a header limit it passed was the first limit reached (§6.6).
+  over <- header_limit(seen, policy)
+  if (!is.null(over)) {
+    return(ended("response-too-large", 12L, "header", over))
+  }
   if (!is.null(transfer$error)) {
     cause <- connected_cause(transfer$error)
     limit <- switch(
@@ -352,10 +358,6 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     )
     step <- if (cause == "tls-failed") 10L else 12L
     return(ended(cause, step, "transport", limit))
-  }
-  over <- header_limit(seen, policy)
-  if (!is.null(over)) {
-    return(ended("response-too-large", 12L, "header", over))
   }
   headers <- parse_response_headers(transfer$headers)
   if (is.null(headers)) {

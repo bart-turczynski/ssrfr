@@ -103,7 +103,7 @@ test_app <- function() {
     for (i in 1:50) {
       res$add_header(paste0("X-Field-", i), strrep("v", 40))
     }
-    res$send("ok")
+    res$send(if (identical(req$query$big, "1")) strrep("b", 50000) else "ok")
   })
   app$get("/two-locations", function(req, res) {
     res$set_status(302L)

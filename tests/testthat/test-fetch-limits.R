@@ -99,6 +99,14 @@ test_that("header bytes and header fields have limits of their own", {
   )
   expect_identical(bytes$cause, "response-too-large")
   expect_identical(bytes$detail$limit, "max_header_bytes")
+  # The header arrives first, so its limit is the one that names the cause
+  # even when the body would pass its own (§6.6).
+  both <- guarded_get(
+    pinned_url(port, "/many-headers?big=1"),
+    loopback_policy(port, max_header_fields = 20, max_response_size = 1000)
+  )
+  expect_identical(both$cause, "response-too-large")
+  expect_identical(both$detail$limit, "max_header_fields")
   ok <- guarded_get(pinned_url(port, "/many-headers"), loopback_policy(port))
   expect_identical(ok$status, 200L)
   expect_identical(unname(ok$headers[["x-field-50"]]), strrep("v", 40))

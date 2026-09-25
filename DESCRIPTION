@@ -17,7 +17,6 @@ BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 Depends:
     R (>= 4.0.0)
 Suggests:
@@ -28,3 +27,4 @@ Suggests:
 SystemRequirements: libcurl (>= 7.73.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+Config/roxygen2/version: 8.0.0

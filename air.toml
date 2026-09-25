@@ -1,0 +1,14 @@
+# Air formatter configuration (https://posit-dev.github.io/air/).
+# Air is a fast, R-free (Rust) formatter — the direction Posit is steering the
+# tidyverse (httr2 already uses it). Its defaults already match the tidyverse
+# style this template targets; they are pinned explicitly below so the project
+# style survives any future change to Air's defaults. This file's presence also
+# anchors the project root for Air's CLI and editor LSP.
+#
+# Air owns layout; lintr owns logic/best-practice lints — they do not collide.
+# The `air-format` pre-commit hook bootstraps its own binary, so neither
+# contributors nor CI need a global install. Format with `air format .`.
+[format]
+line-width = 80
+indent-width = 2
+indent-style = "space"

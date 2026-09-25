@@ -30,6 +30,10 @@ src/*.so
 src/*.dll
 vignettes/*.html
 vignettes/*.pdf
+site/
+public/
+.r-lib/
+.pak-cache/
 doc/
 Meta/
 tests/testthat/_snaps/

@@ -9,7 +9,7 @@ Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
 Run verification:
 
 ```sh
-Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }' && Rscript -e 'rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+Rscript scripts/verify.R
 python3 scripts/check-design.py
 ```
 

@@ -1,0 +1,305 @@
+# CI for ssrfr, an R package.
+#
+# Ported from the reference sibling seor and the shared R template in the
+# boilerplate generator; the reasoning behind the shape is in seor's ADRs
+# 0003 (cache), 0004 (CRAN incoming) and 0005 (one gate job). Read
+# design/agent-workflow.md before reshaping this file.
+#
+# The fast gate is ONE job, `verify`, running scripts/verify.R: the same file
+# the pre-push hook runs, so CI and the local gate cannot drift apart. The
+# cheap checks a sibling runs as separate jobs (lint, news-version) are stages
+# of that script, not jobs of their own. There is no README.Rmd, CITATION.cff
+# or codemeta.json here, and no OSV or OSS Index test, so the sibling jobs that
+# guard those are not ported.
+
+stages:
+  - verify
+  - check
+  - pages
+  - maintenance
+
+default:
+  interruptible: true
+
+# --------------------------------------------------------------------------
+# Shared R setup
+#
+# rocker/verse would carry R, pandoc and TeX in a single image, but it is
+# published amd64-only — on an arm64 runner that means every R compile runs
+# under QEMU. rocker/r-ver is multi-arch, so take that and add the toolchain by
+# hand.
+# --------------------------------------------------------------------------
+
+.r:
+  # The tag lives in R_VERSION, not in the image line, because the cache key
+  # below needs it too. full-check's matrix overrides R_VERSION per leg; every
+  # other R job runs this default. Renovate's gitlabci manager cannot read a
+  # tag through a variable, so renovate.json carries a regex manager for the
+  # commented line instead.
+  image: rocker/r-ver:$R_VERSION
+  variables:
+    # renovate: datasource=docker depName=rocker/r-ver
+    R_VERSION: "4.5.1"
+    # CI runners drop the image's LANG, so R falls back to the C locale and
+    # reads any UTF-8 byte back with "bytes" encoding; lintr then dies parsing
+    # its own config.
+    LANG: C.UTF-8
+    LC_ALL: C.UTF-8
+    # Rd2pdf defaults to "times,inconsolata,hyper", and inconsolata.sty ships
+    # only in texlive-fonts-extra (~1 GB, not installed below). Without this
+    # the PDF manual step WARNs and the verify gate fails on it.
+    R_RD4PDF: "times,hyper"
+    # GitLab caches only paths under $CI_PROJECT_DIR. Setting R_LIBS_USER is
+    # NOT enough on its own: rocker's Renviron.site puts site-library first and
+    # R installs into the first writable entry. The .libPaths() line in
+    # before_script is what actually moves the install target (seor ADR 0003).
+    R_LIBS_USER: "$CI_PROJECT_DIR/.r-lib"
+    # pak's download directory, inside the checkout for the same reason. That
+    # rules out `local::.` in any pak call: pak would copy the tree into a
+    # subdirectory of itself and fail. Jobs install the dependency closure,
+    # Suggests included, with pak::local_install_deps(), which copies nothing,
+    # and the package itself, where a job needs it, with `R CMD INSTALL`.
+    PKG_CACHE_DIR: "$CI_PROJECT_DIR/.pak-cache"
+    # rocker/r-ver bakes a frozen p3m snapshot into Rprofile.site at image
+    # build time, so anything newer on CRAN "does not exist". before_script
+    # replaces it with this date plus a CRAN fallback. Pinned so rebuilding an
+    # old commit resolves the same binaries; bump it when you bump R_VERSION.
+    P3M_SNAPSHOT: "2026-09-01"
+  cache:
+    # Keyed on DESCRIPTION, the closest thing an R package has to a lockfile,
+    # and on R_VERSION, because a compiled package only loads under the R it
+    # was built for.
+    key:
+      prefix: "r-$R_VERSION"
+      files:
+        - DESCRIPTION
+    paths:
+      - .r-lib
+      - .pak-cache
+  before_script:
+    - mkdir -p "$R_LIBS_USER" "$PKG_CACHE_DIR"
+    # The key cannot see a re-pushed image tag, and a cached library of
+    # binaries is valid only for the R and base image that built it. So record
+    # what built it and discard it when that no longer matches (SEOR-huidaviw).
+    - |
+      stamp="$R_LIBS_USER/.toolchain-stamp"
+      . /etc/os-release
+      want="$(Rscript -e 'cat(R.version$major, R.version$minor, R.version$platform, sep = "-")')-${ID}-${VERSION_ID}"
+      have="$(cat "$stamp" 2>/dev/null || echo none)"
+      if [ "$have" != "$want" ]; then
+        echo "cache: built by '$have', this job is '$want' -- discarding the cached library"
+        rm -rf "$R_LIBS_USER" "$PKG_CACHE_DIR"
+        install -d "$R_LIBS_USER" "$PKG_CACHE_DIR"
+        printf '%s' "$want" > "$stamp"
+      else
+        echo "cache: '$want' matches the cached library -- keeping it"
+      fi
+    # p3m first, so packages arrive as prebuilt binaries; CRAN behind it as a
+    # source-only fallback for what p3m has not synced yet. Appended, so the
+    # later options() call wins and rocker's HTTPUserAgent line survives. p3m's
+    # binary path is amd64-only, so arm64 falls back to the source repository.
+    - |
+      . /etc/os-release
+      repo="https://p3m.dev/cran/__linux__/${UBUNTU_CODENAME}/${P3M_SNAPSHOT}"
+      if [ "$(uname -m)" = "aarch64" ]; then
+        repo="https://p3m.dev/cran/${P3M_SNAPSHOT}"
+      fi
+      echo "options(repos = c(P3M = '${repo}', CRAN = 'https://cloud.r-project.org'))" \
+        >> "${R_HOME}/etc/Rprofile.site"
+      # Put the cached library FIRST so installs land in it (see R_LIBS_USER).
+      echo '.libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths()))' \
+        >> "${R_HOME}/etc/Rprofile.site"
+      Rscript -e 'cat("Effective repos:\n"); print(getOption("repos"))' \
+        -e 'cat("Library paths:\n"); print(.libPaths())'
+    - apt-get update -qq
+    # git because pak and covr shell out to it; LaTeX and qpdf for the
+    # `--as-cran` PDF manual; the -dev headers for source compiles on a runner
+    # p3m serves no binaries for.
+    - >
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends
+      curl ca-certificates git
+      pandoc texlive-latex-base texlive-fonts-recommended texlive-latex-recommended qpdf
+      libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
+      libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
+      libpng-dev libtiff5-dev libjpeg-dev
+    - Rscript -e 'if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak", repos = "https://cloud.r-project.org")'
+
+# --------------------------------------------------------------------------
+# workflow — keep only the pipeline on main
+#
+# A branch push and a merge request create NO pipeline; only a tag, a push to
+# main, or a hand-started (`web`) pipeline does. On the fleet's self-hosted
+# runners the branch and MR pipelines held runner slots while main's waited,
+# and died or ran against trees nobody could act on (SEOR-bmgkzhvy). So on a
+# feature branch the pre-push `verify` hook is the only gate, and an empty
+# pipeline list is not a pass. To get a server-side answer on a branch, start
+# one by hand at Build > Pipelines > Run pipeline.
+# --------------------------------------------------------------------------
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # The escape hatch: a human chose a ref under Run pipeline, so this never
+    # fires on its own.
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - when: never
+
+.on-main:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+.scheduled-or-manual:
+  rules:
+    # A scheduled run is BLOCKING: a detector that reports success when it
+    # fires is worthless.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # Under `rules`, `when: manual` defaults to `allow_failure: false`, which
+    # would leave a hand-started pipeline blocked on a job nobody meant to gate
+    # on. Load-bearing.
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+      allow_failure: true
+
+# --------------------------------------------------------------------------
+# verify — the fast gate
+# --------------------------------------------------------------------------
+
+# lintr and rcmdcheck are development tooling, not DESCRIPTION dependencies, so
+# they are installed separately from the package's own closure.
+verify:
+  extends:
+    - .r
+    - .on-main
+  stage: verify
+  script:
+    - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
+    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - Rscript scripts/verify.R
+
+# --------------------------------------------------------------------------
+# check — the slower passes
+# --------------------------------------------------------------------------
+
+# Coverage, reported through GitLab natively: the `coverage:` regex drives the
+# badge and the cobertura artifact drives per-line annotations in the diff.
+coverage:
+  extends:
+    - .r
+    - .on-main
+  stage: check
+  script:
+    - Rscript -e 'pak::pak(c("any::covr", "any::xml2"))'
+    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - Rscript -e 'cov <- covr::package_coverage(quiet = FALSE); print(cov); covr::to_cobertura(cov)'
+  coverage: '/Coverage:\s*(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
+
+# The R-version axis, on Linux only: GitLab.com's macOS and Windows runners are
+# paid tiers, so the rest moves to R-hub (`rhub::rc_submit()`) before a CRAN
+# submission.
+full-check:
+  extends:
+    - .r
+    - .scheduled-or-manual
+  stage: check
+  parallel:
+    matrix:
+      - R_VERSION: ["4.5.1", "4.4.3"]
+  script:
+    - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
+    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - Rscript scripts/verify.R
+
+# --------------------------------------------------------------------------
+# pages — the pkgdown site
+#
+# A job named exactly `pages` that leaves its output in `public/` is published.
+# _pkgdown.yml builds into site/, so the job renames at the end. Keep `url:` in
+# _pkgdown.yml in step with the project's Pages address.
+# --------------------------------------------------------------------------
+
+pages:
+  extends: .r
+  stage: pages
+  needs:
+    - verify
+    - coverage
+  rules:
+    # Pinned to the default branch: `pages` publishes rather than reports, so
+    # a hand-started pipeline on a feature branch must not reach it.
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    # build_site(install = FALSE) renders against the installed package.
+    - Rscript -e 'pak::pak("any::pkgdown")'
+    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - R CMD INSTALL --library="$R_LIBS_USER" .
+    # pkgdown renders EVERY top-level .md, so agent instruction files would be
+    # published as AGENTS.html, CLAUDE.html and so on. KEEP is a keep-list, not
+    # a deny-list: every top-level .md not named here is moved out first, so a
+    # new agent file of any name stays private by default, and a new public
+    # page is not published until it is added here (design/agent-workflow.md).
+    # A kept file that goes missing fails the job.
+    - |
+      set -eu
+      KEEP="README.md NEWS.md CONTRIBUTING.md SECURITY.md"
+      for f in $KEEP; do
+        if [ ! -f "$f" ]; then
+          echo "ERROR: expected top-level file '$f' is missing -- update KEEP in .gitlab-ci.yml or restore the file." >&2
+          exit 1
+        fi
+      done
+      mkdir -p /tmp/agent-md
+      for f in *.md; do
+        case " $KEEP " in
+          *" $f "*) : ;;
+          *) mv "$f" /tmp/agent-md/ ;;
+        esac
+      done
+    - Rscript -e 'pkgdown::build_site(new_process = FALSE, install = FALSE)'
+    - rm -rf public && mv site public
+  artifacts:
+    paths:
+      - public
+
+# --------------------------------------------------------------------------
+# maintenance — scheduled or on demand
+#
+# GitLab keeps pipeline schedules in project settings (CI/CD > Schedules), not
+# in this file. `needs: []` starts the job when the pipeline starts, so a red
+# full-check leg cannot skip it.
+# --------------------------------------------------------------------------
+
+# Renovate bumps the CI images (renovate.json). Needs a RENOVATE_TOKEN CI/CD
+# variable: a project access token with `api` and `write_repository` scope.
+renovate:
+  extends: .scheduled-or-manual
+  stage: maintenance
+  needs: []
+  image: renovate/renovate:41
+  variables:
+    RENOVATE_PLATFORM: gitlab
+    RENOVATE_ENDPOINT: $CI_API_V4_URL
+    RENOVATE_AUTODISCOVER: "false"
+    RENOVATE_REPOSITORIES: $CI_PROJECT_PATH
+    LOG_LEVEL: info
+  script:
+    # Skip loudly rather than fail when the token is missing: a red scheduled
+    # pipeline for a setup step nobody has done yet is noise. Every other
+    # renovate failure fails the job.
+    - |
+      if [ -z "${RENOVATE_TOKEN:-}" ]; then
+        echo "RENOVATE_TOKEN is not set - skipping renovate."
+        echo "Add it under Settings > CI/CD > Variables: a project access token"
+        echo "with 'api' and 'write_repository' scope."
+        exit 0
+      fi
+    - renovate

@@ -1,7 +1,7 @@
-# Overrides the shared config: the shared `verify` hook wraps the command in a
-# bash invocation that breaks on R's verify command (it contains the double
-# quotes from the rcmdcheck --as-cran argument). Here the R code is passed as a
-# single argv element, so no shell quoting is involved.
+# Overrides the shared config, whose `verify` hook wraps the command in a bash
+# invocation that breaks on R's double quotes. Here every R hook is a script
+# run by Rscript, so no shell quoting is involved. What each hook guards, and
+# how CI mirrors it: design/agent-workflow.md.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -12,12 +12,19 @@ repos:
       - id: trailing-whitespace
       - id: check-merge-conflict
       - id: check-yaml
+      - id: check-toml
       - id: mixed-line-ending
       - id: check-case-conflict
+  # Air (https://posit-dev.github.io/air/) formats R sources on commit. The
+  # hook bootstraps its own R-free binary, so no global install is needed.
+  # Air owns layout; the `verify` lintr stage below owns logic lints.
+  # Only Air >= 0.8.2 can be pinned as a pre-commit rev.
+  - repo: https://github.com/posit-dev/air-pre-commit
+    rev: 0.8.2
+    hooks:
+      - id: air-format
   - repo: local
     hooks:
-      # Design-doc hygiene: frontmatter, frozen accepted ADRs, ARCHITECTURE.md
-      # naming every source directory. Copied from seor; stdlib only.
       - id: check-design
         name: design-doc hygiene
         entry: python3 scripts/check-design.py
@@ -25,15 +32,22 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
-      # The middle step runs the tests with NOT_CRAN=true and fails on any
-      # skipped test; testthat reports a test with no expectation as skipped
-      # too (ssrfr-v1.md §7.2). The --as-cran check then runs as CRAN would,
-      # where skip_on_cran() tests skip without failing it.
+      # Offline and instant, and ahead of `verify` on purpose: toolchain drift
+      # turns the gate red on an untouched tree, disguised as a code defect,
+      # and this names the machine as the cause in one line (SEOR-tcytizic).
+      - id: check-toolchain
+        name: toolchain matches what this package pins
+        entry: Rscript scripts/check-toolchain.R
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      # The same file the CI `verify` job runs. Its stages, including the
+      # NOT_CRAN=true test run that fails on skipped or expectation-free tests
+      # (ssrfr-v1.md §7.2), are listed in its header.
       - id: verify
         name: verify (mirrors CI)
-        entry: Rscript -e
-        args:
-          - 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }; Sys.setenv(NOT_CRAN = "true"); res <- as.data.frame(testthat::test_local(reporter = "summary", stop_on_failure = TRUE)); skipped <- res[res$skipped, c("file", "test")]; if (nrow(skipped)) { cat("Skipped or expectation-free tests fail the gate (ssrfr-v1.md 7.2):\n"); print(skipped); quit(status = 1) }; Sys.unsetenv("NOT_CRAN"); rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+        entry: Rscript scripts/verify.R
         language: system
         pass_filenames: false
         always_run: true

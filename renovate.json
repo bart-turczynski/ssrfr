@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The R image tag lives in the R_VERSION variable of .gitlab-ci.yml, because the cache key needs it too, and the gitlabci manager cannot follow a tag through a variable. This bumps the line under the `# renovate:` comment.",
+      "managerFilePatterns": ["/(^|/)\\.gitlab-ci\\.yml$/"],
+      "matchStrings": [
+        "#\\s*renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group CI image bumps into a single weekly MR. This is the whole job for an R package: there is no CRAN manager, and DESCRIPTION declares version floors resolved against current CRAN at install time, so nothing else here is pinned. Replaces the old Dependabot `github-actions` group, which kept the r-lib/actions pins current.",
+      "matchManagers": ["gitlabci", "gitlabci-include", "custom.regex"],
+      "groupName": "ci images",
+      "commitMessagePrefix": "ci:"
+    }
+  ]
+}

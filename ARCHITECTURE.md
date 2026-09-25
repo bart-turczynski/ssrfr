@@ -64,7 +64,13 @@ tried and reverted (`19f08fb`).
   file naming every source directory.
 - `scripts/corpus-manifest.R` — rewrites the corpus row counts and checksums
   (`ssrfr-v1.md` §7.2).
-- `docs/` — reserved for pkgdown output. Never design documents.
+- `scripts/verify.R` — the verify gate, run by the pre-push hook and by CI.
+- `scripts/check-toolchain.R` — pre-push check that names machine drift
+  (roxygen2 skew, packages built under a newer R) before the gate runs.
+- `site/` — pkgdown output (`_pkgdown.yml`), git-ignored; the CI `pages` job
+  publishes it. Neither it nor `docs/` holds design documents.
+- `.gitlab-ci.yml` — CI, on `main` only; see
+  [`design/agent-workflow.md`](design/agent-workflow.md).
 
 ## Consumers
 

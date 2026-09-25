@@ -31,12 +31,16 @@ Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
 ## Verification
 
 ```sh
-Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }' && Rscript -e 'rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
+Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }'
+NOT_CRAN=true Rscript -e 'res <- as.data.frame(testthat::test_local(stop_on_failure = TRUE)); if (any(res$skipped)) { print(res[res$skipped, c("file", "test")]); quit(status = 1) }'
+Rscript -e 'rcmdcheck::rcmdcheck(args = "--as-cran", error_on = "warning")'
 python3 scripts/check-design.py
 ```
 
-`R CMD check` runs the testthat and cucumber specs, so the behaviour specs are
-verified as part of the check. Both commands run as pre-push hooks.
+The second command runs the testthat and cucumber specs with `NOT_CRAN=true`
+and fails on any skipped test, or one with no expectation
+(`design/specs/ssrfr-v1.md` §7.2). `R CMD check` then runs them again as CRAN
+would. All four run as pre-push hooks (`verify` and `check-design`).
 
 ## Project Layout
 

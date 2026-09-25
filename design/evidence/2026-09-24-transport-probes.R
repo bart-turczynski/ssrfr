@@ -224,8 +224,9 @@ if (nzchar(Sys.which("Rscript"))) {
   cat("ambient proxy: ", child(""), "\n")
   cat("proxy = \"\":    ", child(", proxy = ''"), "\n")
 }
-# ambient proxy: "Failed to connect to 127.0.0.1 port 19999 ..." (proxy used,
-# pin bypassed); proxy = "": 200. [July used http://example.com/ with no pin:
+# ambient proxy: "Failed to connect to 127.0.0.1 port 19999 ..." (proxy used:
+# the TCP peer is the proxy, not the pinned address; what the proxy is handed
+# is in 2026-09-24-proxy-probes.R); proxy = "": 200. [July used http://example.com/ with no pin:
 # the same failure, then status 200 fetched directly.]
 
 # 12. resolve vs connection reuse (r-binding.md §4.1, research/08 surprising

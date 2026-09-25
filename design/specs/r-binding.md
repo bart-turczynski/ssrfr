@@ -347,6 +347,7 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 | `low_speed_limit = 1`, `low_speed_time = 600` | left — inside the finite `timeout` |
 | `httpauth = CURLAUTH_ANY` | left — inert without credentials, which `netrc = 0L` removes |
 | `pipewait = 1` | left — inert under `forbid_reuse` |
+| Windows only: `ssl_options = CURLSSLOPT_NO_REVOKE`, plus `CURLSSLOPT_NATIVE_CA` under OpenSSL when `CURL_CA_BUNDLE` is unset **[sourced]** | left — revocation is outside INV-9 (spec §13). The flag affects Schannel only, and libcurl checks neither OCSP stapling nor a CRL unless asked **[sourced]**, so no platform checks revocation. Overriding `ssl_options` would also drop `NATIVE_CA`. Unverified on Windows (spec §8 item 6) |
 
 `ssrfr` never relies on a package default for any row of the table above.
 

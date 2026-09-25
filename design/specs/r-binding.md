@@ -360,7 +360,7 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `cookiefile` | `NULL` | stops the cookie engine the `curl` package starts — see below |
 | `cookiejar` | never set | it writes received cookies to disk at cleanup |
 | `connecttimeout`, `timeout` | finite | libcurl's `timeout` default is **0 = never** |
-| `maxfilesize` | set, not trusted | see below |
+| `maxfilesize` | never set | see below |
 | `path_as_is` | `1L` | libcurl removes no dot segments; `rurl`'s WHATWG serialization has already removed them, `%2e` forms included (`design/evidence/2026-09-25-dot-segments.R`), so this only makes the serialized path the one sent (`ssrfr-v1.md` §8 item 24). It does not make the whole request line equal the recorded URL |
 | `altsvc`, `hsts` | never set | INV-10 |
 | `unix_socket_path`, `abstract_unix_socket` | never set | container control planes |
@@ -391,7 +391,7 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 | `useragent` from `getOption("HTTPUserAgent")` | overridden (spec §5.3 `user_agent`) |
 | `connecttimeout = 10` | overridden (`connect_timeout`) |
 | `low_speed_limit = 1`, `low_speed_time = 600` | left — inside the finite `timeout` |
-| `httpauth = CURLAUTH_ANY` | left — inert without credentials, which `netrc = 0L` removes |
+| `httpauth = CURLAUTH_ANY` | overridden (`1L`, `CURLAUTH_BASIC`). Not inert under `allow_userinfo = TRUE`: URL userinfo is a credential, and a `401` challenge made libcurl send the request a second time within one transfer, against spec §2.5 **[verified]** (`tests/testthat/test-fetch.R`, "an auth challenge never makes the request a second time"; `SSRF-rgcijatt`). Basic sends the credentials on the first request, with no challenge round-trip |
 | `pipewait = 1` | left — inert under `forbid_reuse` |
 | Windows only: `ssl_options = CURLSSLOPT_NO_REVOKE`, plus `CURLSSLOPT_NATIVE_CA` under OpenSSL when `CURL_CA_BUNDLE` is unset **[sourced]** | left — revocation is outside INV-9 (spec §13). The flag affects Schannel only, and libcurl checks neither OCSP stapling nor a CRL unless asked **[sourced]**, so no platform checks revocation. Overriding `ssl_options` would also drop `NATIVE_CA`. Unverified on Windows (spec §8 item 6) |
 
@@ -462,7 +462,10 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   `Content-Length` over the cap aborts on all four; matrix, probes 8a–8b).
   Either way it counts
   wire bytes, so a compressed bomb passes. A real cap needs a write-callback byte
-  counter.
+  counter. It also refuses a `HEAD` whose `Content-Length` is over the cap, and a
+  compressed body whose wire size is over the cap while its decoded size is
+  within it **[verified]** (`tests/testthat/test-fetch-limits.R`; `SSRF-rgcijatt`), so
+  `ssrfr` never sets it: its own decoded-byte counter is the limit (spec §5.3).
 - **`accept_encoding` sets what is advertised, not what is decoded.** With any
   non-`NULL` value libcurl decodes every encoding it was built with that the
   response names in `Content-Encoding`: `"gzip"` and `"identity"` both decode a

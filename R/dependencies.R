@@ -446,6 +446,18 @@ read_curl_capabilities <- function() {
   )
 }
 
+# libcurl's capabilities cannot change within a session, so a fetch reads
+# them once. Only a reading that succeeded is kept; a failed one is tried
+# again on the next fetch.
+curl_capabilities_cache <- new.env(parent = emptyenv())
+
+session_curl_capabilities <- function() {
+  if (is.null(curl_capabilities_cache$value)) {
+    curl_capabilities_cache$value <- read_curl_capabilities()
+  }
+  curl_capabilities_cache$value
+}
+
 read_within_any <- function(x, blocks) {
   if (!length(blocks)) {
     return(FALSE)

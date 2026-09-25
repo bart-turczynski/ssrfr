@@ -337,6 +337,31 @@ test_that("the displayed media type drops parameters and withholds junk", {
   expect_identical(show("not a type"), "<withheld>")
 })
 
+test_that("libcurl's capabilities are read once per session", {
+  cache <- ssrfr:::curl_capabilities_cache
+  saved <- cache$value
+  withr::defer(assign("value", saved, envir = cache))
+  version <- ssrfr:::dep_curl_version
+  calls <- new.env(parent = emptyenv())
+  calls$n <- 0L
+  local_mocked_bindings(dep_curl_version = function() {
+    calls$n <- calls$n + 1L
+    version()
+  })
+  cache$value <- NULL
+  first <- ssrfr:::session_curl_capabilities()
+  second <- ssrfr:::session_curl_capabilities()
+  expect_identical(first, ssrfr:::read_curl_capabilities())
+  expect_identical(second, first)
+  # The two session readings made one call; the direct reading another.
+  expect_identical(calls$n, 2L)
+  # A failed reading is not kept.
+  cache$value <- NULL
+  local_mocked_bindings(dep_curl_version = function() stop("x"))
+  expect_null(ssrfr:::session_curl_capabilities())
+  expect_null(cache$value)
+})
+
 test_that("libcurl's capabilities are read through guarded wrappers", {
   caps <- ssrfr:::read_curl_capabilities()
   expect_s3_class(caps$version, "numeric_version")

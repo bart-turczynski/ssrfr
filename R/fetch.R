@@ -158,7 +158,7 @@ ssrf_fetch <- function(binding) {
 guarded_transfer <- function(binding, started) {
   budget <- binding$budget$total_timeout - binding$budget$elapsed
   remaining <- function() budget - elapsed_since(started)
-  capabilities <- read_curl_capabilities()
+  capabilities <- session_curl_capabilities()
   endings <- character()
   for (address in binding$validated) {
     attempt <- attempt_address(binding, address, remaining, capabilities)

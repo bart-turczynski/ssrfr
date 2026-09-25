@@ -7,11 +7,63 @@
 if (requireNamespace("cucumber", quietly = TRUE)) {
   library(cucumber)
 
-  when("I check the scaffold", function(context) {
-    context$ready <- scaffold_ready()
+  # policy.feature
+
+  when("I build a policy with no arguments", function(context) {
+    context$result <- tryCatch(ssrf_policy(), error = identity)
   })
 
-  then("it reports ready", function(context) {
-    expect_true(context$ready)
+  when(
+    "I build a policy with {string} set to {string}",
+    function(
+      field,
+      entry,
+      context
+    ) {
+      args <- stats::setNames(list(entry), field)
+      context$result <- tryCatch(do.call(ssrf_policy, args), error = identity)
+    }
+  )
+
+  then("the policy is built", function(context) {
+    expect_s3_class(context$result, "ssrfr_policy")
+  })
+
+  then("its {string} is {int}", function(field, value, context) {
+    expect_equal(context$result[[field]], value)
+  })
+
+  then("its {string} is {string}", function(field, value, context) {
+    expect_identical(context$result[[field]], value)
+  })
+
+  then("policy construction fails as {string}", function(class, context) {
+    expect_s3_class(context$result, class)
+  })
+
+  given(
+    "a {string} refusal for the URL {string}",
+    function(code, url, context) {
+      context$refusal <- new_ssrf_refusal(code, hop = 1, url = url)
+    }
+  )
+
+  when("I print it", function(context) {
+    context$output <- paste(
+      capture.output(print(context$refusal)),
+      collapse = "\n"
+    )
+  })
+
+  then("the output contains {string}", function(text, context) {
+    expect_match(context$output, text, fixed = TRUE)
+  })
+
+  then("the output does not contain {string}", function(text, context) {
+    expect_no_match(context$output, text, fixed = TRUE)
+  })
+
+  then("its public reason is {string}", function(value, context) {
+    expect_identical(ssrf_public_reason(context$refusal), value)
   })
 }

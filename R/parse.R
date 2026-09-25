@@ -185,15 +185,13 @@ hosts_agree <- function(ours, theirs) {
   if (grepl("[^\\x21-\\x7e]", paste0(ours, theirs), perl = TRUE)) {
     return(FALSE)
   }
-  a <- read_address(unbracket(ours))
-  b <- read_address(unbracket(theirs))
+  a <- canonical_address(unbracket(ours))
+  b <- canonical_address(unbracket(theirs))
   if (!is.null(a) && !is.null(b)) {
-    fa <- read_format(a)
-    fb <- read_format(b)
-    if (is.null(fa) || is.null(fb)) {
+    if (is.na(a) || is.na(b)) {
       return(NA)
     }
-    return(identical(fa, fb))
+    return(identical(a, b))
   }
   is.null(a) && is.null(b) && identical(ascii_lower(ours), ascii_lower(theirs))
 }

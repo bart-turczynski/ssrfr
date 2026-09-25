@@ -332,6 +332,18 @@ read_format <- function(x) {
   dep_call(dep_raddr_format, x, valid = is_string)
 }
 
+# The canonical text of the address `text` spells (r-binding.md §2.6): NULL
+# when raddr does not read it as an address, NA when raddr reads it and then
+# fails to format it (§6.5: `malformed-address`).
+canonical_address <- function(text) {
+  addr <- read_address(text)
+  if (is.null(addr)) {
+    return(NULL)
+  }
+  canonical <- read_format(addr)
+  if (is.null(canonical)) NA_character_ else canonical
+}
+
 read_reachability <- function(x, n = 1L) {
   dep_call(dep_raddr_reachability, x, valid = function(r) {
     is.logical(r) && length(r) == n

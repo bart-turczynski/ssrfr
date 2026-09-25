@@ -166,9 +166,8 @@ prepare_first_hop <- function(url, policy, plan, started) {
     hop$finding <- gates$finding
     if (is.null(hop$finding)) {
       # The pin target is the literal's canonical text (r-binding.md §2.6).
-      addr <- read_address(hop$address)
-      canonical <- if (is.null(addr)) NULL else read_format(addr)
-      if (is.null(canonical)) {
+      canonical <- canonical_address(hop$address)
+      if (!is_string(canonical)) {
         hop$finding <- new_finding(
           "malformed-address",
           8L,

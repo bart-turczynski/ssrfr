@@ -198,9 +198,8 @@ pin_check <- function(lines, address, port) {
   if (!length(trying)) {
     return("absent")
   }
-  want <- read_address(address)
-  want <- if (is.null(want)) NULL else read_format(want)
-  if (is.null(want)) {
+  want <- canonical_address(address)
+  if (!is_string(want)) {
     return("garbled")
   }
   for (line in trying) {
@@ -210,9 +209,8 @@ pin_check <- function(lines, address, port) {
       return("garbled")
     }
     host <- unbracket(sub(shape, "\\1", dialed))
-    got <- read_address(host)
-    got <- if (is.null(got)) NULL else read_format(got)
-    if (is.null(got)) {
+    got <- canonical_address(host)
+    if (!is_string(got)) {
       return("garbled")
     }
     if (

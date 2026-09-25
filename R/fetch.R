@@ -161,17 +161,6 @@ guarded_transfer <- function(binding, started) {
   capabilities <- read_curl_capabilities()
   endings <- character()
   for (address in binding$validated) {
-    if (remaining() <= 0) {
-      return(fetch_failure(
-        binding,
-        "timeout",
-        address,
-        endings,
-        step = 10L,
-        check = "total",
-        limit = "total_timeout"
-      ))
-    }
     attempt <- attempt_address(binding, address, remaining, capabilities)
     endings <- c(endings, paste(address, attempt$ending))
     set_state(binding, attempts = endings)
@@ -187,15 +176,7 @@ guarded_transfer <- function(binding, started) {
     }
     if (attempt$ending %in% c("connect-failed", "connect-timeout")) {
       if (remaining() <= 0) {
-        return(fetch_failure(
-          binding,
-          "timeout",
-          address,
-          endings,
-          step = 10L,
-          check = "total",
-          limit = "total_timeout"
-        ))
+        return(total_timeout_failure(binding, address, endings, step = 10L))
       }
       next
     }
@@ -214,15 +195,7 @@ guarded_transfer <- function(binding, started) {
     # §5.3: elapsed time is re-checked after decoding, which the transport's
     # own timer does not preempt.
     if (remaining() <= 0) {
-      return(fetch_failure(
-        binding,
-        "timeout",
-        address,
-        endings,
-        step = 12L,
-        check = "total",
-        limit = "total_timeout"
-      ))
+      return(total_timeout_failure(binding, address, endings, step = 12L))
     }
     # The binding records a successful response only now (§2.3).
     set_state(binding, fetched = TRUE)
@@ -236,6 +209,20 @@ guarded_transfer <- function(binding, started) {
     endings,
     step = 10L,
     check = "failover-exhausted"
+  )
+}
+
+# §6.6: total_timeout elapsing is `timeout` wherever it happens; `address`
+# is the one last attempted.
+total_timeout_failure <- function(binding, address, endings, step) {
+  fetch_failure(
+    binding,
+    "timeout",
+    address,
+    endings,
+    step = step,
+    check = "total",
+    limit = "total_timeout"
   )
 }
 

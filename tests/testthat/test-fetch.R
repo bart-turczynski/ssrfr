@@ -380,6 +380,42 @@ test_that("exhausted failover is timeout only when every connect timed out", {
   expect_identical(refused$cause, "connect-failed")
 })
 
+# §6.6: total_timeout elapsing during failover is `timeout`, naming the
+# address last attempted; no further address is tried.
+test_that("total_timeout ends failover as timeout", {
+  tried <- new.env(parent = emptyenv())
+  tried$addresses <- character()
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      target <- sub("^multi[.]invalid::(.*):$", "\\1", opts$connect_to)
+      tried$addresses <- c(tried$addresses, target)
+      debug(0L, charToRaw(paste0("Trying ", target, ":80...\n")))
+      Sys.sleep(0.6)
+      list(
+        aborted = FALSE,
+        error = "curl_error_couldnt_connect",
+        status = 0L,
+        headers = raw(),
+        connect = 0
+      )
+    }
+  )
+  addresses <- c("192.0.2.1", "192.0.2.2", "192.0.2.3")
+  local_mocked_bindings(dep_nslookup = function(query) addresses)
+  policy <- ssrf_policy(allow_ranges = "192.0.2.0/24", total_timeout = 1)
+  b <- ssrf_prepare_hop("http://multi.invalid/", policy, request = list())
+  r <- ssrf_fetch(b)
+  expect_identical(r$cause, "timeout")
+  expect_identical(r$detail$step, 10L)
+  expect_identical(r$detail$limit, "total_timeout")
+  expect_identical(r$address, "192.0.2.2")
+  expect_identical(tried$addresses, c("192.0.2.1", "192.0.2.2"))
+  expect_identical(
+    r$detail$attempts,
+    c("192.0.2.1 connect-failed", "192.0.2.2 connect-failed")
+  )
+})
+
 test_that("pin-mismatch or an opened connection ends failover", {
   run <- function(script) {
     local({

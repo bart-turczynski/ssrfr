@@ -157,3 +157,56 @@ local_no_network <- function(env = parent.frame()) {
     )
   }
 }
+
+# The `answers` column (fixtures/README.md) as a replacement for the internal
+# resolver wrapper, which records each query it is asked: a comma-separated
+# answer set, `empty`, `error`, or `unparseable:<text>`. A row with `-`
+# expects no resolution, so a call is an error (r-binding.md §7).
+answers_resolver <- function(answers) {
+  seen <- new.env(parent = emptyenv())
+  seen$queries <- character()
+  fn <- function(query) {
+    seen$queries <- c(seen$queries, query)
+    if (identical(answers, "-")) {
+      stop("resolver called for a row that expects no resolution")
+    }
+    if (identical(answers, "empty")) {
+      return(character())
+    }
+    if (identical(answers, "error")) {
+      stop("Failed to resolve hostname")
+    }
+    if (startsWith(answers, "unparseable:")) {
+      return(sub("^unparseable:", "", answers))
+    }
+    strsplit(answers, ",", fixed = TRUE)[[1L]]
+  }
+  list(fn = fn, seen = seen)
+}
+
+# A verdict-vector row inspected at L1, with its `answers` fed through the
+# mocked resolver wrapper: the outcome (the reason code, the cause, or "-"
+# when nothing refuses or fails), its verdict class, and the resolver queries
+# made.
+inspect_row_l1 <- function(row) {
+  resolver <- answers_resolver(row$answers)
+  local_mocked_bindings(dep_nslookup = resolver$fn, .package = "ssrfr")
+  res <- ssrf_inspect_url(
+    unescape_field(row$input),
+    corpus_policy(row$policy),
+    base = corpus_base(row$hop),
+    layer = "L1"
+  )
+  verdict <- if (!is.na(res$cause)) {
+    "fail"
+  } else if (is.na(res$code)) {
+    "admit"
+  } else {
+    "refuse"
+  }
+  list(
+    outcome = switch(verdict, fail = res$cause, admit = "-", res$code),
+    verdict = verdict,
+    queries = resolver$seen$queries
+  )
+}

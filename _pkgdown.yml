@@ -7,6 +7,18 @@ template:
 home:
   title: "ssrfr"
 
+reference:
+  - title: Inspect a URL
+    contents:
+      - ssrf_inspect_url
+  - title: Policy
+    contents:
+      - ssrf_policy
+  - title: Results and vocabularies
+    contents:
+      - ssrf_public_reason
+      - ssrf_vocabulary
+
 navbar:
   structure:
     left: [intro, reference, articles, news]

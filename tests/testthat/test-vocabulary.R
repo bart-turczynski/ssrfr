@@ -5,9 +5,8 @@
 # `vocabulary_pins` is each domain's history: every version ever released,
 # with its full key set. To change a domain's keys, bump its version in
 # R/vocabulary.R and append the new version here with the new key set; never
-# edit an earlier version. A new domain (the provider-endpoint table, the
-# metadata hostname list) adds a builder to closed_domains() and a history
-# here.
+# edit an earlier version. A new domain adds a builder to closed_domains() and
+# a history here.
 
 vocabulary_pins <- list(
   reason_codes = list(
@@ -59,6 +58,33 @@ vocabulary_pins <- list(
       "ssrfr_error_spent_binding",
       "ssrfr_error_budget_change",
       "ssrfr_error_invalid_argument"
+    )
+  ),
+  provider_endpoints = list(
+    "1" = c(
+      "169.254.169.254",
+      "fd00:ec2::254",
+      "192.0.0.192",
+      "100.100.100.200",
+      "168.63.129.16",
+      "169.254.170.2",
+      "169.254.170.23",
+      "fd00:ec2::23",
+      "169.254.0.23",
+      "fd20:ce::254",
+      "169.254.42.42",
+      "fd00:42::42",
+      "fd00:a9fe:a9fe::1",
+      "fe80::a9fe:a9fe"
+    )
+  ),
+  metadata_hostnames = list(
+    "1" = c(
+      "metadata.google.internal",
+      "metadata.goog",
+      "metadata.tencentyun.com",
+      "api.metadata.cloud.ibm.com",
+      "metadata.exoscale.com"
     )
   )
 )
@@ -171,6 +197,14 @@ test_that("each closed domain is enumerable at runtime with its version", {
   expect_named(
     ssrf_vocabulary("condition_classes"),
     c("class", "kind", "raised_when")
+  )
+  expect_named(
+    ssrf_vocabulary("provider_endpoints"),
+    c("address", "provider", "kind", "source", "quote", "retrieved")
+  )
+  expect_named(
+    ssrf_vocabulary("metadata_hostnames"),
+    c("hostname", "address", "provider", "source", "quote", "retrieved")
   )
 })
 

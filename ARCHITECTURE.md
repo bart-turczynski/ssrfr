@@ -3,9 +3,10 @@
 `ssrfr` is an SSRF guard for R applications that fetch URLs an attacker can
 influence: `plumber` endpoints, Shiny apps, webhook receivers, crawlers. It is in
 development. `R/` holds the policy, the result model, the closed
-vocabularies with the policy data, and the structural layer (L0): the parse
-boundary and the gates an address-literal host meets without resolution.
-Resolution and the guarded fetch are not implemented yet.
+vocabularies with the policy data, the structural layer (L0): the parse
+boundary and the gates an address-literal host meets without resolution, and
+the resolved layer (L1): one resolution through an internal resolver wrapper
+and the gates every answer meets. The guarded fetch is not implemented yet.
 
 ## Where the design lives
 
@@ -57,7 +58,8 @@ tried and reverted (`19f08fb`).
 ## Package layout
 
 - `R/` — package source: policy, result model, closed vocabularies and policy
-  data, the dependency wrappers, and the L0 parse boundary and gates so far.
+  data, the dependency and resolver wrappers, the L0 parse boundary and gates,
+  and L1 resolution and answer-set classification so far.
 - `tests/testthat/` — testthat tests and cucumber feature specs;
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.

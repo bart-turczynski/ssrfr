@@ -71,3 +71,32 @@ vocabularies too, each row citing the vendor documentation that names it:
 ```{r}
 ssrf_vocabulary("metadata_hostnames")$hostname
 ```
+
+## Inspecting what a name resolves to
+
+With `layer = "L1"`, `ssrf_inspect_url()` also asks the system resolver, once,
+for every address of a name the earlier checks passed, and classifies each
+address with the addresses embedded in it. The name is looked up as absolute,
+with a trailing root dot, so `http://intranet/` is never completed with a DNS
+search domain. One refused address refuses the whole set, and each address
+keeps its own facts. Were `dual.example` to resolve to `93.184.216.34` and
+`::1`:
+
+```{r, eval = FALSE}
+res <- ssrf_inspect_url("http://dual.example/", layer = "L1")
+res$code
+#> [1] "loopback"
+vapply(res$addresses, function(a) a$code, "")
+#> [1] NA         "loopback"
+```
+
+A resolver error, an empty answer or an answer that is not an address is the
+operational cause `"unresolvable"`, in `cause` rather than `code`. A URL an
+earlier check refuses is never looked up, so this makes no DNS query:
+
+```{r}
+ssrf_inspect_url("http://files.example:6379/", layer = "L1")$code
+```
+
+L1 is still not a defense: the answer can change the moment it returns. Only
+the guarded fetch, which connects to an address it has just validated, is.

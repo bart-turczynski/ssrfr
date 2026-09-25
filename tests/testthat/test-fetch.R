@@ -82,13 +82,14 @@ test_that("a missing trace or another peer is pin-mismatch", {
   transfer <- ssrfr:::dep_curl_transfer
   rewrite <- function(fn) {
     local_mocked_bindings(
-      dep_curl_transfer = function(opts, data, debug) {
-        transfer(opts, data, function(type, msg) {
+      dep_curl_transfer = function(opts, data, debug, progress) {
+        rewriting <- function(type, msg) {
           if (type == 0L) {
             msg <- charToRaw(fn(rawToChar(msg)))
           }
           debug(type, msg)
-        })
+        }
+        transfer(opts, data, rewriting, progress)
       },
       .env = parent.frame()
     )
@@ -276,7 +277,7 @@ scripted_transfer <- function(outcomes, env = parent.frame()) {
   tried <- new.env(parent = emptyenv())
   tried$addresses <- character()
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug) {
+    dep_curl_transfer = function(opts, data, debug, progress) {
       key <- "multi.invalid::"
       target <- sub(":$", "", substring(opts$connect_to, nchar(key) + 1L))
       address <- gsub("[][]", "", target)

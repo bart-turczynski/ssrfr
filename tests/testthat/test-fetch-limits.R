@@ -27,8 +27,8 @@ test_that("total_timeout is re-checked after decoding", {
   transfer <- ssrfr:::dep_curl_transfer
   # A transfer that returns in time, followed by decoding that does not.
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug) {
-      out <- transfer(opts, data, debug)
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      out <- transfer(opts, data, debug, progress)
       Sys.sleep(1.3)
       out
     }
@@ -150,6 +150,91 @@ test_that("header bytes and header fields have limits of their own", {
   ok <- guarded_get(pinned_url(port, "/many-headers"), loopback_policy(port))
   expect_identical(ok$status, 200L)
   expect_identical(unname(ok$headers[["x-field-50"]]), strrep("v", 40))
+})
+
+# A raw server's response: `prefix`, then `chunk` every 20 ms until the
+# client goes away or 30 s pass.
+stream_forever <- function(prefix, chunk) {
+  respond <- function(con) {
+    writeBin(PREFIX, con)
+    t0 <- Sys.time()
+    while (difftime(Sys.time(), t0, units = "secs") < 30) {
+      sent <- tryCatch(
+        {
+          writeBin(CHUNK, con)
+          flush(con)
+          TRUE
+        },
+        error = function(e) FALSE
+      )
+      if (!sent) {
+        break
+      }
+      Sys.sleep(0.02)
+    }
+  }
+  body(respond) <- do.call(
+    substitute,
+    list(body(respond), list(PREFIX = prefix, CHUNK = chunk))
+  )
+  respond
+}
+
+# §14: header bytes and field counts have limits of their own, which hold
+# while the header arrives. A header that never ends, a run of 1xx blocks,
+# or an endless header on a response to HEAD ends at its limit, well before
+# total_timeout.
+test_that("a header that never ends stops at its limit, not at the deadline", {
+  mock_answers("127.0.0.1")
+  field <- wire("X-Field: ", strrep("v", 50), "\r\n")
+  cases <- list(
+    bytes = list(
+      prefix = wire("HTTP/1.1 200 OK\r\n"),
+      chunk = field,
+      limits = list(max_header_bytes = 1000),
+      limit = "max_header_bytes"
+    ),
+    fields = list(
+      prefix = wire("HTTP/1.1 200 OK\r\n"),
+      chunk = wire("X: 1\r\n"),
+      limits = list(max_header_fields = 20),
+      limit = "max_header_fields"
+    ),
+    interim = list(
+      prefix = raw(),
+      chunk = wire("HTTP/1.1 102 Processing\r\n\r\n"),
+      limits = list(max_header_bytes = 500),
+      limit = "max_header_bytes"
+    ),
+    head = list(
+      prefix = wire("HTTP/1.1 200 OK\r\n"),
+      chunk = field,
+      limits = list(max_header_bytes = 1000),
+      limit = "max_header_bytes",
+      request = list(method = "HEAD")
+    )
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      server <- local_raw_server(stream_forever(case$prefix, case$chunk))
+      policy <- do.call(
+        loopback_policy,
+        c(list(server$port, total_timeout = 10), case$limits)
+      )
+      t0 <- Sys.time()
+      r <- guarded_get(
+        pinned_url(server$port),
+        policy,
+        request = if (is.null(case$request)) list() else case$request
+      )
+      elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      expect_identical(r$cause, "response-too-large", label = name)
+      expect_identical(r$detail$check, "header", label = name)
+      expect_identical(r$detail$limit, case$limit, label = name)
+      expect_lt(elapsed, 4, label = name)
+    })
+  }
 })
 
 test_that("a redirect is returned with Location; two are a protocol error", {
@@ -332,7 +417,8 @@ test_that("the transport refuses every scheme but http and https", {
     got <- ssrfr:::dep_curl_transfer(
       replace(opts, "url", target(scheme)),
       function(x, final = FALSE) invisible(),
-      function(type, msg) NULL
+      function(type, msg) NULL,
+      function(down, up) TRUE
     )
     expect_identical(
       got$error,

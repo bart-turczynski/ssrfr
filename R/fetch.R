@@ -312,8 +312,26 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     seen$body[[length(seen$body) + 1L]] <- x
     invisible()
   }
+  # §14: the header limits hold while the header arrives, not only once a
+  # body does. libcurl calls this after each read, header lines included,
+  # so a header that never ends, a run of 1xx blocks, or an endless header
+  # on a response with no body stops at its limit, not at total_timeout.
+  # Returning FALSE ends the transfer.
+  progress <- function(down, up) {
+    if (is.null(seen$abort)) {
+      over <- header_limit(seen, policy)
+      if (!is.null(over)) {
+        seen$abort <- list(
+          cause = "response-too-large",
+          check = "header",
+          limit = over
+        )
+      }
+    }
+    is.null(seen$abort)
+  }
 
-  transfer <- read_transfer(opts, data, debug)
+  transfer <- read_transfer(opts, data, debug, progress)
   if (is.null(transfer)) {
     return(list(ending = "pin-mismatch", check = "no-transfer"))
   }

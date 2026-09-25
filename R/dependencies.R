@@ -137,26 +137,33 @@ dep_nslookup <- function(query) {
 # --- the transport ------------------------------------------------------------
 # The only place ssrfr dials (r-binding.md §7, "One place dials"): one
 # connection attempt of the guarded fetch (R/fetch.R). `opts` is the option
-# list transport_options() builds (R/transport.R), pin included; `data` and
-# `debug` are the per-delivery and trace callbacks. Each attempt gets a new
-# handle in a private pool, so no DNS cache, connection or cookie is shared
-# with another attempt or with other curl users in the process (r-binding.md
-# §4.1). handle_reset() is never used.
+# list transport_options() builds (R/transport.R), pin included; `data`,
+# `debug` and `progress` are the per-delivery, trace and progress callbacks.
+# libcurl calls `progress` as bytes arrive, the header's included, and
+# whenever it waits. Each attempt gets a new handle in a private pool, so no
+# DNS cache, connection or cookie is shared with another attempt or with
+# other curl users in the process (r-binding.md §4.1). handle_reset() is
+# never used.
 #
-# A callback ends the transfer by raising a condition of class
+# `data` ends the transfer by raising a condition of class
 # `ssrfr_transfer_abort`. The callback fails, so libcurl stops the transfer,
 # and curl then either re-raises the condition from multi_run() or reports a
-# write error; the caller reads which limit ended it from its own record.
+# write error. `progress` ends it by returning FALSE; libcurl reports an
+# abort by callback, which curl raises as an interrupt from multi_run(). That
+# interrupt, and only that one, is caught here: a user's interrupt still
+# propagates. A `progress` that fails or answers anything but TRUE ends the
+# transfer too. Either way the caller reads which limit ended it from its own
+# record.
 # Error printing is switched off while libcurl runs, because curl evaluates
 # callbacks as a top-level call that would print that condition. However the
 # call ends, an interrupt included, every handle still in the pool is
 # cancelled, which closes its connection.
 #
-# Returns a list: `aborted` (TRUE when curl re-raised a callback's abort),
-# `error` (the curl error class of a failed transfer, or NULL), `status`,
-# `headers` (the raw response header bytes), and `connect` (seconds until the
-# TCP connection was established; 0 when it never was).
-dep_curl_transfer <- function(opts, data, debug) {
+# Returns a list: `aborted` (TRUE when a callback ended the transfer and curl
+# raised it), `error` (the curl error class of a failed transfer, or NULL),
+# `status`, `headers` (the raw response header bytes), and `connect` (seconds
+# until the TCP connection was established; 0 when it never was).
+dep_curl_transfer <- function(opts, data, debug, progress) {
   pool <- curl::new_pool(total_con = 1L, host_con = 1L, multiplex = FALSE)
   on.exit(
     for (h in curl::multi_list(pool)) {
@@ -164,10 +171,24 @@ dep_curl_transfer <- function(opts, data, debug) {
     },
     add = TRUE
   )
+  outcome <- new.env(parent = emptyenv())
+  outcome$stopped <- FALSE
+  watch <- function(down, up) {
+    go <- tryCatch(isTRUE(progress(down, up)), error = function(e) FALSE)
+    if (!go) {
+      outcome$stopped <- TRUE
+    }
+    go
+  }
   handle <- curl::new_handle()
   curl::handle_setopt(handle, .list = opts)
-  curl::handle_setopt(handle, verbose = TRUE, debugfunction = debug)
-  outcome <- new.env(parent = emptyenv())
+  curl::handle_setopt(
+    handle,
+    verbose = TRUE,
+    debugfunction = debug,
+    noprogress = 0L,
+    xferinfofunction = watch
+  )
   curl::multi_add(
     handle,
     done = function(res) outcome$done <- res,
@@ -177,12 +198,20 @@ dep_curl_transfer <- function(opts, data, debug) {
   )
   quiet <- options(show.error.messages = FALSE)
   on.exit(options(quiet), add = TRUE)
-  aborted <- tryCatch(
-    {
-      curl::multi_run(pool = pool)
-      FALSE
-    },
-    ssrfr_transfer_abort = function(e) TRUE
+  aborted <- withRestarts(
+    tryCatch(
+      withCallingHandlers(
+        {
+          curl::multi_run(pool = pool)
+          FALSE
+        },
+        interrupt = function(i) {
+          if (outcome$stopped) invokeRestart("ssrfr_stopped")
+        }
+      ),
+      ssrfr_transfer_abort = function(e) TRUE
+    ),
+    ssrfr_stopped = function() TRUE
   )
   info <- curl::handle_data(handle)
   list(
@@ -374,8 +403,8 @@ read_embeddings <- function(x) {
 # One transfer through dep_curl_transfer(), or NULL when the wrapper fails or
 # answers in the wrong shape. An interrupt is not an error: it propagates, and
 # the wrapper has already cancelled the transfer.
-read_transfer <- function(opts, data, debug) {
-  dep_call(dep_curl_transfer, opts, data, debug, valid = function(t) {
+read_transfer <- function(opts, data, debug, progress) {
+  dep_call(dep_curl_transfer, opts, data, debug, progress, valid = function(t) {
     is.list(t) &&
       is.logical(t$aborted) &&
       length(t$aborted) == 1L &&

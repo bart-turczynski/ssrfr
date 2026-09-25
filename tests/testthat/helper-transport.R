@@ -193,15 +193,16 @@ local_trace_recorder <- function(env = parent.frame()) {
   seen <- new.env(parent = emptyenv())
   seen$lines <- character()
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug) {
-      transfer(opts, data, function(type, msg) {
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      recording <- function(type, msg) {
         if (type == 0L) {
           text <- tryCatch(rawToChar(msg), error = function(e) "")
           lines <- strsplit(text, "\n", fixed = TRUE)[[1L]]
           seen$lines <- c(seen$lines, trimws(lines))
         }
         debug(type, msg)
-      })
+      }
+      transfer(opts, data, recording, progress)
     },
     .package = "ssrfr",
     .env = env

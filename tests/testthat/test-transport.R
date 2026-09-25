@@ -137,7 +137,11 @@ test_that("limits and the request plan reach the options", {
   expect_identical(opts$useragent, "tester/1")
   expect_identical(opts$customrequest, "PATCH")
   expect_identical(opts$postfields, charToRaw("payload"))
-  expect_identical(opts$httpheader, c("X-A: 1", "X-Empty;", "Content-Type:"))
+  # Fields libcurl would add on its own are suppressed (§2.3).
+  expect_identical(
+    opts$httpheader,
+    c("X-A: 1", "X-Empty;", "Content-Type:", "Expect:")
+  )
   # The connect timeout never exceeds what is left of the total.
   opts <- ssrfr:::transport_options(b, "93.184.216.34", 0.5, caps_modern)
   expect_identical(opts$connecttimeout_ms, 500L)
@@ -145,8 +149,12 @@ test_that("limits and the request plan reach the options", {
   methods <- list(
     GET = list(httpget = 1L),
     HEAD = list(nobody = 1L),
-    POST = list(postfields = raw(), postfieldsize_large = 0),
-    DELETE = list(customrequest = "DELETE")
+    POST = list(
+      postfields = raw(),
+      postfieldsize_large = 0,
+      httpheader = "Content-Type:"
+    ),
+    DELETE = list(customrequest = "DELETE", httpheader = NULL)
   )
   for (m in names(methods)) {
     b <- ssrf_prepare_hop(
@@ -159,6 +167,21 @@ test_that("limits and the request plan reach the options", {
       expect_identical(opts[[field]], methods[[m]][[field]], label = m)
     }
   }
+  # A field the plan carries is sent as the plan says, never suppressed.
+  b <- ssrf_prepare_hop(
+    "https://pin.example/",
+    policy,
+    request = list(
+      method = "POST",
+      headers = c(`content-type` = "text/plain", Expect = "100-continue"),
+      body = "x"
+    )
+  )
+  opts <- ssrfr:::transport_options(b, "93.184.216.34", 5, caps_modern)
+  expect_identical(
+    opts$httpheader,
+    c("content-type: text/plain", "Expect: 100-continue")
+  )
 })
 
 # r-binding.md §7, Rules: one place dials. Walk every closure in the
@@ -277,7 +300,7 @@ test_that("a header value with obs-text is kept byte for byte", {
   raw <- c(
     wire("HTTP/1.1 200 OK\r\n", "Content-Disposition: attachment; name=caf"),
     e9,
-    wire("\r\nX-Utf8: café\r\n", "Content-Type: text/"),
+    wire("\r\nX-Utf8: caf\u00e9\r\n", "Content-Type: text/"),
     e9,
     wire("\r\nSet-Cookie: secret=1\r\n\r\n")
   )
@@ -293,7 +316,7 @@ test_that("a header value with obs-text is kept byte for byte", {
     c(wire("attachment; name=caf"), as.raw(0xe9))
   )
   expect_identical(Encoding(disposition), "bytes")
-  expect_identical(unname(h[["x-utf8"]]), "café")
+  expect_identical(unname(h[["x-utf8"]]), "caf\u00e9")
   expect_identical(Encoding(unname(h[["x-utf8"]])), "UTF-8")
   expect_identical(
     charToRaw(unname(h[["content-type"]])),

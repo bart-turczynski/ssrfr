@@ -118,6 +118,78 @@ test_that("a missing trace or another peer is pin-mismatch", {
   }
 })
 
+# --- the request plan (§2.3) --------------------------------------------------
+
+# The request head a raw server received, split into lines.
+request_head <- function(server) {
+  bytes <- server$request()
+  text <- rawToChar(bytes)
+  head <- substr(text, 1L, regexpr("\r\n\r\n", text, fixed = TRUE) - 1L)
+  strsplit(head, "\r\n", fixed = TRUE)[[1L]]
+}
+
+# §2.3: the plan the binding records is the plan the transport sends. libcurl
+# adds a form Content-Type to every POST and Expect: 100-continue to a large
+# body; neither was in the plan, so neither may reach the wire.
+test_that("the transport sends no field the plan did not carry", {
+  mock_answers("127.0.0.1")
+  ok <- wire(
+    "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+  )
+  fields <- function(head) {
+    tolower(sub(":.*$", "", head[-1L]))
+  }
+  empty <- local_raw_server(ok)
+  r <- guarded_get(
+    pinned_url(empty$port, "/p"),
+    loopback_policy(empty$port),
+    request = list(method = "POST")
+  )
+  expect_identical(r$status, 200L)
+  head <- request_head(empty)
+  expect_identical(head[[1L]], "POST /p HTTP/1.1")
+  expect_setequal(
+    fields(head),
+    c("host", "user-agent", "accept", "accept-encoding", "content-length")
+  )
+  expect_true("Content-Length: 0" %in% head)
+
+  # 1.5 MiB: over libcurl's threshold for Expect: 100-continue.
+  body <- as.raw(rep(0x61, 1.5 * 2^20))
+  big <- local_raw_server(ok)
+  r <- guarded_get(
+    pinned_url(big$port, "/p"),
+    loopback_policy(big$port),
+    request = list(method = "POST", body = body)
+  )
+  expect_identical(r$status, 200L)
+  head <- request_head(big)
+  expect_setequal(
+    fields(head),
+    c("host", "user-agent", "accept", "accept-encoding", "content-length")
+  )
+  sent <- big$request()
+  expect_identical(tail(sent, length(body)), body)
+
+  # A Content-Type the plan carries is sent once, as given.
+  typed <- local_raw_server(ok)
+  guarded_get(
+    pinned_url(typed$port, "/p"),
+    loopback_policy(typed$port),
+    request = list(
+      method = "POST",
+      headers = c(`Content-Type` = "text/plain"),
+      body = "x"
+    )
+  )
+  head <- request_head(typed)
+  expect_identical(
+    grep("^Content-Type", head, value = TRUE),
+    "Content-Type: text/plain"
+  )
+  expect_false(any(grepl("^Expect", head)))
+})
+
 # --- the response ------------------------------------------------------------
 
 # Records every warning raised inside the transport's callbacks. libcurl

@@ -121,15 +121,22 @@ request_options <- function(request, policy) {
     character()
   }
   body <- request$body
-  if (!is.null(body) && !any(tolower(names(headers)) == "content-type")) {
-    # libcurl would otherwise send a Content-Type the plan did not carry.
+  method <- request$method
+  # A field libcurl adds on its own is suppressed, an empty "Name:" line,
+  # unless the plan carries it (§2.3): Content-Type
+  # (application/x-www-form-urlencoded) on every POST and on every request
+  # with a body, and Expect (100-continue) on a large body.
+  carried <- ascii_lower(names(headers))
+  if ((!is.null(body) || method == "POST") && !"content-type" %in% carried) {
     lines <- c(lines, "Content-Type:")
+  }
+  if (!is.null(body) && !"expect" %in% carried) {
+    lines <- c(lines, "Expect:")
   }
   opts <- list(useragent = policy$user_agent)
   if (length(lines)) {
     opts$httpheader <- lines
   }
-  method <- request$method
   if (!is.null(body)) {
     opts$postfields <- body
     opts$postfieldsize_large <- length(body)

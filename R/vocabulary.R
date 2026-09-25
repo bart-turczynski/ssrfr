@@ -1,10 +1,11 @@
 # Closed domains (ssrfr-v1.md §6.1): reason codes (§6.5), operational causes
 # (§6.6), misuse condition classes (§6.6), and the policy-data tables of
 # R/policy-data.R: the provider endpoints (§5 gate 2), the metadata hostnames
-# (§5 gate 5) and the metadata-service request headers (§2.3). Each is a data frame whose first column is the key,
-# stamped with a version. tests/testthat/test-vocabulary.R pins every version
-# to its key set in both directions, so changing a domain's keys means bumping
-# its version here and pinning the new set there.
+# (§5 gate 5) and the metadata-service request headers (§2.3). Each is a data
+# frame whose first column is the key, stamped with a version.
+# tests/testthat/test-vocabulary.R pins every version to its key set in both
+# directions, so changing a domain's keys means bumping its version here and
+# pinning the new set there.
 #
 # To add a domain: write a `domain_<name>()` builder that returns
 # closed_domain(), add it to closed_domains(), and add its pin history to

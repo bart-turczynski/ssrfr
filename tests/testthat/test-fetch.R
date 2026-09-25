@@ -4,7 +4,7 @@
 # host a `.invalid` name the resolver mock maps to it, so a fetch that
 # arrives proves the pin was used.
 
-# --- the pin ---------------------------------------------------------------------
+# --- the pin -----------------------------------------------------------------
 
 test_that("the pin is load-bearing and Host is kept", {
   skip_if_no_webfakes()
@@ -74,7 +74,7 @@ test_that("a changed second resolver answer is never used", {
   expect_identical(r2$code, "private")
 })
 
-test_that("the fetch never resolves: a missing trace or another peer is pin-mismatch", {
+test_that("a missing trace or another peer is pin-mismatch", {
   skip_if_no_webfakes()
   web <- local_test_server()
   port <- web$get_port()
@@ -118,7 +118,7 @@ test_that("the fetch never resolves: a missing trace or another peer is pin-mism
   }
 })
 
-# --- failover (§2.5, §6.6) --------------------------------------------------------
+# --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how
 # its attempt ends. Records the addresses in the order they were tried.
@@ -229,7 +229,7 @@ test_that("exhausted failover is timeout only when every connect timed out", {
   expect_identical(refused$cause, "connect-failed")
 })
 
-test_that("pin-mismatch and a connection that opened are never followed by another attempt", {
+test_that("pin-mismatch or an opened connection ends failover", {
   run <- function(script) {
     local({
       tried <- scripted_transfer(script)
@@ -252,7 +252,7 @@ test_that("pin-mismatch and a connection that opened are never followed by anoth
   expect_identical(tls$tried, "192.0.2.1")
 })
 
-test_that("failover reaches the listener after an address with nothing on the port", {
+test_that("failover reaches the listener after a dead address", {
   skip_if_no_webfakes()
   skip_if_not(isTRUE(curl::curl_version()$ipv6), "libcurl has no IPv6")
   web <- local_test_server()
@@ -270,9 +270,9 @@ test_that("failover reaches the listener after an address with nothing on the po
   expect_identical(tries[[2L]], paste0("Trying 127.0.0.1:", port, "..."))
 })
 
-# --- single use (§2.5) ------------------------------------------------------------
+# --- single use (§2.5) -------------------------------------------------------
 
-test_that("a binding is spent on entry, even when the fetch fails or is interrupted", {
+test_that("a binding is spent on entry, even when the fetch fails", {
   mock_answers("127.0.0.1")
   b <- ssrf_prepare_hop(
     "http://spent.invalid:1/",
@@ -338,7 +338,7 @@ test_that("a failing transport wrapper fails closed, never an R error", {
 # handle open. A raw server sends a header and one chunk, then waits; once
 # the chunk is out, a second process interrupts this one. The server then
 # reports whether the client closed the connection.
-test_that("an interrupt mid-transfer leaves the binding spent and no handle open", {
+test_that("an interrupt leaves the binding spent and no handle open", {
   skip_if_not_installed("callr")
   skip_on_os("windows")
   port <- free_port()

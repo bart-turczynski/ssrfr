@@ -66,7 +66,7 @@ test_that("transport-owned and pseudo-header fields are refused", {
   }
 })
 
-test_that("a field name that is not a token or a value with CR or LF is refused", {
+test_that("a field name that is not a token, or CR or LF, is refused", {
   bad <- list(
     stats::setNames("x", "Bad Name"),
     stats::setNames("x", "X(y)"),
@@ -118,9 +118,10 @@ test_that("Authorization, Proxy-Authorization and Cookie cannot be nominated", {
   )
 })
 
-test_that("metadata-service markers are refused unless an endpoint is allowed exactly", {
+test_that("metadata markers are refused unless an endpoint is allowed", {
   markers <- ssrf_vocabulary("metadata_headers")$header
   expect_length(markers, 10L)
+  expect_identical(anyDuplicated(tolower(markers)), 0L)
   exact <- ssrf_policy(allow_ranges = "169.254.169.254/32")
   broad <- ssrf_policy(allow_ranges = "169.254.0.0/16")
   v6 <- ssrf_policy(allow_ranges = "fd00:ec2::254/128")

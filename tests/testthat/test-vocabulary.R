@@ -86,6 +86,20 @@ vocabulary_pins <- list(
       "api.metadata.cloud.ibm.com",
       "metadata.exoscale.com"
     )
+  ),
+  metadata_headers = list(
+    "1" = c(
+      "Metadata",
+      "Metadata-Flavor",
+      "X-Google-Metadata-Request",
+      "X-aws-ec2-metadata-token",
+      "X-aws-ec2-metadata-token-ttl-seconds",
+      "X-aliyun-ecs-metadata-token",
+      "X-aliyun-ecs-metadata-token-ttl-seconds",
+      "Metadata-Token",
+      "Metadata-Token-Expiry-Seconds",
+      "X-Metadata-Token-Ttl-Seconds"
+    )
   )
 )
 
@@ -205,6 +219,10 @@ test_that("each closed domain is enumerable at runtime with its version", {
   expect_named(
     ssrf_vocabulary("metadata_hostnames"),
     c("hostname", "address", "provider", "source", "quote", "retrieved")
+  )
+  expect_named(
+    ssrf_vocabulary("metadata_headers"),
+    c("header", "provider", "source")
   )
 })
 

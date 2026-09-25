@@ -68,7 +68,7 @@ body_text <- function(response) {
   rawToChar(response$body)
 }
 
-# --- webfakes apps --------------------------------------------------------------
+# --- webfakes apps ------------------------------------------------------------
 
 skip_if_no_webfakes <- function() {
   skip_if_not_installed("webfakes")
@@ -142,6 +142,7 @@ local_test_server <- function(
   opts <- webfakes::server_opts(
     num_threads = 2,
     enable_keep_alive = keep_alive,
+    error_log_file = FALSE,
     ssl_certificate = if (tls) test_path("certs", "alpha.pem")
   )
   webfakes::local_app_process(
@@ -177,7 +178,8 @@ local_trace_recorder <- function(env = parent.frame()) {
       transfer(opts, data, function(type, msg) {
         if (type == 0L) {
           text <- tryCatch(rawToChar(msg), error = function(e) "")
-          seen$lines <- c(seen$lines, trimws(strsplit(text, "\n")[[1L]]))
+          lines <- strsplit(text, "\n", fixed = TRUE)[[1L]]
+          seen$lines <- c(seen$lines, trimws(lines))
         }
         debug(type, msg)
       })
@@ -188,7 +190,7 @@ local_trace_recorder <- function(env = parent.frame()) {
   seen
 }
 
-# --- the raw listener (L3) -------------------------------------------------------
+# --- the raw listener (L3) ----------------------------------------------------
 
 # Whether a connection arrives at `listener` within `secs`. Polls across the
 # whole window: one socketSelect() can return FALSE at once with a client
@@ -213,7 +215,7 @@ local_listener <- function(env = parent.frame()) {
   list(port = port, socket = listener)
 }
 
-# --- tripwires (r-binding.md §7, Rules) --------------------------------------------
+# --- tripwires (r-binding.md §7, Rules) --------------------------------------
 
 # The functions named in call position anywhere in `expr`, nested closures
 # included, with `pkg::fun` reduced to `fun`.
@@ -278,10 +280,11 @@ network_callers <- function(env) {
 # What is wrong with one attempt's option list (r-binding.md §5, §7): an
 # empty vector when every row holds.
 option_problems <- function(opts, host, address) {
-  problems <- character()
+  found <- new.env(parent = emptyenv())
+  found$problems <- character()
   want <- function(name, value) {
     if (!identical(opts[[name]], value)) {
-      problems <<- c(problems, name)
+      found$problems <- c(found$problems, name)
     }
   }
   target <- if (grepl(":", address, fixed = TRUE)) {
@@ -306,6 +309,7 @@ option_problems <- function(opts, host, address) {
   want("path_as_is", 1L)
   want("ssl_verifypeer", 1L)
   want("ssl_verifyhost", 2L)
+  problems <- found$problems
   if (!"cookiefile" %in% names(opts) || !is.null(opts$cookiefile)) {
     problems <- c(problems, "cookiefile")
   }

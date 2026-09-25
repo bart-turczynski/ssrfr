@@ -207,7 +207,7 @@ pin_check <- function(lines, address, port) {
   "match"
 }
 
-# --- response headers -----------------------------------------------------------
+# --- response headers --------------------------------------------------------
 
 # The header fields of the final response in `raw` (every header block
 # libcurl received, interim 1xx responses included): a character vector of

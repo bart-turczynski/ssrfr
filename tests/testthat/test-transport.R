@@ -27,7 +27,7 @@ binding_for <- function(url, answers = "93.184.216.34", policy = NULL) {
 # weakened; the "never set" options are absent. Each scheme, with explicit,
 # default and non-default ports, a name and both address families, and both
 # forms of the protocol restriction.
-test_that("every handle carries the pin, TLS is never weakened, nothing never-set is set", {
+test_that("every handle carries the pin; TLS is never weakened", {
   cases <- list(
     list(url = "http://pin.example/", answers = "93.184.216.34"),
     list(url = "http://pin.example:80/", answers = "93.184.216.34"),
@@ -166,7 +166,7 @@ test_that("one place dials", {
   expect_setequal(names(callers), c("dep_nslookup", "dep_curl_transfer"))
   expect_identical(callers[["dep_nslookup"]], "nslookup")
   expect_setequal(
-    strsplit(callers[["dep_curl_transfer"]], ",")[[1L]],
+    strsplit(callers[["dep_curl_transfer"]], ",", fixed = TRUE)[[1L]],
     c("new_handle", "handle_setopt", "multi_add", "multi_run")
   )
 
@@ -177,7 +177,7 @@ test_that("one place dials", {
     inner
   }
   planted$quiet <- function(u) paste0(u, "/")
-  expect_identical(names(network_callers(planted)), "sneaky")
+  expect_named(network_callers(planted), "sneaky")
 })
 
 # r-binding.md §6-§7: the trace matcher fails safe. Synthetic traces: none,
@@ -245,8 +245,8 @@ test_that("response headers are read from the final block only", {
     "Set-Cookie: a=1\r\nSet-Cookie: b=2\r\n\r\n"
   ))
   h <- ssrfr:::parse_response_headers(raw)
-  expect_identical(
-    names(h),
+  expect_named(
+    h,
     c("location", "content-type", "x-folded", "set-cookie", "set-cookie")
   )
   expect_identical(unname(h[["x-folded"]]), "one two")

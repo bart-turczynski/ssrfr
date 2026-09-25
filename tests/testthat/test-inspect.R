@@ -196,6 +196,11 @@ test_that("the wire string carries an ASCII A-label host", {
     expect_match(host, "^xn--", label = url)
     expect_identical(host, hop$host)
   }
+  # The record reports the A-label the decision used (S4).
+  expect_identical(
+    ssrf_inspect_url("http://bücher.example/")$host,
+    "xn--bcher-kva.example"
+  )
   # A host rurl leaves without an A-label never reaches the wire.
   expect_false(ssrfr:::hosts_agree("bücher.example", "bücher.example"))
 })

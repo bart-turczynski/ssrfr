@@ -148,6 +148,26 @@ test_that("requirement coverage is well formed", {
   ))
 })
 
+# Evidence of the form `test-<file>.R: <test_that name>` names a test that
+# exists, so a renamed test cannot leave a requirement citing nothing.
+test_that("every requirement cites tests that exist", {
+  evidence <- unlist(strsplit(read_corpus("requirements.tsv")$evidence, " ; "))
+  cited <- grep("^test-[a-z-]+[.]R: ", evidence, value = TRUE)
+  expect_gt(length(cited), 0L)
+  for (item in unique(cited)) {
+    file <- sub(": .*$", "", item)
+    name <- sub("^[^:]*: ", "", item)
+    src <- paste(
+      readLines(test_path(file), encoding = "UTF-8"),
+      collapse = "\n"
+    )
+    expect_true(
+      grepl(paste0("test_that(\"", name, "\""), src, fixed = TRUE),
+      label = item
+    )
+  }
+})
+
 # The research notes are git-ignored, so a row citing one cites nothing a
 # reader can check (§7.1).
 test_that("every row cites a committed or public source", {

@@ -17,4 +17,4 @@ Source lives in `R/`, tests and cucumber feature specs live in `tests/testthat/`
 and the design — specification, ADRs, evidence — lives in `design/`. Implement
 only against `[ratified]` sections of `design/specs/ssrfr-v1.md`.
 
-Keep local-only planning state in `_scratch/`. Do not commit `_scratch/`, `.fp/`, secrets, dependency folders, build outputs, or generated caches.
+Do not commit `.fp/`, secrets, dependency folders, build outputs, or generated caches.

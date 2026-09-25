@@ -6,8 +6,8 @@ Three hard checks (exit 1 on failure):
 1. ADR immutability  - an accepted ADR may not be edited, only superseded.
 2. ARCHITECTURE.md coverage - every top-level source directory is named there.
 3. Frontmatter - parses, and `status` is in the enum for its kind.
-
-Plus one non-blocking warning: drafts left untouched in `_scratch/`.
+4. No `_scratch/` citations - no tracked file outside an allow-list names
+   `_scratch`, which is disposable, git-ignored working space.
 
 Stdlib only, so it runs in R, Python, TypeScript, and extension repos alike
 without adding a CI dependency. Invoke as `python3 scripts/check-design.py`.
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 ADR_STATUSES = {"proposed", "accepted", "superseded", "deprecated"}
@@ -34,7 +33,15 @@ ECOSYSTEMS = [
 ]
 FALLBACK_SOURCE_DIRS = ["src", "lib"]
 
-SCRATCH_STALE_DAYS = 3
+# Tracked files that may name `_scratch`: the ignore rules, the agent rule that
+# forbids citing it, this check, and the corpus test that rejects it as a source.
+SCRATCH_ALLOWED = {
+    ".gitignore",
+    ".Rbuildignore",
+    "AGENTS.md",
+    "scripts/check-design.py",
+    "tests/testthat/test-corpus.R",
+}
 
 
 def git(*args: str) -> str | None:
@@ -160,16 +167,15 @@ def check_architecture_coverage(root: Path, errors: list[str]) -> None:
             errors.append(f"ARCHITECTURE.md does not mention the `{name}/` directory")
 
 
-def warn_stale_scratch(root: Path) -> list[str]:
-    scratch = root / "_scratch"
-    if not scratch.is_dir():
-        return []
-    cutoff = time.time() - SCRATCH_STALE_DAYS * 86400
-    return sorted(
-        path.relative_to(scratch).as_posix()
-        for path in scratch.rglob("*")
-        if path.is_file() and path.stat().st_mtime < cutoff
-    )
+def check_no_scratch_citations(errors: list[str]) -> None:
+    out = git("grep", "-l", "_scratch")
+    if not out:
+        return
+    for rel in sorted(set(out.splitlines()) - SCRATCH_ALLOWED):
+        errors.append(
+            f"{rel} names `_scratch`: it is disposable working space, never a "
+            "source; cite `design/` or an fp brainstorm instead"
+        )
 
 
 def main() -> int:
@@ -180,16 +186,7 @@ def main() -> int:
     check_frontmatter(root, errors)
     check_adr_immutability(root, errors)
     check_architecture_coverage(root, errors)
-
-    stale = warn_stale_scratch(root)
-    if stale:
-        shown = ", ".join(stale[:5])
-        more = f", +{len(stale) - 5} more" if len(stale) > 5 else ""
-        print(
-            f"warning: _scratch/: {len(stale)} file(s) untouched "
-            f"{SCRATCH_STALE_DAYS}+ days ({shown}{more}). Graduate or delete.",
-            file=sys.stderr,
-        )
+    check_no_scratch_citations(errors)
 
     if errors:
         print("check-design failed:", file=sys.stderr)

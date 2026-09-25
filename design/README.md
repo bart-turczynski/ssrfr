@@ -1,7 +1,7 @@
 # Design docs
 
-Durable, tracked design documentation. Unlike `_scratch/` (git-ignored, never on
-a fresh clone), everything here is committed and travels with the code.
+Durable, tracked design documentation. Everything here is committed and travels
+with the code.
 
 Design docs never live in `docs/`, which belongs to pkgdown.
 
@@ -23,8 +23,8 @@ See also [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the structural map.
 
 ## Lifecycle
 
-Drafts start in `_scratch/`. A draft graduates to `specs/` when it stops being
-"what if" and becomes what we are building. On ship, distill the durable facts
+A draft starts as **[proposed]** text in the spec, or as an fp brainstorm while
+it is still "what if". It becomes normative when the maintainer ratifies it. On ship, distill the durable facts
 into `ARCHITECTURE.md` and the load-bearing choices into an ADR, then set the
 spec's status to `shipped` and never update it again.
 

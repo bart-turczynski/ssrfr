@@ -251,6 +251,14 @@ test_that("response headers are read from the final block only", {
     c("location", "content-type", "x-folded", "set-cookie", "set-cookie")
   )
   expect_identical(unname(h[["x-folded"]]), "one two")
+  # libcurl appends a chunked body's trailer section after the header's
+  # empty line; its fields are not header fields.
+  trailed <- ssrfr:::parse_response_headers(charToRaw(paste0(
+    "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n",
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+    "Location: /trailer\r\nHTTP/1.1 302 Found\r\n\r\n"
+  )))
+  expect_identical(trailed, c(`transfer-encoding` = "chunked"))
   expect_null(ssrfr:::parse_response_headers(charToRaw("garbage\r\n")))
   expect_null(
     ssrfr:::parse_response_headers(charToRaw("HTTP/1.1 200 OK\r\nno colon\r\n"))

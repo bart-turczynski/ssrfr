@@ -230,12 +230,26 @@ parse_response_headers <- function(raw) {
     return(NULL)
   }
   lines <- strsplit(text, "\r?\n", useBytes = TRUE)[[1L]]
+  # The final response is the first status line that is not 1xx, and its
+  # header section ends at the first empty line after it. libcurl appends a
+  # chunked body's trailer section to the same buffer; trailer fields are
+  # not header fields (RFC 9110 §6.5), so a trailer `Location` never reaches
+  # the binding.
   starts <- grep("^HTTP/", lines, useBytes = TRUE)
-  if (!length(starts)) {
+  interim <- grepl(
+    "^HTTP/[^ ]* +1[0-9][0-9]( |$)",
+    lines[starts],
+    useBytes = TRUE
+  )
+  final <- starts[!interim][1L]
+  if (is.na(final)) {
     return(NULL)
   }
-  lines <- lines[-seq_len(max(starts))]
-  lines <- lines[nzchar(lines)]
+  lines <- lines[-seq_len(final)]
+  end <- match(TRUE, !nzchar(lines))
+  if (!is.na(end)) {
+    lines <- lines[seq_len(end - 1L)]
+  }
   field_line <- paste0("^", http_tchars, ":")
   fields <- character()
   values <- character()

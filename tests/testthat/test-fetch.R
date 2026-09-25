@@ -177,6 +177,25 @@ test_that("a Latin-1 byte in a header value is a response, with no warning", {
   expect_identical(format(r)[[3L]], "  type: text/plain")
 })
 
+# R's curl keeps a chunked body's trailer fields in the header bytes it
+# returns. A trailer is not the header: its Location is neither a header
+# field nor the redirect target the binding records (§2.3).
+test_that("a trailer field never joins the header", {
+  web <- local_raw_server(wire(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTrailer: Location\r\n",
+    "Connection: close\r\n\r\n",
+    "5\r\nhello\r\n0\r\nLocation: /trailer\r\nX-Trailer: t\r\n\r\n"
+  ))
+  mock_answers("127.0.0.1")
+  r <- guarded_get(pinned_url(web$port), loopback_policy(web$port))
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(body_text(r), "hello")
+  expect_named(r$headers, c("transfer-encoding", "trailer", "connection"))
+  b <- attr(r, "binding")
+  expect_identical(b$state$location_count, 0L)
+  expect_null(b$state$location)
+})
+
 # --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how

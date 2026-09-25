@@ -1,0 +1,21 @@
+url: https://ssrfr-290b3f.gitlab.io
+destination: site
+
+template:
+  bootstrap: 5
+
+home:
+  title: "ssrfr"
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, gitlab]
+  components:
+    # pkgdown ships a built-in `github` component but none for GitLab, so this
+    # is a plain custom component using the Font Awesome brand icon pkgdown
+    # already bundles.
+    gitlab:
+      icon: fab fa-gitlab
+      href: https://gitlab.com/bart-turczynski/ssrfr
+      aria-label: GitLab

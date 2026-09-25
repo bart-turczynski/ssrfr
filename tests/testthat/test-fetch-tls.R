@@ -209,7 +209,6 @@ test_that("ordinary HTTP still works through the guard", {
   expect_length(r$body, 0L)
 
   expect_match(body_text(get("/gzip")), "\"gzipped\": *true")
-  expect_match(body_text(get("/deflate")), "\"deflated\": *true")
   expect_identical(get("/status/404")$status, 404L)
   expect_identical(get("/status/500")$status, 500L)
   r <- get("/redirect/2")

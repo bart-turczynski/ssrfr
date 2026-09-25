@@ -99,6 +99,12 @@ test_app <- function() {
     res$set_type("application/octet-stream")
     res$send(memCompress(raw(2e6), "gzip"))
   })
+  app$get("/deflate", function(req, res) {
+    # HTTP's `deflate` is the zlib format, which memCompress() writes.
+    res$set_header("Content-Encoding", "deflate")
+    res$set_type("text/plain")
+    res$send(memCompress(charToRaw(strrep("deflated ", 1000)), "gzip"))
+  })
   app$get("/many-headers", function(req, res) {
     for (i in 1:50) {
       res$add_header(paste0("X-Field-", i), strrep("v", 40))

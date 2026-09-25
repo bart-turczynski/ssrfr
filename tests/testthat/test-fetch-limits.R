@@ -37,6 +37,7 @@ test_that("total_timeout is re-checked after decoding", {
   expect_s3_class(r, "ssrfr_failure")
   expect_identical(r$cause, "timeout")
   expect_identical(r$detail$step, 12L)
+  expect_false(attr(r, "binding")$state$fetched)
 })
 
 test_that("the byte cap ends a chunked body as response-too-large", {
@@ -80,6 +81,8 @@ test_that("a compression bomb is response-too-large from ssrfr's own counter", {
   )
   expect_identical(r$status, 200L)
   expect_identical(r$body, raw(2e6))
+  r <- guarded_get(pinned_url(port, "/deflate"), loopback_policy(port))
+  expect_identical(body_text(r), strrep("deflated ", 1000))
 })
 
 test_that("header bytes and header fields have limits of their own", {

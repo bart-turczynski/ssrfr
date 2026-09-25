@@ -223,6 +223,8 @@ guarded_transfer <- function(binding, started) {
         limit = "total_timeout"
       ))
     }
+    # The binding records a successful response only now (§2.3).
+    set_state(binding, fetched = TRUE)
     return(attempt$response)
   }
   timed_out <- all(endsWith(endings, " connect-timeout"))
@@ -374,7 +376,6 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   if (length(locations) > 1L) {
     return(ended("protocol-error", 12L, "location"))
   }
-  set_state(binding, fetched = TRUE)
   list(
     ending = "connected",
     response = new_ssrf_response(

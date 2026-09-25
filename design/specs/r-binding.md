@@ -12,13 +12,20 @@ Evidence, not policy. This file records how each requirement in
 that constrain the implementation. Where it and the spec disagree, the spec wins
 and this file has a defect.
 
-**Environments for [verified] claims.** Single platform; Linux and Windows
-confirmation is outstanding (`ssrfr-v1.md` §8 item 6).
+**Environments for [verified] claims.** macOS unless a claim carries a
+platform tag. The transport findings of §4–§6 were re-run on Linux on
+2026-09-25; Windows confirmation is outstanding (`ssrfr-v1.md` §8 item 6,
+`SSRF-fjgfnaaq`).
 
 | Date | Environment | Evidence |
 |---|---|---|
 | 2026-07-25 | R 4.6.0, `curl` 7.1.0, libcurl 8.14.1 (LibreSSL 3.3.6), macOS / Darwin 25.4.0 | re-run on 2026-09-24 by the transport scripts in §9; the July output is kept in them where it differs |
 | 2026-09-24 | R 4.6.0, `curl` 8.0.0, libcurl 8.14.1 (LibreSSL 3.3.6, IDN off), `rurl` 3.0.1.9000, `raddr` 0.1.2.9000, macOS / Darwin 25.6.0 | [`../evidence/`](../evidence/), listed in §9 |
+| 2026-09-25 | **The matrix**: the macOS build above, and in Docker (arm64) with `curl` 8.0.0 built against the distro libcurl: Ubuntu 22.04, R 4.4.1, libcurl 7.81.0 (OpenSSL 3.0.2, IDN on); Ubuntu 24.04, R 4.6.1, libcurl 8.5.0 (OpenSSL 3.0.13, IDN on); Rocky 9.3, R 4.6.1 from EPEL, libcurl 7.76.1 (OpenSSL 3.5.8) both as `libcurl-minimal` (the image default: `file ftp ftps http https`, IDN off) and as the full `libcurl` (IDN on). The rocker images run under `en_US.UTF-8`, the Rocky images under the C locale | [`2026-09-25-platform-transport-probes.R`](../evidence/2026-09-25-platform-transport-probes.R), run by [`2026-09-25-linux-transport-matrix.sh`](../evidence/2026-09-25-linux-transport-matrix.sh); output in [`2026-09-25-linux-transport-results.txt`](../evidence/2026-09-25-linux-transport-results.txt) |
+
+A claim tagged **(matrix)** reproduced on every build of the matrix;
+otherwise the tag names the builds. Probe numbers such as "probe 3e" are the
+rows of the 2026-09-25 results.
 
 ---
 
@@ -131,7 +138,13 @@ purpose and unsafe for this one.
 - **Brackets.** Both parsers keep IPv6 brackets. `raddr::addr_whatwg("[::1]")`
   silently returns `NA`, so strip brackets, and only when the host type is IPv6.
 - **Trailing root dot.** Both keep it; hostname matching strips one
-  (`ssrfr-v1.md` §5.0).
+  (`ssrfr-v1.md` §5.0). Under a DNS search list, `nslookup("svc.")` gets no
+  answer where `nslookup("svc")` resolves through the list **[verified]**
+  (Ubuntu 22.04, Ubuntu 24.04 and Rocky 9, glibc, Docker `--dns-search`;
+  `2026-09-25-search-domain-probe.R`). When libcurl itself resolves
+  `http://svc./`, 7.76.1 and 7.81.0 drop the dot and the search list applies;
+  8.5.0 keeps it **[verified]** (same run). Under a pin libcurl resolves
+  nothing (§4.2).
 - **Scalar vs vector.** `safe_parse_url()` is scalar; vectors need
   `safe_parse_urls()`.
 - **Userinfo.** Exposed as the `user` and `password` columns plus the
@@ -202,19 +215,21 @@ Both preserve the hostname for TLS and `Host`. They fail differently.
 
 | Property | `resolve` | `connect_to` |
 |---|---|---|
-| Multi-address failover in one entry | yes **[verified]** | no — first match wins **[verified]** |
-| Survives connection reuse | **no** **[verified]** | yes **[verified]** |
-| Leaks into other handles' lookups | **yes** — the shared DNS cache **[verified]** | no **[verified]** |
-| Port-key mismatch | fails open **[verified]** | fails open **[verified]** |
-| Empty-field wildcard form | — | yes **[verified]** |
+| Multi-address failover in one entry | yes **[verified]** (matrix, probe 5a) | no — first match wins **[verified]** (matrix, 5b) |
+| Survives connection reuse | **no** **[verified]** (matrix, 7a–7c) | yes **[verified]** (matrix, 7d–7f) |
+| Leaks into other handles' lookups | **yes** — the shared DNS cache **[verified]** (matrix, 7g) | no **[verified]** (matrix, 7h) |
+| Port-key mismatch | fails open **[verified]** (matrix, 2b) | fails open **[verified]** (matrix, 2d, 2k) |
+| Host-key mismatch | — | fails open **[verified]** (matrix, §4.2) |
+| Empty-field wildcard form | — | yes **[verified]** (matrix, 2e–2j) |
 
 libcurl's connection-reuse check runs *before* DNS and is hostname-based; only
 `CONNECT_TO` sets the connect-to host and port that check compares. **A
 `resolve` pin is never consulted when a pooled connection matches** — a silent
 bypass on the second
 request to a host, even from a fresh handle, because R's `curl` shares one
-connection pool across synchronous fetches. **[verified]** on the R build
-(libcurl 8.14.1, LibreSSL), macOS only; `forbid_reuse` closes it. The
+connection pool across synchronous fetches. **[verified]** (matrix, probes
+7a–7b), and `forbid_reuse` closes it (7c); a changed `connect_to` pin on the
+same or a fresh handle opens a new connection to the new address (7d–7f). The
 `lib/url.c` reading behind it was done at tag `curl-8_14_1`.
 
 **Every hop gets a new handle, and `handle_reset()` is never used.** R's `curl`
@@ -233,7 +248,8 @@ uses.
   prefix never expires **[sourced]**. A `resolve` pin set on one handle answered
   the lookup of a later fresh, unpinned handle with `dns_cache_timeout = 0`; the
   same test with `connect_to`, or with `curl_interrupt = FALSE` (a private multi
-  per handle), fails with `Could not resolve host` **[verified]**. This is a
+  per handle), fails with `Could not resolve host` **[verified]** (the
+  `resolve` and `connect_to` halves: matrix, probes 7g–7h). This is a
   second reason for `connect_to`, independent of reuse: a `resolve` pin would
   also steer later requests made by other code in the process.
 
@@ -241,8 +257,9 @@ A failover retry (§4.3) changes the pin, so it takes a new handle too.
 
 ### 4.2 The fail-open, and the form that removes it
 
-**[verified]** Both primitives discard the pin and perform a real, unvalidated
-resolution when the key's port does not match the request's port — silently:
+**[verified]** (matrix, probes 2a–2d, 2k) Both primitives discard the pin and
+perform a real, unvalidated resolution when the key's port does not match the
+request's port — silently:
 
 ```r
 connect_to = "h.invalid:443:127.0.0.1:443"   # request on :80
@@ -253,7 +270,8 @@ connect_to = "h.invalid:80:127.0.0.1:80"     # request on :80
 ```
 
 `connect_to`'s syntax is `HOST:PORT:CONNECT-TO-HOST:CONNECT-TO-PORT`, and an
-empty field means "match anything / keep original" **[verified]**:
+empty field means "match anything / keep original" **[verified]** (matrix,
+probes 2e–2j, the default `http` and `https` ports included):
 
 ```r
 connect_to = "h.invalid::127.0.0.1:80"   # request :8080 -> Trying 127.0.0.1:80
@@ -265,15 +283,41 @@ connect_to = "h.invalid::127.0.0.1:"     # request :8080 -> Trying 127.0.0.1:808
 
 Always emit the trailing colon: `"HOST::IP:80"` silently rewrites the port too.
 
-Never leave `HOST` empty: `"::IP:"` matches every host **[verified]**, so the
-key would stop naming the host that was validated, and INV-6 requires it to be
-libcurl's parse of the requested URL.
+Never leave `HOST` empty: `"::IP:"` matches every host **[verified]** (matrix,
+probe 2g), so the key would stop naming the host that was validated, and INV-6
+requires it to be libcurl's parse of the requested URL.
 
-The `HOST` field is matched against libcurl's own parse of the request URL. A
-host key that differs from it — a U-label where libcurl holds an A-label, a
-different IPv6 spelling — disengages the pin the same way a port mismatch does
-**[assumption]**, by analogy with the verified port case. This is why the spec
-proposes taking the key from `curl_parse_url()` (`ssrfr-v1.md` §4.2).
+The `HOST` field is matched, case-insensitively, against libcurl's own host
+for the request. A host key spelled differently disengages the pin the same
+way a port mismatch does: the name is resolved, or an IP-literal host is
+dialed as written **[verified]** (matrix, probes 3b–3s):
+
+| Request host | Key that fails open | Key that engages everywhere |
+|---|---|---|
+| `xn--bcher-kva.invalid` | the U-label `bücher.invalid` (3b) | the A-label, as `curl_parse_url()` returns it (3a, 3e2) |
+| `dot.invalid.` / `dot.invalid` | the other spelling of the root dot (3h, 3i) | the same spelling (3g) |
+| `[::1]` | `[0:0:0:0:0:0:0:1]` (3k) | `[::1]` (3j) |
+| `[0:0:0:0:0:0:0:1]` | `[0:0:0:0:0:0:0:1]` on libcurl 7.81 and later; `[::1]` on Rocky 9's 7.76.1 (3l, 3m) | `curl_parse_url()`'s host (3n) |
+| `[::ffff:127.0.0.1]` | `rurl`'s `[::ffff:7f00:1]` (3o) | `curl_parse_url()`'s host (3p) |
+| `0177.0.0.1`, `2130706433` | the literal on 7.81 and later; `127.0.0.1` on 7.76.1, whose URL API keeps the literal (3q, 3r) | `curl_parse_url()`'s host (3s) |
+
+Only the verbatim `curl_parse_url()` host engages on every build; a key
+rebuilt from a normalized address string engages on some builds and fails open
+on others. This is the case for taking the key from `curl_parse_url()`
+(`ssrfr-v1.md` §4.2), with one exception, below.
+
+**A U-label URL can defeat a `curl_parse_url()` key** **[verified]** (probes
+3c–3e, and the locale pass of the results file). On Ubuntu 22.04 (7.81.0) and
+24.04 (8.5.0), both built with IDN, under a UTF-8 locale, libcurl converts a
+U-label host to its A-label before it matches `connect_to`, while
+`curl_parse_url()` still returns the U-label: the key taken from it fails open
+and libcurl resolves `xn--bcher-kva.invalid` itself. The same URL behaves
+three other ways elsewhere: the key engages on the builds without IDN (macOS
+8.14.1, Rocky 9 `libcurl-minimal`) and on Rocky 9's full 7.76.1 under
+`C.UTF-8`; under the C locale, 8.5.0 and the full 7.76.1 refuse the URL (`URL
+using bad/illegal format`). A URL whose host is already the A-label, which
+`ssrfr-v1.md` §4.1 says the binding hands libcurl, engages on every build and
+locale run (3a, 3e2).
 
 ### 4.3 Failover
 
@@ -290,7 +334,9 @@ user measured ~60% of dual-stack fetches failing from an IPv4-only host. 1.6.0
 
 A bracketed literal in the empty-field form, `"HOST::[::1]:"`, pins over IPv6:
 the trace reads `Trying [::1]:PORT…` and the app sees the hostname in `Host:`
-**[verified]**, macOS only (spec §8 items 6 and 7). The test server is `httpuv`,
+**[verified]** (matrix, probes 4b and 4e; the port-keyed failure form 4d
+resolves the name instead). libcurl 7.81.0 and 7.76.1 write the trace line
+without brackets, `Trying ::1:PORT…` (§6). The test server is `httpuv`,
 because `webfakes` cannot bind `::1` (§7). `httpuv` leaves `REMOTE_ADDR` empty
 for a `::1` client, so the dialed address comes from the `debugfunction` trace
 (§6), not from the server.
@@ -355,14 +401,22 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 
 `protocols_str` and `redir_protocols_str` need libcurl 7.85. Below that, `ssrfr`
 sets the older `protocols` and `redir_protocols` bitmasks to HTTP and HTTPS
-instead. The supported floor is the `curl` package's own, libcurl 7.73; below it
+instead. On libcurl 7.81.0 and 7.76.1 R's `curl` does not list the `_str`
+options and `handle_setopt()` fails with `Unknown option: protocols_str`,
+while the bitmasks (`3L`) refuse every other compiled-in scheme on the first
+hop and on a followed redirect and leave `http` and `https` working; on 8.5.0
+and 8.14.1 both forms do **[verified]** (matrix, probes 6b and 6d). The
+supported floor is the `curl` package's own, libcurl 7.73; below it
 the package builds against a bundled static libcurl. Ubuntu 22.04 ships 7.81 and
 RHEL 9 ships 7.76.1 **[sourced]**, and on Linux R's `curl` links the system
-libcurl. Below 7.77, libcurl's URL API does not normalize numeric IPv4 hosts; the
-`rurl`-versus-libcurl disagreement refusal (spec §4.1) keeps that case
-fail-closed, and a test must show it. The floor is conditional on the Linux
-matrix (spec §8 items 6 and 16): if the protocol restriction or the pin fails on
-Ubuntu 22.04 or Rocky 9, the floor becomes 7.85.
+libcurl. Below 7.77, libcurl's URL API does not normalize numeric IPv4 hosts
+(**[verified]** on Rocky 9's 7.76.1: `curl_parse_url()` returns `0177.0.0.1`
+and `2130706433` as written, and does not compress `[0:0:0:0:0:0:0:1]`, probe
+3); the `rurl`-versus-libcurl disagreement refusal (spec §4.1) keeps that case
+fail-closed, and a test must show it. That test needs `ssrfr` code and was not
+run. The floor is conditional on the Linux matrix (spec §8 items 6 and 16): if
+the protocol restriction or the pin fails on Ubuntu 22.04 or Rocky 9, the floor
+becomes 7.85. What the matrix found is in spec §8 item 6.
 
 ### Traps in this table
 
@@ -403,7 +457,10 @@ Ubuntu 22.04 or Rocky 9, the floor becomes 7.85.
   the handle is cleaned up **[sourced]**.
 - **`maxfilesize` is advisory**: before libcurl 8.4.0 it is a no-op without
   `Content-Length`; from 8.4.0 it also aborts a transfer mid-stream
-  (**[verified]** on 8.14.1 with a chunked response, §9). Either way it counts
+  (**[verified]** with a 250,000-byte chunked response and a 1,000-byte cap:
+  delivered in full on 7.76.1 and 7.81.0, aborted on 8.5.0 and 8.14.1; a
+  `Content-Length` over the cap aborts on all four; matrix, probes 8a–8b).
+  Either way it counts
   wire bytes, so a compressed bomb passes. A real cap needs a write-callback byte
   counter.
 - **`accept_encoding` sets what is advertised, not what is decoded.** With any
@@ -416,7 +473,8 @@ Ubuntu 22.04 or Rocky 9, the floor becomes 7.85.
   encoding, which differs by build — `deflate, gzip` on the evidence build
   **[verified]** — so `ssrfr` sets the list itself.
 - **`redir_protocols_str` is less load-bearing than it looks**: libcurl already
-  restricts redirect hops to `http https ftp ftps` **[verified]**, so
+  restricts redirect hops to `http https ftp ftps` **[verified]** (matrix:
+  `file`, `gopher` and `dict` refused, `ftp` followed, probe 6c), so
   redirect-to-`file://` is already blocked. The exposure is the **first** hop.
 - **Four options move resolution or the source of a connection.** `doh_url`
   turns lookups into extra HTTPS requests to its server, whose own name the
@@ -438,8 +496,17 @@ dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt
 pop3 pop3s rtsp smb smbs smtp smtps telnet tftp ws wss
 ```
 
-`curl::curl_fetch_memory("file:///etc/passwd")` reads the file **[verified]**, as
-do `httr2`, `httr`, base `readLines()`, and `download.file()`. `gopher://` is
+That list is the macOS build's. The Linux builds differ **[verified]** (probe
+6): Ubuntu 22.04 compiles in 25 (adding `rtmp`, `scp`, `sftp`, without `ws` or
+`wss`), Ubuntu 24.04 30 (the `rtmp` family, `scp`, `sftp`), Rocky 9's full
+`libcurl` 24 (`scp` and `sftp` in place of `ws` and `wss`) and its default
+`libcurl-minimal` five (`file ftp ftps http https`). On every one, each
+compiled-in scheme is attempted on the first hop without a restriction
+(matrix, 6a).
+
+`curl::curl_fetch_memory("file:///etc/passwd")` reads the file **[verified]**
+(matrix, 6a, with a temporary file), as do `httr2`, `httr`, base
+`readLines()`, and `download.file()`. `gopher://` is
 present and libcurl percent-decodes the gopher selector, so `%0d%0a` becomes real
 CRLF — the SSRF→Redis-RCE chain, live in R today.
 
@@ -450,10 +517,10 @@ them as dangerous primitives (spec §9).
 
 ## 6. The audit seam — INV-5 verification
 
-`handle_data()` exposes **no peer IP** **[verified]**, and R's `curl` exposes no
-`CURLINFO_PRIMARY_IP`. But **`debugfunction` accepts an R closure and fires**
-**[verified]**, unlike `prereqfunction`, `opensocketfunction`, and
-`sockoptfunction`:
+`handle_data()` exposes **no peer IP** **[verified]** (matrix, probe 1c), and R's
+`curl` exposes no `CURLINFO_PRIMARY_IP`. But **`debugfunction` accepts an R
+closure and fires** **[verified]** (matrix, 1a–1b), unlike `prereqfunction`,
+`opensocketfunction`, and `sockoptfunction`:
 
 ```r
 log <- character()
@@ -474,8 +541,16 @@ verification requirement and the offline pinning proofs in §7.
 > the pin is the control. A reviewer who mistakes this for a gate will build
 > something unsafe.
 
-The trace is human-readable diagnostic output, not an API, so its stability
-across libcurl versions and platforms is **unverified**. Matching MUST fail safe:
+The trace is human-readable diagnostic output, not an API, and it is not
+stable across libcurl versions **[verified]** (matrix, probes 1, 4 and 9).
+Every build writes a `Trying ADDRESS:PORT...` line before the connect, but
+7.76.1 and 7.81.0 write an IPv6 address without brackets (`Trying ::1:1...`,
+where 8.x writes `Trying [::1]:1...`), 7.81.0 writes `Connected to (nil)
+(127.0.0.1)` under a `connect_to` pin, and the failure, closing and
+connection-reuse lines are worded differently on each (`Re-using existing
+connection! (#70) with host` on 7.x, `Re-using existing connection with host`
+on 8.5.0, `Re-using existing http: connection with host` on 8.14.1).
+Matching MUST fail safe:
 absence of an expected line, or a line that cannot be read, is the operational
 cause `pin-mismatch` (`ssrfr-v1.md` §6.6), never evidence of a correct
 connection. Prefer confirming the address we pinned appears over extracting an
@@ -678,10 +753,11 @@ its live tests the same way (`node-transport-live.test.ts`).
   Refusals at lifecycle steps 3–5 (scheme, userinfo, port) also assert zero
   calls on the counting resolver mock.
 - **Enumerate protocols at run time.** The compiled-in list differs by build
-  (§5 shows this one's 24), so protocol tests iterate over
+  (from 5 to 30 on the matrix, §5), so protocol tests iterate over
   `curl::curl_version()$protocols` minus `http` and `https`. They assert a
   `scheme` refusal from the guard and `Unsupported protocol` from the transport
-  under `protocols_str = "http,https"` **[verified]**. Give each scheme a URL it
+  under `protocols_str = "http,https"`, or the `protocols` bitmask below 7.85
+  **[verified]** (matrix, probe 6b). Give each scheme a URL it
   accepts: `file://x.invalid/` fails libcurl's URL parse first (`Bad file://
   URL`) and proves nothing about `protocols_str`. Gate capability-dependent
   tests the same way, e.g. on `curl_version()$ipv6`.
@@ -758,6 +834,9 @@ its live tests the same way (`node-transport-live.test.ts`).
 - **`webfakes` cannot bind `::1`**; `httpuv` can, which brings the IPv6 pin to
   L2 (Harness notes). Whether CRAN's and CI machines have a usable `::1` is
   **[assumption]**; gate on `curl_version()$ipv6` and on the bind succeeding.
+  Docker 29.8 containers had `::1` on loopback, on the default bridge network
+  and under `--network none`, and `httpuv` bound it in each Linux image of the
+  matrix (probe 4e).
 - **`webmockr` / `vcr` / `httptest2` cannot intercept raw `curl`** — they cover
   `crul`/`httr`/`httr2` only. Not usable for this package's transport tests.
 
@@ -808,5 +887,8 @@ Each script records its environment and expected output; run it with
 | [`2026-09-25-dot-segments.R`](../evidence/2026-09-25-dot-segments.R) | dot segments, `%2e` forms included, through `rurl`'s WHATWG serializer (§5, `path_as_is`) |
 | [`2026-09-25-fullwidth-separators.R`](../evidence/2026-09-25-fullwidth-separators.R) | fullwidth `＃ ／ ？ ：` in a host through `rurl`'s verdict, host and serializer, then `curl_parse_url()` (§7; `ssrfr-v1.md` §4.1) |
 | [`2026-09-25-parse-vectors.R`](../evidence/2026-09-25-parse-vectors.R) | generates the measured columns of the parse-vector corpus (`ssrfr-v1.md` §7 component 2) and the corpus manifest; opens a connection only to loopback (§7) |
+| [`2026-09-25-platform-transport-probes.R`](../evidence/2026-09-25-platform-transport-probes.R) | platform-neutral re-run of the transport findings, one `ok`/`DIFFERS` row per probe: the `debugfunction` seam, key forms and the port-key fail-open, host-key mismatches, the bracketed IPv6 pin, failover, protocol exposure under `protocols_str` and the bitmask, redirect-hop protocols, connection reuse and the DNS cache, `maxfilesize`, the trace text (§4–§6) |
+| [`2026-09-25-search-domain-probe.R`](../evidence/2026-09-25-search-domain-probe.R) | a single-label name under a DNS search list, with and without the trailing root dot, through `nslookup()` and libcurl (`ssrfr-v1.md` §5.0) |
+| [`2026-09-25-linux-transport-matrix.sh`](../evidence/2026-09-25-linux-transport-matrix.sh) | runs the two scripts above on the host and in Docker on Ubuntu 22.04, Ubuntu 24.04 and Rocky 9 (both libcurl builds); its output is [`2026-09-25-linux-transport-results.txt`](../evidence/2026-09-25-linux-transport-results.txt) |
 
 External sources for this file are in [`../references.md`](../references.md).

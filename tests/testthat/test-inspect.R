@@ -205,6 +205,37 @@ test_that("the wire string carries an ASCII A-label host", {
   expect_false(ssrfr:::hosts_agree("bücher.example", "bücher.example"))
 })
 
+# §12: steps 3-5 read the scheme, userinfo and effective port from libcurl's
+# parse of the wire string, the values libcurl acts on, never from rurl's.
+test_that("scheme, userinfo and port come from libcurl's parse", {
+  curl_reads <- function(...) {
+    function(url) {
+      c(list(url = url, host = "example.com", path = "/"), list(...))
+    }
+  }
+  local_mocked_bindings(
+    dep_curl_parse = curl_reads(scheme = "http", port = "6379")
+  )
+  expect_identical(ssrf_inspect_url("http://example.com/")$code, "port")
+
+  local_mocked_bindings(
+    dep_curl_parse = curl_reads(scheme = "http", user = "u")
+  )
+  expect_identical(ssrf_inspect_url("http://example.com/")$code, "userinfo")
+
+  local_mocked_bindings(dep_curl_parse = curl_reads(scheme = "https"))
+  res <- ssrf_inspect_url(
+    "http://example.com/",
+    ssrf_policy(allow_schemes = "http")
+  )
+  expect_identical(res$code, "scheme")
+
+  local_mocked_bindings(dep_curl_parse = curl_reads(scheme = "http"))
+  res <- ssrf_inspect_url("http://example.com:8080/")
+  expect_identical(res$code, NA_character_)
+  expect_identical(res$port, 80L)
+})
+
 test_that("the wire string drops the fragment and keeps port and query", {
   hop <- ssrfr:::parse_hop(
     "http://Example.COM:8080/a/../b?q=1#frag",

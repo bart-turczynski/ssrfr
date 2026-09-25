@@ -1,6 +1,6 @@
 ---
 status: draft
-version: 1.3.0-draft
+version: 1.4.0-draft
 date: 2026-09-25
 tracking: SSRF-xrlijlqq, SSRF-ibxdyzcy
 ---
@@ -99,7 +99,11 @@ and `data.table::fread(url)` reaches `download.file()` **[verified]**
 (`design/evidence/2026-09-24-r-http-clients.R`).
 `xml2::read_xml(url)` and `read_html(url)` belong to the same list: they open the
 URL with `curl::curl()`, or `url()` without `curl` **[verified]**
-(`design/evidence/2026-09-24-content-fetches.R`). It is not a
+(`design/evidence/2026-09-24-content-fetches.R`). So do the `curl`
+command-line tool, whether run through `system()` or as
+`download.file(method = "curl")`, which also reads the user's `~/.curlrc`;
+libcurl itself does not read that file. `ssrfr` therefore offers no "equivalent
+`curl` command" helper. *Ratified 2026-09-25* (`SSRF-qttneqxp`). It is not a
 general-purpose URL parser or validator. DNS integrity is out of scope: a
 compromised resolver defeats it, and `ssrfr` cannot pin its own resolver because
 `dns_servers` requires a c-ares build. Inbound request security is a different
@@ -215,6 +219,13 @@ binding (§2.5). Streaming the body or writing it to a file is beyond v1.
 - the validated address set, and the selected pinned address
 - the TLS verification settings, which MUST remain bound to the hostname (INV-9)
 
+Two origins are the same when their schemes are equal, their hosts are equal
+after §5.0's hostname normalization (IDNA A-label, ASCII-lowercased, one
+trailing root dot removed), and their effective ports are equal, an omitted port
+counting as the scheme's default. This is the equality INV-8 and §2.6 apply;
+`EXAMPLE.com` and `example.com.:443` are the same `https` origin as
+`example.com`. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
+
 **Request data** — carried, not authorized:
 
 - the exact sanitized URL `ssrf_fetch()` will request, including path and query
@@ -317,7 +328,8 @@ non-carryable, case-insensitively, and nomination MUST NOT override that rule. A
 body is also non-carryable across origins in v1. Transport-controlled routing and
 framing fields MUST NOT be accepted as caller-supplied headers at all, matched
 case-insensitively: `Host`, `Connection`, `Proxy-Connection`, `Keep-Alive`,
-`Transfer-Encoding`, `TE`, `Trailer`, `Upgrade`, and `Content-Length`, plus any
+`Transfer-Encoding`, `TE`, `Trailer`, `Upgrade`, `Content-Length` and
+`Accept-Encoding` (the transport sets it, §5.3, and decodes accordingly), plus any
 name beginning with `:` (HTTP/2 and HTTP/3 pseudo-headers). A caller-supplied
 field whose name is not a valid RFC 9110 token, or whose value contains CR, LF, or
 NUL, is refused rather than sanitized. Violations are operational errors raised at
@@ -329,8 +341,15 @@ Metadata-service request markers are refused at `prepare` the same
 way, unless the policy's `allow_ranges` names a provider endpoint exactly (§5.0):
 `Metadata`, `Metadata-Flavor`, `X-Google-Metadata-Request`,
 `X-aws-ec2-metadata-token`, `X-aws-ec2-metadata-token-ttl-seconds`,
-`X-aliyun-ecs-metadata-token` and `X-aliyun-ecs-metadata-token-ttl-seconds`.
-They exist only to show a metadata service that a request was meant for it. The
+`X-aliyun-ecs-metadata-token`, `X-aliyun-ecs-metadata-token-ttl-seconds`,
+`Metadata-Token` (Linode, Vultr), `Metadata-Token-Expiry-Seconds` (Linode) and
+`X-Metadata-Token-Ttl-Seconds` (Huawei Cloud). They exist only to show a
+metadata service that a request was meant for it. A name is admitted only when
+current vendor documentation shows it sent to an endpoint in gate 2's table
+(§5), and it matches exactly, case-insensitively; a header a vendor uses
+elsewhere, such as Huawei's `X-Security-Token` for its public APIs or Azure App
+Service's `X-IDENTITY-HEADER` for its local identity endpoint, does not qualify.
+*Ratified 2026-09-25* (`SSRF-qttneqxp`). The
 list cannot be complete: Oracle's marker is `Authorization: Bearer Oracle`, which
 no header rule can refuse.
 
@@ -381,7 +400,9 @@ and carries no ability to open a connection.
   peer; an elapsed `connect_timeout` is such an attempt. Every other outcome ends
   the fetch with its own cause (§6.6). `pin-mismatch` is never followed by
   another attempt: it means the pin did not hold, and a further attempt would
-  open a further unvalidated connection.
+  open a further unvalidated connection. Attempts follow the order the resolver
+  returned the addresses in (RFC 6724 destination selection); `ssrfr` does not
+  interleave address families itself. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
 - **No retries.** `ssrf_fetch()` sends the request at most once;
   failover to another validated address after a failed connection is its only
   re-attempt. An application that retries calls `ssrf_prepare_hop()` again,
@@ -541,13 +562,24 @@ classifier.
 The host that keys the pin and feeds the address layer is libcurl's own parse:
 `curl::curl_parse_url()` applied to the exact URL string the binding will hand to
 libcurl. Calling the transport's parser is not vendoring one; it is what INV-1
-asks for. `rurl` parses the same string first and supplies what libcurl cannot:
+asks for. `rurl` parses the string `ssrf_prepare_hop()` received, and `ssrfr`
+serializes `rurl`'s result into the string libcurl parses (`r-binding.md` §2.1);
+*corrected 2026-09-25* (was "`rurl` parses the same string first").
+`rurl` supplies what libcurl cannot:
 reference resolution (§3.2), UTS-46/IDNA mapping (libcurl's IDN support is
 build-optional, and off in the evidence build), numeric-literal shape
 diagnostics, and the layered verdicts §4.2 gates on. If `rurl`'s host and
 libcurl's host differ in value after normalization (addresses compared as `raddr`
 values, names as A-labels), the hop is refused as `parse`: disagreement between
 two parsers is the ambiguity INV-2 forbids.
+
+The check is a named test (`r-binding.md` §7), not only a corpus property.
+`rurl` 3.0.1 maps a fullwidth `＃`, `／`, `？` or `：` (U+FF03, U+FF0F, U+FF1F,
+U+FF1A) in a host to its ASCII form and keeps it there, where WHATWG refuses the
+host; libcurl then reads `http://127.0.0.1＃.evil.com/` as host `127.0.0.1`, and
+only this check (or libcurl's parse failure, for the colon) refuses the hop
+**[verified]** (`design/evidence/2026-09-25-fullwidth-separators.R`; upstream
+`RURL-crsrkcoh`). *Ratified 2026-09-25* (`SSRF-qttneqxp`).
 
 *Replaced 2026-09-24* (was **[suspended]**). The ratified text said `rurl`
 supplies the parse INV-1 requires, because its `whatwg` mode was
@@ -681,13 +713,34 @@ each row cites current vendor documentation and a kind (`instance-metadata` or
 documentation was retrieved and quotes, verbatim, the vendor sentence that names
 the address. Both kinds report the one public code `cloud-metadata`
 (§6.5); the kind is operator detail. `linklint`'s ten-row table
-(`packages/core/src/data/cloud-metadata.ts`) is the starting point. Ownership:
+(`packages/core/src/data/cloud-metadata.ts`) is the starting point, plus four
+`instance-metadata` rows it lacks: Scaleway's `169.254.42.42` and `fd00:42::42`,
+and Linode's `fd00:a9fe:a9fe::1` and `fe80::a9fe:a9fe`. Gate 1a already refuses
+all four; the rows give them the `cloud-metadata` code and §5.0's narrowing,
+under which only an exact `allow_ranges` entry reopens them. *Ratified 2026-09-25* (`SSRF-qttneqxp`). Ownership:
 `ssrfr`, per `raddr`'s architecture and the §4 amendment.
 
-Gate 2 also reads every row of `addr_embeddings()`: an embedded
-address in the table refuses at tier 1, like any refusal derived from an
-embedding (§5.0). Otherwise a NAT64 wrapper of WireServer, whose embedded address
-is globally reachable, passes gate 1c and never meets gate 2.
+Gate 2 also reads the rows of `addr_embeddings()` whose embedded address is the
+destination: the IPv4-mapped, IPv4-translated, IPv4-compatible and NAT64 forms.
+An embedded address in the table refuses at tier 1, like any refusal derived
+from an embedding (§5.0). Otherwise a NAT64 wrapper of WireServer, whose
+embedded address is globally reachable, passes gate 1c and never meets gate 2.
+Gate 2 does not read the 6to4, Teredo and ISATAP rows: their embedded address is
+tunnel underlay, not a destination (INV-13, corollary), so
+`2002:a9fe:a9fe::1` refuses as `6to4`, not `cloud-metadata`. *Amended
+2026-09-25* (was "every row"; `SSRF-qttneqxp`).
+
+**ISATAP-wrapped provider endpoints are a documented residual.** An ISATAP
+address under a global prefix whose locator is WireServer `168.63.129.16`, such
+as `2600::5efe:a83f:8110`, passes every gate: `raddr` 0.1.2 grades both the outer
+and the embedded address globally reachable **[verified]**
+(`design/evidence/2026-09-25-embedding-kinds.R`). An IPv6 packet to it travels to the locator
+encapsulated as IPv4 protocol 41, not as a TCP connection to the locator's
+services, so it cannot reach WireServer's HTTP endpoint unless that host
+decapsulates tunnel traffic, which nothing documents. `ssrfr` MUST document this
+residual. The verdict vectors carry a 6to4, a Teredo and an ISATAP row wrapping
+a table address, each expecting its embedding kind's code, and a NAT64 wrapper
+of WireServer expecting `cloud-metadata`.
 
 **Gate 5 is justified by endpoint identity, not by missing link-local
 addresses.** A hostname entry is admitted only when current vendor documentation
@@ -914,9 +967,28 @@ hard-coded; it is transport-owned and non-secret, so it carries across origins
 Allow fields are exception lists, not default-deny allowlists. How they combine
 with deny rules and built-ins is §5.0 and nowhere else.
 
+Three absences are deliberate. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
+
+- An address-literal host is admitted when it passes gates 1–3, like any
+  resolved address; there is no field that refuses literal hosts. Only a
+  non-canonical spelling refuses, as `numeric-literal` (§12 step 6).
+- There is no address-family field, and `deny_ranges = "::/0"` is not one:
+  INV-4 refuses the whole answer set, so it refuses every name that publishes
+  an AAAA record, not only IPv6 targets.
+- `max_redirects` is the only bound on a redirect cycle; `ssrfr` does not detect
+  a URL it has already visited.
+
 Ports MUST be an allowlist. Browser "bad port" denylists omit both Redis and
 Memcached **[sourced]**, and the reference Ruby implementation has no port
 restriction at all. CWE-918's own alternate name is *Cross Site Port Attack*.
+
+`allow_ports` applies to every allowed scheme, so `http://h:443/` and
+`https://h:80/` pass it. That is deliberate: the guard authorizes a socket
+(address and port), and a scheme that mismatches its port reaches the same
+socket the matching scheme does, where the handshake fails. Binding ports to
+schemes would make the field a per-scheme map for no reachability gain. An
+operator who adds a port for a TLS service also admits plaintext HTTP to it.
+*Ratified 2026-09-25* (`SSRF-qttneqxp`).
 
 The default of 20 is the WHATWG Fetch Standard's limit ("If request's redirect
 count is 20, then return a network error"), which Chrome and Firefox implement;
@@ -981,7 +1053,8 @@ runtime. `robotstxtr` and `sitemapr` publish the inherited values in their
 reference documentation, so renaming breaks them (S6).
 
 **Versioning mechanism.** Each closed code domain (reason codes,
-operational causes, the provider-endpoint table) carries a version stamp, and a
+operational causes, the provider-endpoint table and the metadata hostname list)
+carries a version stamp, and a
 test pins the set of keys to the stamp in both directions: a code added without a
 bump fails, and a bump that leaves the pinned set stale fails. The package version
 is named alongside, because data stamps do not cover detector logic (`linklint`
@@ -1134,7 +1207,7 @@ A separate closed enum, `kebab-case`:
 
 | Cause | Meaning |
 |---|---|
-| `unresolvable` | resolution failed or returned no address (INV-11: the hop does not proceed) |
+| `unresolvable` | resolution failed, returned no address, or returned an answer `raddr` cannot parse as an address (INV-11: the hop does not proceed) |
 | `pin-mismatch` | the observed peer is not the pinned address, **or peer evidence is absent or malformed** (INV-5; `r-binding.md` §6). Absence of evidence is never a match. |
 | `connect-failed` | no validated address accepted a connection |
 | `tls-failed` | certificate or hostname verification failed |
@@ -1156,9 +1229,11 @@ as an R condition, not a cause carried in a result.
 
 ### 6.7 Conventions
 
-Reason codes and causes are `kebab-case`. This diverges from the sibling
-TypeScript project's `snake_case` and from `raddr`'s `snake_case` evidence codes;
-the divergence is **deliberate**, to preserve the published values above.
+Reason codes and causes are `kebab-case`. For reason codes this diverges from
+the sibling TypeScript project's `snake_case` (its causes are already
+`kebab-case`) and from `raddr`'s `snake_case` evidence codes; the divergence is
+**deliberate**, to preserve the published values above. *Corrected 2026-09-25*
+(`SSRF-qttneqxp`).
 
 ---
 
@@ -1176,7 +1251,8 @@ Corpus components:
    which already encode two production bugs, ported verbatim.
 2. **Parse vectors** — inputs where parsers disagree, with a ground-truth column
    measured from this stack (`rurl`, `curl_parse_url()`, and the address libcurl
-   actually dials). This table makes INV-1 checkable and maps to
+   actually dials), and scheme, userinfo and port columns from both parsers
+   (§12). This table makes INV-1 checkable and maps to
    **ASVS 5.0 V1.5.3** (parser consistency). Regenerating it on every dependency update turns
    an upstream parser change into a visible diff instead of a silent bypass.
 3. **Requirement coverage** — external requirement IDs (OWASP cheat sheet items,
@@ -1184,7 +1260,9 @@ Corpus components:
    marked enforced-by-library, enforced-by-application, or out of scope.
 4. **Dependency pinning** — §4.3. Published results name the
    `raddr` version and its `addr_registry_version()`,
-   `addr_address_space_version()` and `addr_registry_snapshot()` values.
+   `addr_address_space_version()` and `addr_registry_snapshot()` values, and
+   the versions of `rurl`, the `curl` package, libcurl and libcurl's TLS
+   backend, because every transport finding is version-specific. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
 
 ### 7.1 The evidence base MUST be committed
 
@@ -1211,6 +1289,9 @@ Each corpus file MUST be committed with its row count and a content checksum,
 and the test that loads it MUST assert both before it evaluates any row.
 Regenerating a corpus (component 2) changes both in the same commit, so the
 change shows in review.
+
+Corpus rows are never deleted. A row whose expectation no longer holds is marked
+superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
 
 ---
 
@@ -1244,6 +1325,14 @@ change shows in review.
 | 21 | Retry lifecycle and response ownership (§2.2, §2.5) | **closed — ratified** 2026-09-25: `ssrf_fetch()` sends the request at most once; its only re-attempt is failover after a connection that never opened, and the cause when failover is exhausted is fixed in §6.6. A caller retry is a new `ssrf_prepare_hop()`. The response is read and decoded in full inside `ssrf_fetch()` and returned as a plain R value that owns no handle, connection or file. Streaming is beyond v1 — `SSRF-nbcgyled` |
 | 22 | Maximum URL length | **closed — ratified** 2026-09-25: `max_url_length`, default 8000 octets (RFC 9110 §4.1), checked on the URL string `ssrf_prepare_hop()` receives before any parse; a longer URL refuses as `parse`, with no new code. Independently, an error raised by either parser is a `parse` refusal (INV-11) (§5.3; upstream `RURL-tlmoybsl`) — `SSRF-nbcgyled` |
 | 23 | The `_scratch` findings brought in on 2026-09-24: the proposed passages in §2.2, §2.3, §2.5, §4.3, §5, §5.0, §5.3, §6.4, §7, §7.2, §9, S5, §13 (INV-10) and §14–§15 | **closed — ratified** 2026-09-25, with four amendments: INV-10's rule and rationale corrected (ADR 0006); INV-12 and §6.4's Shape bullet widened to operational failures; the failover cause fixed in §6.6; revocation placed outside INV-9. The §5.0 A-label rule waits on `rurl` (`RURL-vicyvlvh`) — `SSRF-nbcgyled` |
+| 24 | The 2026-09-25 alignment audit of `_scratch` against this document | **closed — ratified** 2026-09-25: corrections to §4.1, §6.7, INV-11 and INV-13; additions to S5, §2.3, §2.5, §5 (four gate 2 rows), §5.3, §6.1, §6.6, §7, §7.2 and §9, and the §4.1 disagreement check made a named test (`r-binding.md` §7). Contested items, ruled by a three-model vote (unanimous unless noted): gate 2 reads only destination embeddings, with the ISATAP residual documented (§5; split vote, maintainer's ruling); metadata request headers need vendor documentation naming a gate 2 endpoint, and three are added (§2.3); steps 3–5 read libcurl's parse, with corpus columns for drift (§12, §7); no method field (§9); `path_as_is = 1L` (`r-binding.md` §5); `allow_ports` stays scheme-independent (§5.3) — `SSRF-qttneqxp` |
+| 25 | A loop helper that owns the redirect chain on top of `ssrf_prepare_hop()` and `ssrf_fetch()`, or a record that it comes after v1 | open, decided during v1 planning — `SSRF-cnljaaek` |
+| 26 | Where INV-14's single off switch lives: an argument of §2.2's primitives, or the consumer-side toggle of ADR 0002 as the only one | open — `SSRF-cnljaaek` |
+| 27 | The class names of misuse conditions (§6.6); callers `tryCatch` on them, so they are API like the reason codes (§6.1) | open — `SSRF-cnljaaek` |
+| 28 | Whether the response's `print` and `format` methods show the body (§2.2) | open — `SSRF-cnljaaek` |
+| 29 | A test helper for consumers, or only the documented `allow_ranges = "127.0.0.0/8"` recipe | open — `SSRF-cnljaaek` |
+| 30 | A runtime refusal or warning on an untested major version of `curl`, `rurl` or `raddr`, or the corpus (§7) as the only check | open — `SSRF-cnljaaek` |
+| 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | open — `SSRF-cnljaaek` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1290,6 +1379,26 @@ reused connections; `r-binding.md` §6).
   `DTDLOAD` or `NOENT` is set, and requests nothing with its default options
   **[verified]** (`design/evidence/2026-09-24-content-fetches.R`). Parse fetched
   XML with `xml2`'s defaults.
+- Anything below the socket. `ssrfr` validates the address it connects to. A
+  public host that relays to internal targets, a transparent proxy, or NAT that
+  rewrites the destination is invisible to it, and INV-5's peer check sees only
+  the pinned address. Egress control belongs to the network (§11.2).
+- Lookalike hostnames. §11.3 capability 4 is answered by matching hostname rules
+  on the normalized A-label (§5.0) and by classifying whatever a name resolves
+  to; `ssrfr` does not detect confusables or homographs (UTS #39).
+- A report-only mode that fetches and logs what it would have refused. Declined:
+  it is fail-open by construction (INV-11, S4's "fail-closed governs the gate").
+  L0 and L1 already report without deciding.
+- Caller-supplied predicates. Declined: the policy is the closed set of fields
+  in §5.3, validated at construction, and a callback would be an unaudited gate
+  outside §5.0's precedence.
+- Concurrency limits. How many fetches run at once, and against which hosts, is
+  the application's decision; §5.3's limits bound each hop and chain.
+- A method allowlist. The application chooses the request method in its request
+  plan; v1 has no policy field for it, and a redirect hop uses only the plan's
+  method or §2.3's 301/302/303 transformation. An application that lets an
+  untrusted party choose the method, such as an agent's HTTP tool, constrains
+  it itself. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
 - Compliance claims beyond those permitted in §15.
 
 ---
@@ -1411,6 +1520,13 @@ are ordering errors.
 
 *Added 2026-09-24:* the `downgrade` and `numeric-literal` checks in steps 3 and
 6 were decided in ADR 0001 §4 and §2.4 but had no lifecycle step.
+
+Steps 3–5 read the scheme, userinfo and effective port from `curl_parse_url()`
+of the wire string (§4.1), because those are the values libcurl acts on; an
+omitted port is the scheme's default. Only the host is compared across the two
+parsers (step 2); the parse vectors carry scheme, userinfo and port columns, so
+a divergence there shows as drift (§7) rather than as a runtime refusal.
+*Ratified 2026-09-25* (`SSRF-qttneqxp`).
 
 - **Scheme before resolve.** Resolving a `file://` host is wasted work and can
   itself leak (a DNS query to an attacker-controlled zone confirms reachability).
@@ -1649,9 +1765,9 @@ resolution, connection, or request (`r-binding.md` §7).
 ### INV-11 — Fail closed
 
 Any error in parsing, resolution, or classification MUST result in refusal. There
-is no path from "we could not determine this" to "proceed". (Under §6.6's
-proposal a failed resolution is reported as the operational cause `unresolvable`
-rather than a policy reason; either way no connection is made.)
+is no path from "we could not determine this" to "proceed". (A failed
+resolution is reported as the operational cause `unresolvable` (§6.6) rather
+than a policy reason; either way no connection is made.)
 
 **Rationale.** A literal that the address decoder cannot interpret MUST NOT fall
 through to a default allow. The inherited implementation had exactly this hole
@@ -1674,15 +1790,24 @@ party, and the timing limit is documented (§6.4).
 failure — into a port scanner. This is essentially unimplemented across the
 surveyed field and is a genuine differentiator.
 
+**Test.** The projection returns one identical value for every reason code and
+every operational cause; `print`, `format` and every condition `ssrfr` raises
+omit userinfo, request-plan header values and bodies, and neutralized proxy
+values (§2.3); and the caller's full record still names the predicate, address
+and hop. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
+
 ### INV-13 — Denylists are never complete; gate on a positive predicate
 
 Classification MUST be expressed as a positive routability predicate applied to
 the resolved address, not as an enumerated list of prohibited ranges.
 
-**Rationale.** `pydantic-ai` shipped **three CVEs against one blocklist in about
-four months** (`CVE-2026-25580` → `-46678` → `-48782`), each an IPv6-transition
-wrapper of the metadata address, the last unfixable *in principle* because NAT64
-prefixes are operator-chosen. **[sourced]**
+**Rationale.** `pydantic-ai` shipped **three CVEs in about four months**
+(`CVE-2026-25580` → `-46678` → `-48782`). The first was a fetch with no address
+check at all; its fix added a blocklist, and the next two were each an
+IPv6-transition wrapper of the metadata address that the blocklist missed, the
+last unfixable *in principle* because NAT64 prefixes are operator-chosen.
+**[sourced]** *Corrected 2026-09-25* (was "three CVEs against one blocklist …
+each an IPv6-transition wrapper"; `SSRF-qttneqxp`).
 
 **Corollary — embedded addresses.** Any address form that carries another
 address MUST have the carried value extracted and classified independently. The

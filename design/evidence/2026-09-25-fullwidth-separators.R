@@ -15,14 +15,24 @@
 # U+FF1F, U+FF1A). UTS-46 maps each to its ASCII form, which is a forbidden
 # domain code point, so WHATWG's host parser returns failure for all four.
 cps <- c(0xFF03, 0xFF0F, 0xFF1F, 0xFF1A)
-us  <- paste0("http://127.0.0.1", vapply(cps, intToUtf8, ""), ".evil.com/")
-v   <- as.data.frame(rurl::get_parse_verdicts(us, url_standard = "whatwg"))
-h   <- rurl::get_host(us, url_standard = "whatwg")
-w   <- rurl::serialize_url(us, standard = "whatwg")
-cp  <- vapply(w, function(u) tryCatch(curl::curl_parse_url(u)$host,
-                                      error = function(e) NA_character_), "")
-print(data.frame(cp = sprintf("U+%X", cps), layer1 = v$layer1_syntax_verdict,
-                 rurl = h, wire = w, curl = unname(cp)))
+us <- paste0("http://127.0.0.1", vapply(cps, intToUtf8, ""), ".evil.com/")
+v <- as.data.frame(rurl::get_parse_verdicts(us, url_standard = "whatwg"))
+h <- rurl::get_host(us, url_standard = "whatwg")
+w <- rurl::serialize_url(us, standard = "whatwg")
+cp <- vapply(
+  w,
+  function(u) {
+    tryCatch(curl::curl_parse_url(u)$host, error = function(e) NA_character_)
+  },
+  ""
+)
+print(data.frame(
+  cp = sprintf("U+%X", cps),
+  layer1 = v$layer1_syntax_verdict,
+  rurl = h,
+  wire = w,
+  curl = unname(cp)
+))
 #       cp layer1                rurl                        wire      curl
 # 1 U+FF03   pass 127.0.0.1#.evil.com http://127.0.0.1#.evil.com/ 127.0.0.1
 # 2 U+FF0F   pass 127.0.0.1/.evil.com http://127.0.0.1/.evil.com/ 127.0.0.1

@@ -17,16 +17,23 @@
 # A different answer on another platform or version is a finding, not a
 # failure of this script.
 
-x <- c(oracle = "192.0.0.192", aws = "169.254.169.254", alibaba = "100.100.100.200",
-       benchmark = "198.18.0.1", public = "8.8.8.8")
+x <- c(
+  oracle = "192.0.0.192",
+  aws = "169.254.169.254",
+  alibaba = "100.100.100.200",
+  benchmark = "198.18.0.1",
+  public = "8.8.8.8"
+)
 
 # 1. ipaddress: is_global() is TRUE, i.e. allowed, for 192.0.0.192.
 ipaddress::is_global(ipaddress::ip_address(x))
 # TRUE FALSE FALSE FALSE TRUE
 
 # 2. robotstxtr at 5b1514c: ssrf_classify_ipv4() returns NA (allowed) for it.
-src <- paste0("https://gitlab.com/bart-turczynski/robotstxtr/-/raw/",
-              "5b1514c14979cd36a12cdfc2b698d457d6092ebc/R/ssrf.R")
+src <- paste0(
+  "https://gitlab.com/bart-turczynski/robotstxtr/-/raw/",
+  "5b1514c14979cd36a12cdfc2b698d457d6092ebc/R/ssrf.R"
+)
 f <- tempfile(fileext = ".R")
 curl::curl_download(src, f, quiet = TRUE)
 robo <- new.env()

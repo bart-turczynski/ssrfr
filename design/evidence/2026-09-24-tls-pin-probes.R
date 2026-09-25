@@ -25,15 +25,28 @@ suppressMessages({
   library(webfakes)
 })
 
-cat("curl", as.character(packageVersion("curl")),
-    "libcurl", curl_version()$version, curl_version()$ssl_version, "\n")
+cat(
+  "curl",
+  as.character(packageVersion("curl")),
+  "libcurl",
+  curl_version()$version,
+  curl_version()$ssl_version,
+  "\n"
+)
 
 try_fetch <- function(url, ...) {
   h <- new_handle(connecttimeout = 5, timeout = 10, ...)
-  tryCatch({
-    r <- curl_fetch_memory(url, handle = h)
-    sprintf("status %d %s", r$status_code, substr(rawToChar(r$content), 1, 40))
-  }, error = function(e) gsub("\n", " ", conditionMessage(e)))
+  tryCatch(
+    {
+      r <- curl_fetch_memory(url, handle = h)
+      sprintf(
+        "status %d %s",
+        r$status_code,
+        substr(rawToChar(r$content), 1, 40)
+      )
+    },
+    error = function(e) gsub("\n", " ", conditionMessage(e))
+  )
 }
 
 # 1. The certificate webfakes serves: CN=localhost with an IP SAN for
@@ -41,8 +54,19 @@ try_fetch <- function(url, ...) {
 ca <- system.file("cert", "localhost", "ca.crt", package = "webfakes")
 crt <- system.file("cert", "localhost", "server.crt", package = "webfakes")
 if (nzchar(Sys.which("openssl")) && nzchar(crt)) {
-  print(system2("openssl", c("x509", "-in", shQuote(crt), "-noout", "-subject",
-                             "-ext", "subjectAltName"), stdout = TRUE))
+  print(system2(
+    "openssl",
+    c(
+      "x509",
+      "-in",
+      shQuote(crt),
+      "-noout",
+      "-subject",
+      "-ext",
+      "subjectAltName"
+    ),
+    stdout = TRUE
+  ))
 }
 # subject=C=ES, ST=Barcelona, L=Barcelona, O=webfakes.r-lib.org, CN=localhost
 # X509v3 Subject Alternative Name:
@@ -50,20 +74,40 @@ if (nzchar(Sys.which("openssl")) && nzchar(crt)) {
 
 # 2. TLSA-TLSD against a loopback HTTPS app ("0s" = any port, TLS).
 app <- new_app()
-app$get("/hit", function(req, res) res$send(paste0("host=", req$get_header("Host"))))
+app$get("/hit", function(req, res) {
+  res$send(paste0("host=", req$get_header("Host")))
+})
 web <- local_app_process(app, port = "0s")
 port <- web$get_port()
 pin <- function(host) sprintf("%s::127.0.0.1:", host)
-cat("TLSA https://localhost, no pin:        ",
-    try_fetch(sprintf("https://localhost:%d/hit", port), cainfo = ca), "\n")
-cat("TLSB https://pinned.example.invalid:   ",
-    try_fetch(sprintf("https://pinned.example.invalid:%d/hit", port), cainfo = ca,
-              connect_to = pin("pinned.example.invalid")), "\n")
-cat("TLSC https://localhost, pinned:        ",
-    try_fetch(sprintf("https://localhost:%d/hit", port), cainfo = ca,
-              connect_to = pin("localhost")), "\n")
-cat("TLSD https://127.0.0.1, no pin:        ",
-    try_fetch(sprintf("https://127.0.0.1:%d/hit", port), cainfo = ca), "\n")
+cat(
+  "TLSA https://localhost, no pin:        ",
+  try_fetch(sprintf("https://localhost:%d/hit", port), cainfo = ca),
+  "\n"
+)
+cat(
+  "TLSB https://pinned.example.invalid:   ",
+  try_fetch(
+    sprintf("https://pinned.example.invalid:%d/hit", port),
+    cainfo = ca,
+    connect_to = pin("pinned.example.invalid")
+  ),
+  "\n"
+)
+cat(
+  "TLSC https://localhost, pinned:        ",
+  try_fetch(
+    sprintf("https://localhost:%d/hit", port),
+    cainfo = ca,
+    connect_to = pin("localhost")
+  ),
+  "\n"
+)
+cat(
+  "TLSD https://127.0.0.1, no pin:        ",
+  try_fetch(sprintf("https://127.0.0.1:%d/hit", port), cainfo = ca),
+  "\n"
+)
 # TLSA: status 200 host=localhost:<port>
 # TLSB: "SSL peer certificate or SSH remote key was not OK ... SSL: no
 #       alternative certificate subject name matches target hostname
@@ -76,16 +120,32 @@ cat("TLSD https://127.0.0.1, no pin:        ",
 # 3. The three pinning methods against a public HTTPS host (research/08 §B.4,
 #    INV-9). connect_to and resolve keep the hostname for SNI and
 #    verification; rewriting the URL to the IP with a Host header does not.
-ip <- tryCatch(nslookup("example.com", ipv4_only = TRUE), error = function(e) NA)
+ip <- tryCatch(nslookup("example.com", ipv4_only = TRUE), error = function(e) {
+  NA
+})
 if (!is.na(ip)) {
   cat("address used:", ip, "\n")
-  cat("connect_to:          ",
-      try_fetch("https://example.com/", connect_to = sprintf("example.com:443:%s:443", ip)),
-      "\n")
-  cat("resolve:             ",
-      try_fetch("https://example.com/", resolve = sprintf("example.com:443:%s", ip)), "\n")
-  cat("IP URL + Host header:",
-      try_fetch(sprintf("https://%s/", ip), httpheader = "Host: example.com"), "\n")
+  cat(
+    "connect_to:          ",
+    try_fetch(
+      "https://example.com/",
+      connect_to = sprintf("example.com:443:%s:443", ip)
+    ),
+    "\n"
+  )
+  cat(
+    "resolve:             ",
+    try_fetch(
+      "https://example.com/",
+      resolve = sprintf("example.com:443:%s", ip)
+    ),
+    "\n"
+  )
+  cat(
+    "IP URL + Host header:",
+    try_fetch(sprintf("https://%s/", ip), httpheader = "Host: example.com"),
+    "\n"
+  )
 } else {
   cat("block 3 skipped: example.com did not resolve\n")
 }

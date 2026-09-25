@@ -17,23 +17,43 @@
 # another platform or version is a finding, not a failure of this script.
 
 library(curl)
-cat("curl", as.character(packageVersion("curl")), "libcurl", curl_version()$version, "\n")
+cat(
+  "curl",
+  as.character(packageVersion("curl")),
+  "libcurl",
+  curl_version()$version,
+  "\n"
+)
 
 try_set <- function(name, value) {
-  tryCatch({
-    do.call(handle_setopt, c(list(new_handle()), setNames(list(value), name)))
-    "accepted"
-  }, error = function(e) conditionMessage(e))
+  tryCatch(
+    {
+      do.call(handle_setopt, c(list(new_handle()), setNames(list(value), name)))
+      "accepted"
+    },
+    error = function(e) conditionMessage(e)
+  )
 }
 f <- function(...) 0L
 
 # 1. The hooks a validate-at-connect design needs, and their data pointers.
-wanted <- c("prereqfunction", "prereqdata", "opensocketfunction", "opensocketdata",
-            "sockoptfunction", "sockoptdata", "closesocketfunction",
-            "resolver_start_function", "resolver_start_data")
+wanted <- c(
+  "prereqfunction",
+  "prereqdata",
+  "opensocketfunction",
+  "opensocketdata",
+  "sockoptfunction",
+  "sockoptdata",
+  "closesocketfunction",
+  "resolver_start_function",
+  "resolver_start_data"
+)
 tab <- curl_options()
-res <- vapply(wanted, function(o) try_set(o, if (grepl("data$", o)) 1L else f),
-              character(1))
+res <- vapply(
+  wanted,
+  function(o) try_set(o, if (grepl("data$", o)) 1L else f),
+  character(1)
+)
 data.frame(listed = wanted %in% names(tab), result = res)
 # All nine are listed in curl_options(); every one is refused with
 # "Option <name> (<id>) has unknown or unsupported type", e.g.
@@ -42,8 +62,16 @@ data.frame(listed = wanted %in% names(tab), result = res)
 
 # 2. The callbacks R's curl does marshal. Settable is not the same as useful:
 #    none of these runs before the connection with the peer address and a veto.
-ok <- c("debugfunction", "xferinfofunction", "progressfunction", "headerfunction",
-        "readfunction", "writefunction", "seekfunction", "ssl_ctx_function")
+ok <- c(
+  "debugfunction",
+  "xferinfofunction",
+  "progressfunction",
+  "headerfunction",
+  "readfunction",
+  "writefunction",
+  "seekfunction",
+  "ssl_ctx_function"
+)
 vapply(ok, function(o) try_set(o, function(...) 0L), character(1))
 try_set("debugdata", 1L)
 # Accepted: debugfunction, xferinfofunction, progressfunction, readfunction,
@@ -60,10 +88,15 @@ try_set("debugdata", 1L)
 log <- character()
 h <- new_handle(connecttimeout = 2, timeout = 3)
 handle_setopt(h, verbose = TRUE, debugfunction = function(type, msg) {
-  if (type == 0L) log <<- c(log, trimws(rawToChar(msg)))
+  if (type == 0L) {
+    log <<- c(log, trimws(rawToChar(msg)))
+  }
   NULL
 })
-invisible(try(curl_fetch_memory("http://127.0.0.1:1/", handle = h), silent = TRUE))
+invisible(try(
+  curl_fetch_memory("http://127.0.0.1:1/", handle = h),
+  silent = TRUE
+))
 grep("Trying", log, value = TRUE)
 "primary_ip" %in% names(handle_data(h))
 # "Trying 127.0.0.1:1..."; FALSE

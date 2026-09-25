@@ -7,8 +7,12 @@
 read_corpus <- function(file) {
   utils::read.delim(
     test_path("fixtures", file),
-    quote = "", comment.char = "", na.strings = character(),
-    colClasses = "character", encoding = "UTF-8", check.names = FALSE
+    quote = "",
+    comment.char = "",
+    na.strings = character(),
+    colClasses = "character",
+    encoding = "UTF-8",
+    check.names = FALSE
   )
 }
 
@@ -19,16 +23,41 @@ has_bad_escape <- function(x) {
 }
 
 reason_codes <- c(
-  "loopback", "private", "link-local", "cloud-metadata", "shared",
-  "unspecified", "this-network", "ipv4-mapped", "ipv4-translated",
-  "ipv4-compatible", "nat64", "6to4", "teredo", "isatap",
-  "malformed-address", "numeric-literal", "scheme", "downgrade", "userinfo",
-  "port", "host-denied", "range-denied", "parse", "multicast",
-  "redirect-limit", "reserved"
+  "loopback",
+  "private",
+  "link-local",
+  "cloud-metadata",
+  "shared",
+  "unspecified",
+  "this-network",
+  "ipv4-mapped",
+  "ipv4-translated",
+  "ipv4-compatible",
+  "nat64",
+  "6to4",
+  "teredo",
+  "isatap",
+  "malformed-address",
+  "numeric-literal",
+  "scheme",
+  "downgrade",
+  "userinfo",
+  "port",
+  "host-denied",
+  "range-denied",
+  "parse",
+  "multicast",
+  "redirect-limit",
+  "reserved"
 )
 causes <- c(
-  "unresolvable", "pin-mismatch", "connect-failed", "tls-failed", "timeout",
-  "response-too-large", "protocol-error"
+  "unresolvable",
+  "pin-mismatch",
+  "connect-failed",
+  "tls-failed",
+  "timeout",
+  "response-too-large",
+  "protocol-error"
 )
 status_ok <- function(x) grepl("^(active|pending:.+|superseded:.+)$", x)
 
@@ -41,11 +70,13 @@ test_that("every corpus file matches its committed row count and checksum", {
   for (i in seq_len(nrow(manifest))) {
     path <- test_path("fixtures", manifest$file[i])
     expect_identical(
-      unname(tools::md5sum(path)), manifest$md5[i],
+      unname(tools::md5sum(path)),
+      manifest$md5[i],
       label = paste("MD5 of", manifest$file[i])
     )
     expect_identical(
-      nrow(read_corpus(manifest$file[i])), as.integer(manifest$rows[i]),
+      nrow(read_corpus(manifest$file[i])),
+      as.integer(manifest$rows[i]),
       label = paste("rows of", manifest$file[i])
     )
   }
@@ -53,19 +84,48 @@ test_that("every corpus file matches its committed row count and checksum", {
 
 test_that("verdict vectors are well formed", {
   v <- read_corpus("verdict-vectors.tsv")
-  expect_named(v, c(
-    "id", "group", "input", "answers", "policy", "hop", "verdict", "code",
-    "layer", "status", "source", "note"
-  ))
+  expect_named(
+    v,
+    c(
+      "id",
+      "group",
+      "input",
+      "answers",
+      "policy",
+      "hop",
+      "verdict",
+      "code",
+      "layer",
+      "status",
+      "source",
+      "note"
+    )
+  )
   expect_true(all(grepl("^V[0-9]{4}$", v$id)))
   expect_false(anyDuplicated(v$id) > 0)
   expect_false(anyDuplicated(v[c("input", "answers", "policy", "hop")]) > 0)
-  expect_true(all(v$group %in% c(
-    "ipv4-literal", "numeric-literal", "ipv6-spelling", "ipv6-literal",
-    "embedding", "provider-endpoint", "metadata-hostname", "parser-confusion",
-    "idn", "dns-answer", "redirect", "scheme", "port", "userinfo", "policy",
-    "limit", "operational"
-  )))
+  expect_true(all(
+    v$group %in%
+      c(
+        "ipv4-literal",
+        "numeric-literal",
+        "ipv6-spelling",
+        "ipv6-literal",
+        "embedding",
+        "provider-endpoint",
+        "metadata-hostname",
+        "parser-confusion",
+        "idn",
+        "dns-answer",
+        "redirect",
+        "scheme",
+        "port",
+        "userinfo",
+        "policy",
+        "limit",
+        "operational"
+      )
+  ))
   expect_true(all(v$verdict %in% c("refuse", "fail", "admit")))
   expect_true(all(v$code[v$verdict == "refuse"] %in% reason_codes))
   expect_true(all(v$code[v$verdict == "fail"] %in% causes))
@@ -79,9 +139,17 @@ test_that("verdict vectors are well formed", {
 
 test_that("parse vectors are well formed", {
   p <- read_corpus("parse-vectors.tsv")
-  expect_identical(names(p)[1:6], c(
-    "id", "input", "expect", "status", "source", "note"
-  ))
+  expect_identical(
+    names(p)[1:6],
+    c(
+      "id",
+      "input",
+      "expect",
+      "status",
+      "source",
+      "note"
+    )
+  )
   expect_true(all(grepl("^P[0-9]{4}$", p$id)))
   expect_false(anyDuplicated(p$id) > 0)
   expect_false(anyDuplicated(p$input) > 0)
@@ -93,15 +161,30 @@ test_that("parse vectors are well formed", {
 
 test_that("requirement coverage is well formed", {
   r <- read_corpus("requirements.tsv")
-  expect_named(r, c(
-    "id", "framework", "external_id", "requirement", "class", "spec",
-    "evidence", "source", "note"
-  ))
+  expect_named(
+    r,
+    c(
+      "id",
+      "framework",
+      "external_id",
+      "requirement",
+      "class",
+      "spec",
+      "evidence",
+      "source",
+      "note"
+    )
+  )
   expect_true(all(grepl("^REQ-[0-9]{3}$", r$id)))
   expect_false(anyDuplicated(r$id) > 0)
-  expect_true(all(r$class %in% c(
-    "enforced-by-library", "enforced-by-application", "out-of-scope"
-  )))
+  expect_true(all(
+    r$class %in%
+      c(
+        "enforced-by-library",
+        "enforced-by-application",
+        "out-of-scope"
+      )
+  ))
 })
 
 # The research notes are git-ignored, so a row citing one cites nothing a

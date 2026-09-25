@@ -391,7 +391,7 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 | `useragent` from `getOption("HTTPUserAgent")` | overridden (spec §5.3 `user_agent`) |
 | `connecttimeout = 10` | overridden (`connect_timeout`) |
 | `low_speed_limit = 1`, `low_speed_time = 600` | left — inside the finite `timeout` |
-| `httpauth = CURLAUTH_ANY` | overridden (`1L`, `CURLAUTH_BASIC`). Not inert under `allow_userinfo = TRUE`: URL userinfo is a credential, and a `401` challenge made libcurl send the request a second time within one transfer, against spec §2.5 **[verified]** (`tests/testthat/test-fetch.R`, "an auth challenge never makes the request a second time"; `SSRF-rgcijatt`). Basic sends the credentials on the first request, with no challenge round-trip |
+| `httpauth = CURLAUTH_ANY` | overridden (`1L`, `CURLAUTH_BASIC`). Not inert under `allow_userinfo = TRUE`: URL userinfo is a credential, and a `401` challenge made libcurl send the request a second time within one transfer, against spec §2.5. A regression test pins it (`tests/testthat/test-fetch.R`, "an auth challenge never makes the request a second time"; `SSRF-rgcijatt`); no probe under `../evidence/` yet, so it carries no evidence tag. Basic sends the credentials on the first request, with no challenge round-trip |
 | `pipewait = 1` | left — inert under `forbid_reuse` |
 | Windows only: `ssl_options = CURLSSLOPT_NO_REVOKE`, plus `CURLSSLOPT_NATIVE_CA` under OpenSSL when `CURL_CA_BUNDLE` is unset **[sourced]** | left — revocation is outside INV-9 (spec §13). The flag affects Schannel only, and libcurl checks neither OCSP stapling nor a CRL unless asked **[sourced]**, so no platform checks revocation. Overriding `ssl_options` would also drop `NATIVE_CA`. Unverified on Windows (spec §8 item 6) |
 
@@ -464,7 +464,8 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   wire bytes, so a compressed bomb passes. A real cap needs a write-callback byte
   counter. It also refuses a `HEAD` whose `Content-Length` is over the cap, and a
   compressed body whose wire size is over the cap while its decoded size is
-  within it **[verified]** (`tests/testthat/test-fetch-limits.R`; `SSRF-rgcijatt`), so
+  within it (pinned by `tests/testthat/test-fetch-limits.R`, `SSRF-rgcijatt`; no probe
+  under `../evidence/` yet), so
   `ssrfr` never sets it: its own decoded-byte counter is the limit (spec §5.3).
 - **`accept_encoding` sets what is advertised, not what is decoded.** With any
   non-`NULL` value libcurl decodes every encoding it was built with that the

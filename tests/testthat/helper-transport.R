@@ -128,6 +128,19 @@ test_app <- function() {
       res$send("late")
     }
   })
+  app$get("/auth", function(req, res) {
+    req$app$locals$hits <- req$app$locals$hits + 1L
+    auth <- req$get_header("Authorization")
+    res$set_status(401L)
+    res$add_header("WWW-Authenticate", 'Digest realm="x", nonce="n"')
+    res$add_header("WWW-Authenticate", 'Basic realm="x"')
+    res$send(paste0(
+      "hits=",
+      req$app$locals$hits,
+      " auth=",
+      if (is.null(auth)) "none" else auth
+    ))
+  })
   app$get("/alt-svc", function(req, res) {
     req$app$locals$hits <- req$app$locals$hits + 1L
     res$set_header(
@@ -301,7 +314,7 @@ option_problems <- function(opts, host, address) {
   want("connect_to", paste0(host, "::", target, ":"))
   for (name in names(ssrfr:::fixed_transport_options)) {
     if (!name %in% names(opts)) {
-      problems <- c(problems, paste("missing", name))
+      found$problems <- c(found$problems, paste("missing", name))
     }
   }
   want("followlocation", 0L)
@@ -311,6 +324,7 @@ option_problems <- function(opts, host, address) {
   want("proxy", "")
   want("noproxy", "*")
   want("unrestricted_auth", 0L)
+  want("httpauth", 1L)
   want("netrc", 0L)
   want("path_as_is", 1L)
   want("ssl_verifypeer", 1L)

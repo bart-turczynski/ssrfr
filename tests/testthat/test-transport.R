@@ -95,6 +95,7 @@ test_that("the option checker fires on a planted violation", {
     reuse = replace(good, "forbid_reuse", list(0L)),
     follow = replace(good, "followlocation", list(1L)),
     netrc = replace(good, "netrc", list(1L)),
+    auth_any = replace(good, "httpauth", list(-17L)),
     cookie_engine = replace(good, "cookiefile", ""),
     protocols = within(good, rm(protocols_str, redir_protocols_str)),
     unix = c(good, list(unix_socket_path = "/var/run/docker.sock")),

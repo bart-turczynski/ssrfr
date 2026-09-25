@@ -16,6 +16,11 @@ fixed_transport_options <- list(
   proxy = "",
   noproxy = "*",
   unrestricted_auth = 0L,
+  # CURLAUTH_BASIC: URL credentials (allow_userinfo) go out with the one
+  # request. The package default, CURLAUTH_ANY, first sends the request
+  # without them and answers a 401 challenge by sending it again, a second
+  # request within one fetch (§2.5).
+  httpauth = 1L,
   netrc = 0L,
   cookiefile = NULL,
   path_as_is = 1L,

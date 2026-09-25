@@ -311,6 +311,25 @@ test_that("a binding is spent on entry, even when the fetch fails", {
   expect_error(ssrf_fetch("http://x/"), class = "ssrfr_error_invalid_argument")
 })
 
+# §2.5: no retries. libcurl's default auth, CURLAUTH_ANY, answers a 401
+# challenge by sending the request again with the URL's credentials; the
+# server here offers Digest and Basic and counts the requests it receives.
+test_that("an auth challenge never makes the request a second time", {
+  skip_if_no_webfakes()
+  web <- local_test_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  r <- guarded_get(
+    paste0("http://user:pass@", pinned_host, ":", port, "/auth"),
+    loopback_policy(port, allow_userinfo = TRUE)
+  )
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$status, 401L)
+  # One request, and it carried the credentials the URL named.
+  # "dXNlcjpwYXNz" is base64 of "user:pass".
+  expect_identical(body_text(r), "hits=1 auth=Basic dXNlcjpwYXNz")
+})
+
 test_that("a failing transport wrapper fails closed, never an R error", {
   modes <- list(
     stop = function(...) stop("dependency failed"),

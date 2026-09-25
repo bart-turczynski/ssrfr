@@ -55,12 +55,15 @@ tried and reverted (`19f08fb`).
 ## Package layout
 
 - `R/` — package source (scaffold placeholder only).
-- `tests/testthat/` — testthat tests and cucumber feature specs.
+- `tests/testthat/` — testthat tests and cucumber feature specs;
+  `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.
 - `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/`.
 - `design/` — specs, ADRs, evidence (above). Not built into the package.
 - `scripts/check-design.py` — design-doc hygiene: frontmatter, frozen ADRs, this
   file naming every source directory.
+- `scripts/corpus-manifest.R` — rewrites the corpus row counts and checksums
+  (`ssrfr-v1.md` §7.2).
 - `docs/` — reserved for pkgdown output. Never design documents.
 - `_scratch/` — local-only research and drafts, git-ignored.
 

@@ -746,6 +746,8 @@ its live tests the same way (`node-transport-live.test.ts`).
   `tools::sha256sum()` arrived in R 4.5.0 **[sourced]**; under the
   `R (>= 4.0.0)` floor, `tools::md5sum()` guards against accidental edits,
   which is the threat here.
+  The manifest is `tests/testthat/fixtures/corpus-manifest.tsv`, rewritten
+  by `scripts/corpus-manifest.R`.
 
 ### Hard limits
 
@@ -804,5 +806,6 @@ Each script records its environment and expected output; run it with
 | [`2026-09-25-embedding-kinds.R`](../evidence/2026-09-25-embedding-kinds.R) | the embedding kind `raddr` reports per form, and WireServer inside NAT64 and ISATAP (`ssrfr-v1.md` §5, gate 2) |
 | [`2026-09-25-dot-segments.R`](../evidence/2026-09-25-dot-segments.R) | dot segments, `%2e` forms included, through `rurl`'s WHATWG serializer (§5, `path_as_is`) |
 | [`2026-09-25-fullwidth-separators.R`](../evidence/2026-09-25-fullwidth-separators.R) | fullwidth `＃ ／ ？ ：` in a host through `rurl`'s verdict, host and serializer, then `curl_parse_url()` (§7; `ssrfr-v1.md` §4.1) |
+| [`2026-09-25-parse-vectors.R`](../evidence/2026-09-25-parse-vectors.R) | generates the measured columns of the parse-vector corpus (`ssrfr-v1.md` §7 component 2) and the corpus manifest; opens a connection only to loopback (§7) |
 
 External sources for this file are in [`../references.md`](../references.md).

@@ -12,8 +12,8 @@ Description: Protects R applications that fetch URLs an attacker can
     rebound between check and connect. Refusals carry stable reason codes.
     Under development; the design is documented but not yet implemented.
 License: MIT + file LICENSE
-URL: https://gitlab.com/bart-turczynski/ssrfr
-BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
+URL: https://ssrfr-290b3f.gitlab.io, https://gitlab.com/bart-turczynski/ssrfr
+BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)

@@ -586,8 +586,9 @@ instead of generating them at test time.
 
 The policy refuses loopback, so an L2 test that goes through `ssrf_prepare_hop()`
 reaches a `webfakes` app only with `allow_ranges` covering `127.0.0.0/8` — which
-also exercises tier 3 of `ssrfr-v1.md` §5.0. Tests of the transport itself call
-the internal fetch below the policy. `linklint` hit the same problem and splits
+also exercises tier 3 of `ssrfr-v1.md` §5.0. A consumer's own tests use the same
+recipe; v1 exports no test helper (`ssrfr-v1.md` §9). Tests of the transport
+itself call the internal fetch below the policy. `linklint` hit the same problem and splits
 its live tests the same way (`node-transport-live.test.ts`).
 
 ### Rules
@@ -775,8 +776,8 @@ Neither existing consumer depends on `raddr` or `ssrfr`. Both call the guard
 offline. That forces the L0/L1/L2 layering and confirms the spec's §1.3: the guard
 must support being called per hop by someone else's loop.
 
-Both also ship a caller-side `ssrf_guard = FALSE` toggle, which is the precedent
-for INV-14's explicit off switch.
+Both also ship a caller-side `ssrf_guard = FALSE` toggle, which is
+INV-14's explicit off switch: `ssrfr` itself has none (ADR 0007).
 
 Positioning: `firesafety` (Posit) is the inbound web-security half for `fiery`.
 `ssrfr` is the outbound half. Non-competing, and the cleanest available anchor.

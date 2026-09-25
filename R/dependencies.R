@@ -134,6 +134,73 @@ dep_nslookup <- function(query) {
   curl::nslookup(query, ipv4_only = FALSE, multiple = TRUE, error = TRUE)
 }
 
+# --- the transport ------------------------------------------------------------
+# The only place ssrfr dials (r-binding.md §7, "One place dials"): one
+# connection attempt of the guarded fetch (R/fetch.R). `opts` is the option
+# list transport_options() builds (R/transport.R), pin included; `data` and
+# `debug` are the per-delivery and trace callbacks. Each attempt gets a new
+# handle in a private pool, so no DNS cache, connection or cookie is shared
+# with another attempt or with other curl users in the process (r-binding.md
+# §4.1). handle_reset() is never used.
+#
+# A callback ends the transfer by raising a condition of class
+# `ssrfr_transfer_abort`; curl re-raises it from multi_run() once libcurl has
+# returned, and the attempt reports `aborted`. Error printing is switched off
+# while libcurl runs, because curl evaluates callbacks as a top-level call that
+# would print that condition. However the call ends, an interrupt included,
+# every handle still in the pool is cancelled, which closes its connection.
+#
+# Returns a list: `aborted` (TRUE when a callback ended the transfer),
+# `error` (the curl error class of a failed transfer, or NULL), `status`,
+# `headers` (the raw response header bytes), and `connect` (seconds until the
+# TCP connection was established; 0 when it never was).
+dep_curl_transfer <- function(opts, data, debug) {
+  pool <- curl::new_pool(total_con = 1L, host_con = 1L, multiplex = FALSE)
+  on.exit(
+    for (h in curl::multi_list(pool)) {
+      curl::multi_cancel(h)
+    },
+    add = TRUE
+  )
+  handle <- curl::new_handle()
+  curl::handle_setopt(handle, .list = opts)
+  curl::handle_setopt(handle, verbose = TRUE, debugfunction = debug)
+  outcome <- new.env(parent = emptyenv())
+  curl::multi_add(
+    handle,
+    done = function(res) outcome$done <- res,
+    fail = function(msg) outcome$fail <- msg,
+    data = data,
+    pool = pool
+  )
+  quiet <- options(show.error.messages = FALSE)
+  on.exit(options(quiet), add = TRUE)
+  aborted <- tryCatch(
+    {
+      curl::multi_run(pool = pool)
+      FALSE
+    },
+    ssrfr_transfer_abort = function(e) TRUE
+  )
+  info <- curl::handle_data(handle)
+  list(
+    aborted = aborted,
+    error = if (is.null(outcome$fail)) NULL else class(outcome$fail)[[1L]],
+    status = info$status_code,
+    headers = info$headers,
+    connect = unname(info$times[["connect"]])
+  )
+}
+
+# libcurl's version and capabilities, for the option builder.
+dep_curl_version <- function() {
+  curl::curl_version()
+}
+
+dep_curl_options <- function() {
+  names(curl::curl_options())
+}
+
 # --- guarded readings ---------------------------------------------------------
 # Each returns the value in the shape ssrfr reads, or NULL.
 
@@ -299,6 +366,52 @@ read_embeddings <- function(x) {
     role = fields$role,
     address = fields$address,
     reachability = reach
+  )
+}
+
+# One transfer through dep_curl_transfer(), or NULL when the wrapper fails or
+# answers in the wrong shape. An interrupt is not an error: it propagates, and
+# the wrapper has already cancelled the transfer.
+read_transfer <- function(opts, data, debug) {
+  dep_call(dep_curl_transfer, opts, data, debug, valid = function(t) {
+    is.list(t) &&
+      is.logical(t$aborted) &&
+      length(t$aborted) == 1L &&
+      !is.na(t$aborted) &&
+      (is.null(t$error) || is_string(t$error)) &&
+      is.numeric(t$status) &&
+      length(t$status) == 1L &&
+      !is.na(t$status) &&
+      is.raw(t$headers) &&
+      is.numeric(t$connect) &&
+      length(t$connect) == 1L &&
+      !is.na(t$connect)
+  })
+}
+
+# What the option builder needs to know about libcurl: its version, whether
+# R's curl can set `protocols_str`, and whether libcurl decodes gzip. NULL when
+# either call fails; the builder then falls back to the forms every supported
+# libcurl accepts (R/transport.R).
+read_curl_capabilities <- function() {
+  v <- dep_call(dep_curl_version, valid = function(v) {
+    is.list(v) && is_string(v$version)
+  })
+  o <- dep_call(dep_curl_options, valid = is.character)
+  if (is.null(v) || is.null(o)) {
+    return(NULL)
+  }
+  version <- tryCatch(
+    numeric_version(sub("[^0-9.].*$", "", v$version)),
+    error = function(e) NULL
+  )
+  if (is.null(version)) {
+    return(NULL)
+  }
+  list(
+    version = version,
+    protocols_str = "protocols_str" %in% o && "redir_protocols_str" %in% o,
+    zlib = is_string(v$libz_version) && nzchar(v$libz_version)
   )
 }
 

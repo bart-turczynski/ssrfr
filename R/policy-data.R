@@ -274,6 +274,33 @@ domain_metadata_hostnames <- function() {
   )
 }
 
+# Metadata-service request markers (ssrfr-v1.md §2.3): header fields that
+# exist only to show a metadata service that a request was meant for it. A
+# request plan carrying one is refused at prepare, matched exactly and
+# case-insensitively, unless the policy's allow_ranges names a provider
+# endpoint exactly (§5.0). The names and their providers are the ratified list
+# of §2.3, which admits a name only when vendor documentation shows it sent to
+# an endpoint of gate 2's table; the rows cite that section. The list cannot
+# be complete: Oracle's marker is `Authorization: Bearer Oracle`.
+domain_metadata_headers <- function() {
+  spec <- "ssrfr-v1.md §2.3"
+  rows <- list(
+    c("Metadata", "Azure", spec),
+    c("Metadata-Flavor", "GCP", spec),
+    c("X-Google-Metadata-Request", "GCP", spec),
+    c("X-aws-ec2-metadata-token", "AWS", spec),
+    c("X-aws-ec2-metadata-token-ttl-seconds", "AWS", spec),
+    c("X-aliyun-ecs-metadata-token", "Alibaba Cloud", spec),
+    c("X-aliyun-ecs-metadata-token-ttl-seconds", "Alibaba Cloud", spec),
+    c("Metadata-Token", "Linode (Akamai) / Vultr", spec),
+    c("Metadata-Token-Expiry-Seconds", "Linode (Akamai)", spec),
+    c("X-Metadata-Token-Ttl-Seconds", "Huawei Cloud", spec)
+  )
+  m <- do.call(rbind, rows)
+  colnames(m) <- c("header", "provider", "source")
+  closed_domain("metadata_headers", 1L, as.data.frame(m))
+}
+
 # Binds rows of equal length into a data frame with the given columns, and
 # stamps the retrieval date on each.
 policy_table <- function(rows, columns, retrieved) {

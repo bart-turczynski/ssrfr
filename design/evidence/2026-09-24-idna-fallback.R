@@ -14,22 +14,13 @@
 # Two U-label hosts whose domain-to-ASCII fails (a leading combining mark, a
 # bare ZWNJ), then three invalid ACE labels. WHATWG's host parser returns
 # failure for all five.
-us <- c(
-  "http://́a.example/",
-  "http://x‌.example/",
-  "http://xn--a.example/",
-  "http://xn--.example/",
-  "http://xn--ASCII-.example/"
-)
-v <- as.data.frame(rurl::get_parse_verdicts(us, url_standard = "whatwg"))
-h <- rurl::get_host(us, url_standard = "whatwg", host_encoding = "idna")
-cp <- vapply(
-  us,
-  function(u) {
-    tryCatch(curl::curl_parse_url(u)$host, error = function(e) NA_character_)
-  },
-  ""
-)
+us <- c("http://́a.example/", "http://x‌.example/",
+        "http://xn--a.example/", "http://xn--.example/",
+        "http://xn--ASCII-.example/")
+v  <- as.data.frame(rurl::get_parse_verdicts(us, url_standard = "whatwg"))
+h  <- rurl::get_host(us, url_standard = "whatwg", host_encoding = "idna")
+cp <- vapply(us, function(u) tryCatch(curl::curl_parse_url(u)$host,
+                                      error = function(e) NA_character_), "")
 print(data.frame(layer1 = v$layer1_syntax_verdict, idna = h, curl = unname(cp)))
 # layer1: fail, fail, pass, pass, pass
 # idna:   NA,   NA,   xn--a.example, xn--.example, xn--ascii-.example

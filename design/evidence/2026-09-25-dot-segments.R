@@ -10,20 +10,11 @@
 # output is in the comment after the block. A different answer on another
 # platform or version is a finding, not a failure of this script.
 
-us <- c(
-  "http://h.example/a/../b",
-  "http://h.example/a/./b",
-  "http://h.example/a/%2e%2e/b",
-  "http://h.example/a/%2E/b",
-  "http://h.example/a/.%2e/b",
-  "http://h.example/../../x",
-  "http://h.example/a/..",
-  "http://h.example/a/b/%2e%2E"
-)
-print(data.frame(
-  input = us,
-  wire = rurl::serialize_url(us, standard = "whatwg")
-))
+us <- c("http://h.example/a/../b", "http://h.example/a/./b",
+        "http://h.example/a/%2e%2e/b", "http://h.example/a/%2E/b",
+        "http://h.example/a/.%2e/b", "http://h.example/../../x",
+        "http://h.example/a/..", "http://h.example/a/b/%2e%2E")
+print(data.frame(input = us, wire = rurl::serialize_url(us, standard = "whatwg")))
 #                         input                 wire
 # 1     http://h.example/a/../b   http://h.example/b
 # 2      http://h.example/a/./b http://h.example/a/b

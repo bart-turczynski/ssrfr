@@ -12,3 +12,6 @@
 line-width = 80
 indent-width = 2
 indent-style = "space"
+# design/evidence/ holds dated probe records behind [verified] claims; keep
+# them as they were run.
+exclude = ["design/evidence"]

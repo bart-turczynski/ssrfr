@@ -151,7 +151,8 @@ test_that("requirement coverage is well formed", {
 # Evidence of the form `test-<file>.R: <test_that name>` names a test that
 # exists, so a renamed test cannot leave a requirement citing nothing.
 test_that("every requirement cites tests that exist", {
-  evidence <- unlist(strsplit(read_corpus("requirements.tsv")$evidence, " ; "))
+  evidence <- read_corpus("requirements.tsv")$evidence
+  evidence <- unlist(strsplit(evidence, " ; ", fixed = TRUE))
   cited <- grep("^test-[a-z-]+[.]R: ", evidence, value = TRUE)
   expect_gt(length(cited), 0L)
   for (item in unique(cited)) {

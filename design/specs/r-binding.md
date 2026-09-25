@@ -315,7 +315,7 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `cookiejar` | never set | it writes received cookies to disk at cleanup |
 | `connecttimeout`, `timeout` | finite | libcurl's `timeout` default is **0 = never** |
 | `maxfilesize` | set, not trusted | see below |
-| `path_as_is` | considered | avoid transport-side path rewriting |
+| `path_as_is` | `1L` | libcurl removes no dot segments; `rurl`'s WHATWG serialization has already removed them, `%2e` forms included (`design/evidence/2026-09-25-dot-segments.R`), so this only makes the serialized path the one sent (`ssrfr-v1.md` §8 item 24). It does not make the whole request line equal the recorded URL |
 | `altsvc`, `hsts` | never set | INV-10 |
 | `unix_socket_path`, `abstract_unix_socket` | never set | container control planes |
 | `doh_url`, `interface`, `localport`, `localportrange` | never set | see below |
@@ -512,6 +512,10 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 |---|---|---|---|---|
 | Verdicts and reason codes | §5, §6.5 | L0 | golden table | runs |
 | Guard host equals transport host, by value | INV-1, INV-2 | L0 | parse-vector corpus | runs |
+| Parser disagreement refuses as `parse` (a MUST-test): the four fullwidth separators in a host (`design/evidence/2026-09-25-fullwidth-separators.R`), with the refusal asserted whatever `rurl`'s verdict | §4.1 | L0 | named test, beside the corpus rows | runs |
+| A failing dependency refuses: `get_parse_verdicts`, `safe_parse_url`, `curl_parse_url` and each `raddr` call, through their internal wrappers, made to `stop()` or return `NULL` or a wrong shape | INV-11, §5.3 | L1 + L3 | mocked wrappers; honeypot listener sees no connection | runs |
+| Minimized projection and redaction | INV-12, §2.3, §6.4 | L0 | one projected value for every code and cause; `print`, `format` and conditions searched for planted userinfo, header value, body and proxy value | runs |
+| Trace matcher fails safe | INV-5, §6.6 | L0 | synthetic `debugfunction` traces (this file §6): none, garbled, another address → `pin-mismatch`; the pinned address → match, an IPv6 compared as a `raddr` value (INV-3) | runs |
 | Every spelling, same verdict | INV-3 | L0 | inherited spelling tables | runs |
 | L0 makes no network call | §1 | L0 | both seams mocked to `stop()` | runs |
 | Every handle carries the pin; TLS never weakened; §5 "never set" options absent | INV-6, INV-9, §14 | L0 | option-list builder | runs |
@@ -526,12 +530,17 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 | A refusal makes no connection | INV-11 | L3 | honeypot listener | runs |
 | Every dimension revalidated per hop | INV-7 | L2 | `webfakes` redirect chain | if `webfakes` |
 | Redirect budget refuses as `redirect-limit` | §2.5, §12 | L2 | self-redirecting app | if `webfakes` |
+| Failover in resolver order | §2.5, §6.6 | L1 + L3 | mock returns two addresses, the first with nothing listening on the port (`::1` against a listener bound to `127.0.0.1` only; macOS configures no `127.0.0.2`), the second the listener; assert the order of `Trying` lines and arrival at the second | runs |
+| Exhausted failover cause | §6.6 | L1 | mocked attempt outcomes: every attempt `connect_timeout` → `timeout`; mixed → `connect-failed`; `pin-mismatch` stops at once | runs |
 | Credentials absent after a cross-origin hop | INV-8 | L3 | raw request bytes | runs |
 | Verification bound to the hostname | INV-9 | L2 | `.invalid` over TLS | `skip_on_cran()` |
 | SNI carries the hostname | INV-9 | L2 | two-vhost `s_server` | `skip_on_cran()`; needs `openssl` |
 | Proxy variables and CONNECT | INV-10 | L2 + L3 | dead port; listener as proxy | runs |
 | `Alt-Svc` has no effect | INV-10 | L2 | served header | if `webfakes` |
 | Timeouts; byte cap on a chunked body | §5.3, §14 | L2 | `res$delay()`, `res$send_chunk()` | if `webfakes`; wide margins |
+| Compression bomb: a `gzip` body under `max_response_size` on the wire and over it decoded → `response-too-large`, from `ssrfr`'s own counter, never `maxfilesize`; `total_timeout` re-checked after decoding | §5.3, §14 | L2 | served pre-compressed body | if `webfakes` |
+| An interrupt mid-transfer leaves the binding spent and no handle open | §2.5 | L2 | `res$send_chunk()` with a delay, and an interrupt raised during the transfer | if `webfakes` |
+| Ordinary HTTP still works through the guard: methods, headers, `gzip`, a redirect chain | §2 | L2 | `webfakes::httpbin_app()` via `ssrf_prepare_hop()` / `ssrf_fetch()` | if `webfakes` |
 | IPv6 pin | INV-6 | L2 (`httpuv`) | `"HOST::[::1]:"` | if `httpuv` and `::1` bind |
 | Real DNS, certificate chains, live rebinding | INV-4, INV-5, INV-9 | L4 | `SSRFR_INTEGRATION_TESTS` | never |
 
@@ -630,10 +639,11 @@ its live tests the same way (`node-transport-live.test.ts`).
   not return the options set on a handle **[verified]**, so two tests stand in:
   - *Every handle carries the pin.* Options come from one internal, pure
     option-list builder. An L0 test asserts, for each scheme and for explicit,
-    default and non-default ports, that the list holds `connect_to = "HOST::IP:"`,
-    `proxy = ""`, `noproxy = "*"`, `followlocation = 0L` and `forbid_reuse =
-    1L`, never a zero `ssl_verifypeer` or `ssl_verifyhost`, and none of the
-    §5 "never set" options.
+    default and non-default ports, every row of §5's table: each set option has
+    its value (`connect_to = "HOST::IP:"`, `proxy = ""`, `noproxy = "*"`,
+    `followlocation = 0L`, `forbid_reuse = 1L` and the rest), no zero
+    `ssl_verifypeer` or `ssl_verifyhost` appears, and none of the "never set"
+    options does.
   - *One place dials.* Walk the call positions of every closure in the
     installed namespace, nested closures included, and fail if a network entry
     point (`curl_fetch_*`, `curl`, `curl_download`, `multi_add`, `new_handle`,
@@ -645,6 +655,11 @@ its live tests the same way (`node-transport-live.test.ts`).
     against the installed package under `R CMD check`, where `R/` is absent,
     and needs no `codetools`. It is a tripwire, not a proof: a call built from
     a string escapes it.
+  - *Positive control.* Each tripwire runs once against a planted violation —
+    a closure calling `curl::curl_fetch_memory()` for the walk, an option list
+    missing `connect_to` for the builder test — and the test fails unless the
+    tripwire fires. A walk that silently matches nothing still asserts
+    something, so `ssrfr-v1.md` §7.2's no-assertion rule does not catch it.
 - **L0 does no I/O, and a test proves it** (`ssrfr-v1.md` §1). Mock the
   internal DNS wrapper and the internal fetch to `stop()`, then run the whole L0
   golden table; any network call trips a mock **[verified]**. With the
@@ -786,5 +801,8 @@ Each script records its environment and expected output; run it with
 | [`2026-09-24-idna-fallback.R`](../evidence/2026-09-24-idna-fallback.R) | hosts whose domain-to-ASCII fails, through `rurl` and `curl_parse_url()` (`ssrfr-v1.md` §5.0) |
 | [`2026-09-24-content-fetches.R`](../evidence/2026-09-24-content-fetches.R) | `xml2` external DTDs and entities, `read_xml(url)`, `rurl`'s long-input error, libcurl's URL length limit (`ssrfr-v1.md` §5.3, §9, S5) |
 | [`2026-09-24-oracle-metadata-miss.R`](../evidence/2026-09-24-oracle-metadata-miss.R) | `192.0.0.192` against `ipaddress` and a hand-rolled matcher (`ssrfr-v1.md` §5) |
+| [`2026-09-25-embedding-kinds.R`](../evidence/2026-09-25-embedding-kinds.R) | the embedding kind `raddr` reports per form, and WireServer inside NAT64 and ISATAP (`ssrfr-v1.md` §5, gate 2) |
+| [`2026-09-25-dot-segments.R`](../evidence/2026-09-25-dot-segments.R) | dot segments, `%2e` forms included, through `rurl`'s WHATWG serializer (§5, `path_as_is`) |
+| [`2026-09-25-fullwidth-separators.R`](../evidence/2026-09-25-fullwidth-separators.R) | fullwidth `＃ ／ ？ ：` in a host through `rurl`'s verdict, host and serializer, then `curl_parse_url()` (§7; `ssrfr-v1.md` §4.1) |
 
 External sources for this file are in [`../references.md`](../references.md).

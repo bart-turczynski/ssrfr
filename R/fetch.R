@@ -11,9 +11,10 @@
 
 # Causes of an attempt that established a connection, by curl error class.
 # Every TLS failure is `tls-failed`; a class not listed is `protocol-error`.
+# A size limit is never libcurl's: ssrfr's own callbacks count the header
+# and the decoded body, and record the limit they reached.
 curl_error_causes <- c(
   curl_error_operation_timedout = "timeout",
-  curl_error_filesize_exceeded = "response-too-large",
   curl_error_peer_failed_verification = "tls-failed",
   curl_error_use_ssl_failed = "tls-failed"
 )
@@ -357,11 +358,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   }
   if (!is.null(transfer$error)) {
     cause <- connected_cause(transfer$error)
-    limit <- switch(
-      cause,
-      timeout = "total_timeout",
-      `response-too-large` = "max_response_size"
-    )
+    limit <- if (cause == "timeout") "total_timeout"
     step <- if (cause == "tls-failed") 10L else 12L
     return(ended(cause, step, "transport", limit))
   }

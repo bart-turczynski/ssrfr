@@ -153,6 +153,12 @@ request_options <- function(request, policy) {
 # the protocol restriction, the fixed hardening, the limits and the request.
 # `remaining` is the chain's time budget left, in seconds. Pure: every
 # attempt's options come from here, so one test checks them all.
+#
+# `maxfilesize` is never set. libcurl compares it with the declared
+# Content-Length and the wire bytes, so it refuses responses whose decoded
+# body is within `max_response_size`: a HEAD, which has no body, and a
+# compressed body larger on the wire than decoded. The limit is the decoded
+# byte count the write callback keeps (§5.3; R/fetch.R).
 transport_options <- function(binding, address, remaining, capabilities) {
   policy <- binding$policy
   c(
@@ -165,8 +171,7 @@ transport_options <- function(binding, address, remaining, capabilities) {
     list(
       accept_encoding = accept_encoding_value(capabilities),
       connecttimeout_ms = as_timeout_ms(min(policy$connect_timeout, remaining)),
-      timeout_ms = as_timeout_ms(remaining),
-      maxfilesize_large = policy$max_response_size
+      timeout_ms = as_timeout_ms(remaining)
     ),
     request_options(binding$request, policy)
   )

@@ -85,6 +85,43 @@ test_that("a compression bomb is response-too-large from ssrfr's own counter", {
   expect_identical(body_text(r), strrep("deflated ", 1000))
 })
 
+# §5.3 counts decoded bytes. A declared Content-Length, or wire bytes that
+# exceed the decoded body, never refuse a response whose decoded body is
+# within the cap: libcurl's maxfilesize would refuse both.
+test_that("only decoded bytes count against max_response_size", {
+  mock_answers("127.0.0.1")
+  policy <- function(port) loopback_policy(port, max_response_size = 1000)
+  # A HEAD response declares the size of a body it does not carry.
+  head <- local_raw_server(wire(
+    "HTTP/1.1 200 OK\r\nContent-Length: 50000000\r\n",
+    "Connection: close\r\n\r\n"
+  ))
+  r <- guarded_get(
+    pinned_url(head$port),
+    policy(head$port),
+    request = list(method = "HEAD")
+  )
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$status, 200L)
+  expect_identical(r$body, raw())
+  # 990 random bytes, deflated: over the cap on the wire, under it decoded.
+  plain <- withr::with_seed(1L, as.raw(sample(0:255, 990L, replace = TRUE)))
+  deflated <- memCompress(plain, "gzip")
+  expect_gt(length(deflated), 1000L)
+  packed <- local_raw_server(c(
+    wire(
+      "HTTP/1.1 200 OK\r\nContent-Encoding: deflate\r\n",
+      "Content-Length: ",
+      length(deflated),
+      "\r\nConnection: close\r\n\r\n"
+    ),
+    deflated
+  ))
+  r <- guarded_get(pinned_url(packed$port), policy(packed$port))
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$body, plain)
+})
+
 test_that("header bytes and header fields have limits of their own", {
   skip_if_no_webfakes()
   web <- local_test_server()

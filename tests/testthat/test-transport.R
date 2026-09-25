@@ -130,7 +130,10 @@ test_that("limits and the request plan reach the options", {
   opts <- ssrfr:::transport_options(b, "93.184.216.34", 5, caps_modern)
   expect_identical(opts$connecttimeout_ms, 2000L)
   expect_identical(opts$timeout_ms, 5000L)
-  expect_identical(opts$maxfilesize_large, 12345)
+  # libcurl's declared-size cap is never set (§5.3): the limit is the
+  # decoded-byte counter.
+  expect_null(opts$maxfilesize_large)
+  expect_null(opts$maxfilesize)
   expect_identical(opts$useragent, "tester/1")
   expect_identical(opts$customrequest, "PATCH")
   expect_identical(opts$postfields, charToRaw("payload"))

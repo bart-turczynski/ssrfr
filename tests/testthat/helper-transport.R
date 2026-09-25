@@ -436,6 +436,11 @@ option_problems <- function(opts, host, address) {
       problems <- c(problems, paste(name, "weakened"))
     }
   }
+  for (name in c("maxfilesize", "maxfilesize_large")) {
+    if (!is.null(opts[[name]])) {
+      problems <- c(problems, paste("sets", name))
+    }
+  }
   for (name in c("accept_encoding", "connecttimeout_ms", "timeout_ms")) {
     if (is.null(opts[[name]])) {
       problems <- c(problems, paste("missing", name))

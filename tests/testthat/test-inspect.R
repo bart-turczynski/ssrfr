@@ -9,18 +9,26 @@ test_that("L0 returns facts under a name that claims no verdict", {
     res,
     c(
       "code",
+      "cause",
       "step",
       "detail",
+      "layer",
       "url",
       "scheme",
       "host",
       "port",
       "userinfo",
       "host_kind",
-      "address"
+      "address",
+      "answers",
+      "addresses"
     )
   )
   expect_identical(res$code, "loopback")
+  expect_identical(res$cause, NA_character_)
+  expect_identical(res$layer, "L0")
+  expect_null(res$answers)
+  expect_null(res$addresses)
   expect_identical(res$step, 8L)
   expect_identical(res$scheme, "http")
   expect_identical(res$host, "127.0.0.1")
@@ -331,6 +339,9 @@ test_that("a malformed argument is an invalid-argument error", {
   expect_error(ssrf_inspect_url("http://a/", policy = list()), class = cls)
   expect_error(ssrf_inspect_url("http://a/", base = 1), class = cls)
   expect_error(ssrf_inspect_url("http://a/", base = NA_character_), class = cls)
+  for (layer in list("L2", "l1", c("L0", "L1"), NA_character_, 1, TRUE)) {
+    expect_error(ssrf_inspect_url("http://a/", layer = layer), class = cls)
+  }
 })
 
 # r-binding.md §7: L0 makes no network call. Every network entry point of

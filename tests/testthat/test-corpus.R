@@ -2,8 +2,9 @@
 # count and MD5 committed in corpus-manifest.tsv before any row is read, so a
 # truncated or emptied file fails instead of passing vacuously (§7.2). Then
 # the files' shape and vocabulary are checked, and the rows the implemented
-# layers decide are evaluated: every L0 verdict vector through
-# ssrf_inspect_url(), and every parse vector through the parse boundary.
+# layers decide are evaluated: every L0 and L1 verdict vector through
+# ssrf_inspect_url(), at L1 with the row's `answers` fed through the mocked
+# resolver wrapper, and every parse vector through the parse boundary.
 # The readers live in helper-corpus.R.
 #
 # A pending row is never skipped (§7.2): its marker is asserted, and so is the
@@ -234,6 +235,71 @@ test_that("L0 reports no code that contradicts a later layer's row", {
       got == "-" || (rows$verdict[i] == "refuse" && got == rows$code[i]),
       label = paste(rows$id[i], rows$input[i], "gives", got, "at L0")
     )
+  }
+})
+
+# At L1 every row runs with its `answers` through the mocked resolver wrapper
+# (helper-corpus.R), so no row makes a real DNS query. A row L0 already
+# decides is never resolved (§12: steps 1-6 before step 7); any other name
+# is resolved exactly once (INV-5).
+test_that("every active L1 verdict vector is decided at L1 with its code", {
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$layer == "L1" & v$status == "active", ]
+  expect_gt(nrow(rows), 0L)
+  for (i in seq_len(nrow(rows))) {
+    label <- paste(rows$id[i], rows$group[i], rows$input[i], rows$answers[i])
+    got <- inspect_row_l1(rows[i, ])
+    expect_identical(got$outcome, rows$code[i], label = label)
+    expect_identical(got$verdict, rows$verdict[i], label = label)
+    decided_at_l0 <- inspect_row(rows[i, ]) != "-"
+    expect_length(got$queries, if (decided_at_l0) 0L else 1L)
+  }
+})
+
+test_that("rows L0 decides are decided the same at L1, with no resolution", {
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$layer == "L0" & v$status == "active", ]
+  expect_gt(nrow(rows), 0L)
+  for (i in seq_len(nrow(rows))) {
+    label <- paste(rows$id[i], rows$input[i])
+    got <- inspect_row_l1(rows[i, ])
+    expect_identical(got$outcome, rows$code[i], label = label)
+    expect_identical(got$queries, character(), label = label)
+  }
+})
+
+test_that("L1 reports no code that contradicts an L2 row", {
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$layer == "L2" & v$status == "active", ]
+  expect_gt(nrow(rows), 0L)
+  for (i in seq_len(nrow(rows))) {
+    got <- inspect_row_l1(rows[i, ])
+    expect_true(
+      got$outcome == "-" ||
+        (rows$verdict[i] == got$verdict && got$outcome == rows$code[i]),
+      label = paste(rows$id[i], rows$input[i], "gives", got$outcome, "at L1")
+    )
+    expect_lte(length(got$queries), 1L)
+  }
+})
+
+# The redirect rows L1 decides, each inspected with its `hop` column's URL as
+# the base: the one query is for the new hop's host, never the base's.
+test_that("L1 redirect rows resolve the new hop once, against their base", {
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$group == "redirect" & v$layer == "L1" & v$status == "active", ]
+  expect_gt(nrow(rows), 0L)
+  expect_true(any(startsWith(rows$hop, "redirect:")))
+  for (i in seq_len(nrow(rows))) {
+    label <- paste(rows$id[i], rows$input[i], rows$hop[i])
+    got <- inspect_row_l1(rows[i, ])
+    expect_identical(got$outcome, rows$code[i], label = label)
+    host <- ssrf_inspect_url(
+      unescape_field(rows$input[i]),
+      corpus_policy(rows$policy[i]),
+      base = corpus_base(rows$hop[i])
+    )$host
+    expect_identical(got$queries, paste0(host, "."), label = label)
   }
 })
 

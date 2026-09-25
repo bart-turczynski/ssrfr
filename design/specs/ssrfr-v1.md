@@ -1,6 +1,6 @@
 ---
 status: draft
-version: 1.4.0-draft
+version: 1.5.0-draft
 date: 2026-09-25
 tracking: SSRF-xrlijlqq, SSRF-ibxdyzcy
 ---
@@ -40,7 +40,8 @@ parse boundary (§4.1, §4.2), embedding evaluation (§5.2), limits and policy
 fields (§5.3), and Part II, as answered in the v1 decision brief (fp brainstorm
 `nftbfuli`; ADR 0004). **Ratified 2026-09-25:** the `_scratch` findings
 proposed on 2026-09-24 (§8 item 23, `SSRF-nbcgyled`), with INV-10's rationale
-corrected (ADR 0006).
+corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
+unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007).
 The transport findings are unverified off macOS (§8 items 6 and 7), so L2 stays
 blocked on them.
 
@@ -112,7 +113,12 @@ problem.
 **S6 — Consolidation is the migration path, not the purpose.** The duplicated
 matchers in `robotstxtr` and `sitemapr` are `ssrfr`'s first consumers and its
 evidence of demand. Their published reason-code vocabulary is a compatibility
-obligation (§6.5). Neither is the reason the package exists.
+obligation (§6.5). Neither is the reason the package exists. They migrate
+straight to the guarded fetch, calling `ssrf_prepare_hop()` and `ssrf_fetch()`
+from their own loops once L2 ships; `ssrfr` ships no L0 compatibility adapter
+for their vendored matchers, which would keep an L0 check running as a gate
+(§1.1). Each consumer tracks its migration in its own repository. *Ratified
+2026-09-25* (§8 item 31, `SSRF-cnljaaek`, ADR 0007).
 
 ---
 
@@ -207,6 +213,24 @@ the connection is closed (§14, no reuse). The response is a plain R value —
 status, response headers, decoded body — holding no handle, connection or file,
 so the caller has nothing to close. The transport facts stay on the spent
 binding (§2.5). Streaming the body or writing it to a file is beyond v1.
+
+The response's `print` and `format` methods show the status, the media type
+without its parameters, and the decoded body size. They show no body and no
+other response header value; the body is read through an accessor. A fetched
+body is attacker-chosen: it can carry terminal control sequences, secrets or
+megabytes, and a printed response ends up in application logs. *Ratified
+2026-09-25* (§8 item 28, `SSRF-cnljaaek`).
+
+**The loop helper.** `ssrf_fetch_chain(url, policy, request)` follows a
+redirect chain for a caller without a loop of its own. It is built only on
+`ssrf_prepare_hop()` and `ssrf_fetch()`, calling them exactly as a caller's
+loop would, and it takes no argument those two do not. It returns what the
+chain's last call returned: the final response, or the refusal or operational
+failure that ended the chain. It follows only a followed redirect (§2.3). §1.3
+still holds: the per-hop primitives stay public, and the helper adds no
+capability they lack. Its purpose is §9's path of least resistance for plumber
+endpoints, Shiny apps and webhook receivers, which otherwise hand-roll a loop
+or skip the guard. *Ratified 2026-09-25* (§8 item 25, `SSRF-cnljaaek`).
 
 ### 2.3 What a binding contains, and what enters at `prepare`
 
@@ -647,6 +671,16 @@ how stale the copy is **[sourced]**. `ssrfr` does not check age at runtime. When
 IANA adds a special-purpose block, `ssrfr` raises its minimum `raddr` version
 once `raddr` ships it.
 
+An untested dependency version is not a refusal or a warning either. `ssrfr`
+does not compare the installed `curl`, `rurl` or `raddr` against a list of
+tested versions at runtime. A major version is a weak proxy for parser drift:
+it would refuse compatible releases and miss drift inside a major. The drift
+that matters on a request is caught on that request, by the host agreement
+check of §4.1, and the rest by the corpus, the parse vectors regenerated on
+every dependency update, and published results naming every version (§7).
+DESCRIPTION states minimum versions only. *Ratified 2026-09-25* (§8 item 30,
+`SSRF-cnljaaek`).
+
 ---
 
 ## 5. The refusal rule **[ratified]**
@@ -1053,7 +1087,8 @@ runtime. `robotstxtr` and `sitemapr` publish the inherited values in their
 reference documentation, so renaming breaks them (S6).
 
 **Versioning mechanism.** Each closed code domain (reason codes,
-operational causes, the provider-endpoint table and the metadata hostname list)
+operational causes, misuse condition classes (§6.6), the provider-endpoint table
+and the metadata hostname list)
 carries a version stamp, and a
 test pins the set of keys to the stamp in both directions: a code added without a
 bump fails, and a bump that leaves the pinned set stale fails. The package version
@@ -1227,6 +1262,25 @@ Misuse of the API — a spent binding, a `from` that is not a followed redirect,
 invalid request-plan header, a malformed policy — is an operational *error* raised
 as an R condition, not a cause carried in a result.
 
+Callers catch these conditions by class, so the class names are API, a closed
+domain versioned like the codes (§6.1). Every misuse condition has the class
+vector `c("ssrfr_error_<kind>", "ssrfr_error", "error", "condition")`, built
+with base R's `errorCondition()`, and carries its kind as a data field for
+logging. The kinds:
+
+| Class | Raised when |
+|---|---|
+| `ssrfr_error_invalid_policy` | building a policy fails its construction checks (§5.3) |
+| `ssrfr_error_invalid_request` | a request plan breaks §2.3's header or body rules |
+| `ssrfr_error_invalid_from` | `from` is unspent, records a failed fetch, or is not a followed redirect (§2.3) |
+| `ssrfr_error_spent_binding` | `ssrf_fetch()` receives a binding whose fetchability is spent (§2.5) |
+| `ssrfr_error_budget_change` | a redirect-hop policy states a different `max_redirects` or `total_timeout` (§2.5) |
+| `ssrfr_error_invalid_argument` | any other argument of the wrong type or shape, including `request` and `from` passed together, or neither |
+
+The most specific kind applies: `ssrfr_error_invalid_argument` covers only what
+no other row names. A condition's message follows §2.3's redaction rule.
+*Ratified 2026-09-25* (§8 item 27, `SSRF-cnljaaek`).
+
 ### 6.7 Conventions
 
 Reason codes and causes are `kebab-case`. For reason codes this diverges from
@@ -1334,13 +1388,13 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 22 | Maximum URL length | **closed — ratified** 2026-09-25: `max_url_length`, default 8000 octets (RFC 9110 §4.1), checked on the URL string `ssrf_prepare_hop()` receives before any parse; a longer URL refuses as `parse`, with no new code. Independently, an error raised by either parser is a `parse` refusal (INV-11) (§5.3; upstream `RURL-tlmoybsl`) — `SSRF-nbcgyled` |
 | 23 | The `_scratch` findings brought in on 2026-09-24: the proposed passages in §2.2, §2.3, §2.5, §4.3, §5, §5.0, §5.3, §6.4, §7, §7.2, §9, S5, §13 (INV-10) and §14–§15 | **closed — ratified** 2026-09-25, with four amendments: INV-10's rule and rationale corrected (ADR 0006); INV-12 and §6.4's Shape bullet widened to operational failures; the failover cause fixed in §6.6; revocation placed outside INV-9. The §5.0 A-label rule waits on `rurl` (`RURL-vicyvlvh`) — `SSRF-nbcgyled` |
 | 24 | The 2026-09-25 alignment audit of `_scratch` against this document | **closed — ratified** 2026-09-25: corrections to §4.1, §6.7, INV-11 and INV-13; additions to S5, §2.3, §2.5, §5 (four gate 2 rows), §5.3, §6.1, §6.6, §7, §7.2 and §9, and the §4.1 disagreement check made a named test (`r-binding.md` §7). Contested items, ruled by a three-model vote (unanimous unless noted): gate 2 reads only destination embeddings, with the ISATAP residual documented (§5; split vote, maintainer's ruling); metadata request headers need vendor documentation naming a gate 2 endpoint, and three are added (§2.3); steps 3–5 read libcurl's parse, with corpus columns for drift (§12, §7); no method field (§9); `path_as_is = 1L` (`r-binding.md` §5); `allow_ports` stays scheme-independent (§5.3) — `SSRF-qttneqxp` |
-| 25 | A loop helper that owns the redirect chain on top of `ssrf_prepare_hop()` and `ssrf_fetch()`, or a record that it comes after v1 | open, decided during v1 planning — `SSRF-cnljaaek` |
-| 26 | Where INV-14's single off switch lives: an argument of §2.2's primitives, or the consumer-side toggle of ADR 0002 as the only one | open — `SSRF-cnljaaek` |
-| 27 | The class names of misuse conditions (§6.6); callers `tryCatch` on them, so they are API like the reason codes (§6.1) | open — `SSRF-cnljaaek` |
-| 28 | Whether the response's `print` and `format` methods show the body (§2.2) | open — `SSRF-cnljaaek` |
-| 29 | A test helper for consumers, or only the documented `allow_ranges = "127.0.0.0/8"` recipe | open — `SSRF-cnljaaek` |
-| 30 | A runtime refusal or warning on an untested major version of `curl`, `rurl` or `raddr`, or the corpus (§7) as the only check | open — `SSRF-cnljaaek` |
-| 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | open — `SSRF-cnljaaek` |
+| 25 | A loop helper that owns the redirect chain on top of `ssrf_prepare_hop()` and `ssrf_fetch()`, or a record that it comes after v1 | **closed — ratified** 2026-09-25 by a unanimous four-model vote: v1 ships `ssrf_fetch_chain()`, built only on the two primitives (§2.2) — `SSRF-cnljaaek` |
+| 26 | Where INV-14's single off switch lives: an argument of §2.2's primitives, or the consumer-side toggle of ADR 0002 as the only one | **closed — ratified** 2026-09-25 by a unanimous four-model vote: the consumer's toggle is the only one; no `ssrfr` function disables the guard (INV-14, ADR 0007) — `SSRF-cnljaaek` |
+| 27 | The class names of misuse conditions (§6.6); callers `tryCatch` on them, so they are API like the reason codes (§6.1) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: a parent `ssrfr_error` and six `ssrfr_error_<kind>` subclasses, a versioned closed domain (§6.6) — `SSRF-cnljaaek` |
+| 28 | Whether the response's `print` and `format` methods show the body (§2.2) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: no; status, media type and body size only (§2.2) — `SSRF-cnljaaek` |
+| 29 | A test helper for consumers, or only the documented `allow_ranges = "127.0.0.0/8"` recipe | **closed — ratified** 2026-09-25 by a unanimous four-model vote: the recipe only (§9) — `SSRF-cnljaaek` |
+| 30 | A runtime refusal or warning on an untested major version of `curl`, `rurl` or `raddr`, or the corpus (§7) as the only check | **closed — ratified** 2026-09-25 by a unanimous four-model vote: no runtime check; the corpus and published results (§4.3) — `SSRF-cnljaaek` |
+| 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: straight to the guarded fetch, with no L0 adapter (S6, ADR 0007) — `SSRF-cnljaaek` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1407,6 +1461,11 @@ reused connections; `r-binding.md` §6).
   method or §2.3's 301/302/303 transformation. An application that lets an
   untrusted party choose the method, such as an agent's HTTP tool, constrains
   it itself. *Ratified 2026-09-25* (`SSRF-qttneqxp`).
+- A test helper for consumers. A consumer test that reaches a loopback server
+  through the guard builds its policy with `allow_ranges = "127.0.0.0/8"`, the
+  recipe `r-binding.md` §7 documents. An exported helper that loosens the
+  policy would be one more function that can leak into production code.
+  *Ratified 2026-09-25* (§8 item 29, `SSRF-cnljaaek`).
 - Compliance claims beyond those permitted in §15.
 
 ---
@@ -1845,9 +1904,15 @@ does, where configuring any allowlist silently flips the whole policy to
 default-deny — makes the effective policy hard to predict from the configuration.
 **[sourced]** A conjunctive model is auditable.
 
-**Corollary.** An implementation SHOULD provide one explicit, unmistakably-named
-way to disable the guard entirely. It is a single top-level argument, never the
-default, and documented as disabling the guard (ADR 0001 §5).
+**Corollary.** The consumer SHOULD provide one explicit, unmistakably-named way
+to disable the guard entirely. It is a single top-level argument of the
+consumer's own API, never the default, and documented as disabling the guard
+(ADR 0001 §5), like `ssrf_guard = FALSE` in `robotstxtr` and `sitemapr`. `ssrfr`
+itself has none: no `ssrfr` function takes an argument that disables the guard,
+because a binding produced without validation would be a detached guard (§9). A
+deliberately authorized internal target is reached with `allow_ranges` or
+`allow_hosts` (§5.0). *Amended 2026-09-25* (was "An implementation SHOULD
+provide"; §8 item 26, `SSRF-cnljaaek`, ADR 0007).
 
 ---
 

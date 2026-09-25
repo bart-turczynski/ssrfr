@@ -8,12 +8,14 @@ ssrf_vocabulary(domain = NULL)
 }
 \arguments{
 \item{domain}{The vocabulary to list: \code{"reason_codes"}, \code{"causes"},
-\code{"condition_classes"}, \code{"provider_endpoints"} or \code{"metadata_hostnames"}.
-\code{NULL}, the default, lists the vocabularies themselves.}
+\code{"condition_classes"}, \code{"provider_endpoints"}, \code{"metadata_hostnames"} or
+\code{"metadata_headers"}. \code{NULL}, the default, lists the vocabularies
+themselves.}
 }
 \value{
 A data frame. For a named \code{domain}, one row per entry, keyed by the
-first column (\code{code}, \code{cause}, \code{class}, \code{address} or \code{hostname}), with the
+first column (\code{code}, \code{cause}, \code{class}, \code{address}, \code{hostname} or
+\code{header}), with the
 attributes \code{domain}, \code{version} (the vocabulary's version stamp) and
 \code{package_version}. For \code{NULL}, one row per vocabulary with its \code{domain},
 \code{version} and \code{size}, and the \code{package_version} attribute.
@@ -21,10 +23,11 @@ attributes \code{domain}, \code{version} (the vocabulary's version stamp) and
 \description{
 Enumerates one of the closed vocabularies \code{ssrfr} publishes: the reason
 codes a refusal carries, the causes an operational failure carries, the
-classes of the misuse conditions it raises, and the two tables of policy
+classes of the misuse conditions it raises, and the three tables of policy
 data it owns: the provider endpoints refused by address and the metadata
 hostnames refused by name, each row citing the vendor documentation that
-names it. Each vocabulary is API, carries a version stamp, and changes only
+names it, and the metadata-service request headers a request plan may not
+carry. Each vocabulary is API, carries a version stamp, and changes only
 with a new version.
 }
 \examples{

@@ -20,7 +20,8 @@ display_detail_keys <- c(
   "limit",
   "embedding_kind",
   "category",
-  "provider_kind"
+  "provider_kind",
+  "attempts"
 )
 
 # The single value ssrf_public_reason() returns (§6.4). It is not a reason code

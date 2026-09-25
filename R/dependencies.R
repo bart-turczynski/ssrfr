@@ -144,13 +144,15 @@ dep_nslookup <- function(query) {
 # §4.1). handle_reset() is never used.
 #
 # A callback ends the transfer by raising a condition of class
-# `ssrfr_transfer_abort`; curl re-raises it from multi_run() once libcurl has
-# returned, and the attempt reports `aborted`. Error printing is switched off
-# while libcurl runs, because curl evaluates callbacks as a top-level call that
-# would print that condition. However the call ends, an interrupt included,
-# every handle still in the pool is cancelled, which closes its connection.
+# `ssrfr_transfer_abort`. The callback fails, so libcurl stops the transfer,
+# and curl then either re-raises the condition from multi_run() or reports a
+# write error; the caller reads which limit ended it from its own record.
+# Error printing is switched off while libcurl runs, because curl evaluates
+# callbacks as a top-level call that would print that condition. However the
+# call ends, an interrupt included, every handle still in the pool is
+# cancelled, which closes its connection.
 #
-# Returns a list: `aborted` (TRUE when a callback ended the transfer),
+# Returns a list: `aborted` (TRUE when curl re-raised a callback's abort),
 # `error` (the curl error class of a failed transfer, or NULL), `status`,
 # `headers` (the raw response header bytes), and `connect` (seconds until the
 # TCP connection was established; 0 when it never was).

@@ -43,8 +43,8 @@ findings proposed on 2026-09-24 (§8 item 23, `SSRF-nbcgyled`), with INV-10's ra
 corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
 unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
 items 32–33, two gaps a review of the implementation tickets found.
-The transport findings are unverified off macOS (§8 items 6 and 7), so L2 stays
-blocked on them.
+The transport findings are verified on macOS and Linux (§8 item 7 closed);
+Windows is outstanding under §8 item 6 (`SSRF-fjgfnaaq`), a v1 release blocker.
 
 **Evidence tags.** **[verified]** was tested empirically; **[sourced]** cites
 external evidence; **[assumption]** is neither. A tag is promoted only with new

@@ -344,8 +344,9 @@ test_that("an interrupt leaves the binding spent and no handle open", {
   port <- free_port()
   flag <- tempfile("chunk-sent-")
   ready <- tempfile("listening-")
+  closed <- tempfile("closed-")
   server <- callr::r_bg(
-    function(port, flag, ready) {
+    function(port, flag, ready, closed) {
       s <- serverSocket(port)
       on.exit(close(s))
       file.create(ready)
@@ -368,6 +369,7 @@ test_that("an interrupt leaves the binding spent and no handle open", {
       repeat {
         x <- tryCatch(readBin(con, raw(), 1L), error = function(e) NULL)
         if (!length(x)) {
+          file.create(closed)
           return("closed")
         }
         if (difftime(Sys.time(), t0, units = "secs") > 20) {
@@ -375,7 +377,7 @@ test_that("an interrupt leaves the binding spent and no handle open", {
         }
       }
     },
-    args = list(port = port, flag = flag, ready = ready)
+    args = list(port = port, flag = flag, ready = ready, closed = closed)
   )
   withr::defer(server$kill())
   interrupter <- callr::r_bg(
@@ -407,7 +409,15 @@ test_that("an interrupt leaves the binding spent and no handle open", {
     request = list()
   )
   got <- tryCatch(ssrf_fetch(b), interrupt = function(c) "interrupted")
+  # The connection is closed at once, not whenever the garbage collector
+  # finalizes an abandoned handle: poll before anything else allocates.
+  t0 <- Sys.time()
+  while (!file.exists(closed) && difftime(Sys.time(), t0, units = "secs") < 3) {
+    Sys.sleep(0.05)
+  }
+  closed_at_once <- file.exists(closed)
   expect_identical(got, "interrupted")
+  expect_true(closed_at_once)
   expect_false(b$state$fetchable)
   expect_error(ssrf_fetch(b), class = "ssrfr_error_spent_binding")
   server$wait(25000)

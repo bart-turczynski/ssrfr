@@ -182,7 +182,7 @@ transport_options <- function(binding, address, remaining, capabilities) {
 # `port`, compared as raddr values (INV-3). Returns "match", or the reason it
 # is not: "absent", "garbled" or "other-address".
 pin_check <- function(lines, address, port) {
-  trying <- grep("^Trying ", lines, value = TRUE)
+  trying <- grep("^Trying ", lines, value = TRUE, useBytes = TRUE)
   if (!length(trying)) {
     return("absent")
   }
@@ -218,33 +218,49 @@ pin_check <- function(lines, address, port) {
 # libcurl received, interim 1xx responses included): a character vector of
 # values named by the lowercase field name, in order. NULL when the bytes do
 # not read as HTTP header lines, which is a `protocol-error` (§6.6).
+#
+# The block is read as bytes, never translated: a field value may carry
+# obs-text (RFC 9110 §5.5), such as a Latin-1 filename, and a translation
+# would fail, with a warning quoting every header, Set-Cookie included
+# (INV-12, §2.3). A value is kept byte for byte, marked UTF-8 when it is
+# valid UTF-8 and "bytes" when it is not, so R never re-encodes it.
 parse_response_headers <- function(raw) {
   text <- tryCatch(rawToChar(raw), error = function(e) NULL)
   if (is.null(text)) {
     return(NULL)
   }
-  lines <- strsplit(text, "\r?\n")[[1L]]
-  starts <- grep("^HTTP/", lines)
+  lines <- strsplit(text, "\r?\n", useBytes = TRUE)[[1L]]
+  starts <- grep("^HTTP/", lines, useBytes = TRUE)
   if (!length(starts)) {
     return(NULL)
   }
   lines <- lines[-seq_len(max(starts))]
   lines <- lines[nzchar(lines)]
+  field_line <- paste0("^", http_tchars, ":")
   fields <- character()
   values <- character()
   for (line in lines) {
-    if (grepl("^[ \t]", line) && length(values)) {
+    if (grepl("^[ \t]", line, useBytes = TRUE) && length(values)) {
       # An obsolete line folding continues the previous field (RFC 9112 §5.2).
-      values[length(values)] <- paste(values[length(values)], trimws(line))
+      values[length(values)] <- paste(values[length(values)], trim_ows(line))
       next
     }
-    if (!grepl("^[!#$%&'*+.^_`|~0-9A-Za-z-]+:", line)) {
+    if (!grepl(field_line, line, useBytes = TRUE)) {
       return(NULL)
     }
-    fields <- c(fields, ascii_lower(sub(":.*$", "", line)))
-    values <- c(values, trimws(sub("^[^:]*:", "", line), whitespace = "[ \t]"))
+    fields <- c(fields, ascii_lower(sub(":.*$", "", line, useBytes = TRUE)))
+    values <- c(values, trim_ows(sub("^[^:]*:", "", line, useBytes = TRUE)))
   }
+  valid <- validUTF8(values)
+  Encoding(values[valid]) <- "UTF-8"
+  Encoding(values[!valid]) <- "bytes"
   stats::setNames(values, fields)
+}
+
+# A field value without its leading and trailing whitespace (RFC 9110 §5.5,
+# OWS), matched byte by byte.
+trim_ows <- function(x) {
+  gsub("^[ \t]+|[ \t]+$", "", x, useBytes = TRUE)
 }
 
 # The media type of a Content-Type value for display, without parameters, or
@@ -255,7 +271,12 @@ display_media_type <- function(value) {
   if (!length(value) || is.na(value[[1L]])) {
     return(NA_character_)
   }
-  type <- ascii_lower(trimws(sub(";.*$", "", value[[1L]])))
-  token <- "[!#$%&'*+.^_`|~0-9a-z-]+"
-  if (grepl(paste0("^", token, "/", token, "$"), type)) type else "<withheld>"
+  # Byte by byte: the value may not be text (parse_response_headers()).
+  type <- trim_ows(sub(";.*$", "", value[[1L]], useBytes = TRUE))
+  media_type <- paste0("^", http_tchars, "/", http_tchars, "$")
+  if (grepl(media_type, type, useBytes = TRUE)) {
+    ascii_lower(type)
+  } else {
+    "<withheld>"
+  }
 }

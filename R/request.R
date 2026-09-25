@@ -10,8 +10,10 @@
 
 request_fields <- c("method", "headers", "body", "carry")
 
-# RFC 9110 §5.6.2 token: the syntax of a method and of a field name.
-http_token <- "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+# RFC 9110 §5.6.2 token, one or more tchar: the syntax of a method, of a
+# field name, and of a media type's type and subtype (R/transport.R).
+http_tchars <- "[!#$%&'*+.^_`|~0-9A-Za-z-]+"
+http_token <- paste0("^", http_tchars, "$")
 
 # Field names a caller may not supply (§2.3), matched case-insensitively:
 # transport-controlled routing and framing, plus any HTTP/2 or HTTP/3

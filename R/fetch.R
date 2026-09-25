@@ -271,17 +271,21 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     seen$abort <- list(cause = cause, check = check, limit = limit)
     stop(errorCondition("transfer aborted", class = "ssrfr_transfer_abort"))
   }
+  # Every text match here is byte by byte: a header line may carry obs-text,
+  # and a failed translation would warn with the line's bytes (INV-12).
   debug <- function(type, msg) {
     if (type == 0L) {
       text <- tryCatch(rawToChar(msg), error = function(e) "")
-      lines <- trimws(strsplit(text, "\n", fixed = TRUE)[[1L]])
+      lines <- strsplit(text, "\n", fixed = TRUE, useBytes = TRUE)[[1L]]
+      lines <- gsub("^[ \t\r]+|[ \t\r]+$", "", lines, useBytes = TRUE)
       seen$trace <- c(
         seen$trace,
-        grep("^(Trying|Connected to) ", lines, value = TRUE)
+        grep("^(Trying|Connected to) ", lines, value = TRUE, useBytes = TRUE)
       )
     } else if (type == 1L) {
       seen$header_bytes <- seen$header_bytes + length(msg)
-      if (!grepl("^(HTTP/|\r?\n?$)", rawToChar(msg[msg != as.raw(0L)]))) {
+      line <- rawToChar(msg[msg != as.raw(0L)])
+      if (!grepl("^(HTTP/|\r?\n?$)", line, useBytes = TRUE)) {
         seen$header_fields <- seen$header_fields + 1L
       }
     }

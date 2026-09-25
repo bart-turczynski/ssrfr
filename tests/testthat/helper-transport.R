@@ -234,6 +234,97 @@ local_listener <- function(env = parent.frame()) {
   list(port = port, socket = listener)
 }
 
+# A raw HTTP server for responses webfakes cannot send (obs-text, trailers,
+# a header that never ends). It runs in a background process, accepts one
+# connection, reads the request head and any body its Content-Length
+# declares, and records those bytes. `response` is then either raw bytes,
+# written before the connection closes, or a self-contained function of the
+# connection, run in the server process. Returns the port and `request()`,
+# the recorded request bytes (NULL until they arrive).
+local_raw_server <- function(response, env = parent.frame()) {
+  skip_if_not_installed("callr")
+  port <- free_port()
+  ready <- tempfile("raw-listening-")
+  recorded <- tempfile("raw-request-")
+  if (is.function(response)) {
+    environment(response) <- globalenv()
+  }
+  server <- callr::r_bg(
+    function(port, ready, recorded, response) {
+      s <- serverSocket(port)
+      on.exit(close(s))
+      file.create(ready)
+      con <- socketAccept(s, blocking = TRUE, open = "r+b", timeout = 30)
+      on.exit(close(con), add = TRUE)
+      end <- charToRaw("\r\n\r\n")
+      head <- raw()
+      repeat {
+        b <- readBin(con, raw(), 1L)
+        if (!length(b)) {
+          break
+        }
+        head <- c(head, b)
+        n <- length(head)
+        if (n >= 4L && identical(head[(n - 3L):n], end)) {
+          break
+        }
+      }
+      text <- rawToChar(head)
+      declared <- regmatches(
+        text,
+        regexpr("(?i)\r\ncontent-length: *[0-9]+", text, perl = TRUE)
+      )
+      want <- if (length(declared)) {
+        as.numeric(sub("^.*: *", "", declared))
+      } else {
+        0
+      }
+      body <- raw()
+      while (length(body) < want) {
+        chunk <- readBin(con, raw(), want - length(body))
+        if (!length(chunk)) {
+          break
+        }
+        body <- c(body, chunk)
+      }
+      writeBin(c(head, body), paste0(recorded, ".part"))
+      file.rename(paste0(recorded, ".part"), recorded)
+      if (is.raw(response)) {
+        writeBin(response, con)
+        flush(con)
+      } else {
+        response(con)
+      }
+      "done"
+    },
+    args = list(
+      port = port,
+      ready = ready,
+      recorded = recorded,
+      response = response
+    )
+  )
+  withr::defer(server$kill(), envir = env)
+  t0 <- Sys.time()
+  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
+    Sys.sleep(0.05)
+  }
+  list(
+    port = port,
+    request = function() {
+      if (!file.exists(recorded)) {
+        return(NULL)
+      }
+      readBin(recorded, raw(), file.size(recorded))
+    }
+  )
+}
+
+# Bytes from strings, with \r\n written out by the caller.
+wire <- function(...) {
+  charToRaw(paste0(...))
+}
+
 # --- tripwires (r-binding.md §7, Rules) --------------------------------------
 
 # The functions named in call position anywhere in `expr`, nested closures

@@ -258,6 +258,43 @@ test_that("response headers are read from the final block only", {
   expect_null(ssrfr:::parse_response_headers(as.raw(c(0x48, 0x00, 0x49))))
 })
 
+# RFC 9110 §5.5: a field value may carry obs-text. The block is read as
+# bytes, so a Latin-1 byte neither fails the parse nor raises a warning that
+# would quote the header block (INV-12).
+test_that("a header value with obs-text is kept byte for byte", {
+  e9 <- as.raw(0xe9)
+  raw <- c(
+    wire("HTTP/1.1 200 OK\r\n", "Content-Disposition: attachment; name=caf"),
+    e9,
+    wire("\r\nX-Utf8: café\r\n", "Content-Type: text/"),
+    e9,
+    wire("\r\nSet-Cookie: secret=1\r\n\r\n")
+  )
+  h <- NULL
+  expect_no_warning(h <- ssrfr:::parse_response_headers(raw))
+  expect_named(
+    h,
+    c("content-disposition", "x-utf8", "content-type", "set-cookie")
+  )
+  disposition <- unname(h[["content-disposition"]])
+  expect_identical(
+    charToRaw(disposition),
+    c(wire("attachment; name=caf"), as.raw(0xe9))
+  )
+  expect_identical(Encoding(disposition), "bytes")
+  expect_identical(unname(h[["x-utf8"]]), "café")
+  expect_identical(Encoding(unname(h[["x-utf8"]])), "UTF-8")
+  expect_identical(
+    charToRaw(unname(h[["content-type"]])),
+    c(wire("text/"), as.raw(0xe9))
+  )
+  # A media type that is not text is withheld, never an error.
+  expect_identical(
+    ssrfr:::display_media_type(unname(h[["content-type"]])),
+    "<withheld>"
+  )
+})
+
 test_that("the displayed media type drops parameters and withholds junk", {
   show <- ssrfr:::display_media_type
   expect_identical(show("Text/HTML; charset=utf-8"), "text/html")

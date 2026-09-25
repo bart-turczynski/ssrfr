@@ -118,6 +118,65 @@ test_that("a missing trace or another peer is pin-mismatch", {
   }
 })
 
+# --- the response ------------------------------------------------------------
+
+# Records every warning raised inside the transport's callbacks. libcurl
+# runs them as top-level calls, where no handler of the caller's sees a
+# warning: R prints it later, header bytes and all.
+local_callback_warnings <- function(env = parent.frame()) {
+  transfer <- ssrfr:::dep_curl_transfer
+  seen <- new.env(parent = emptyenv())
+  seen$warnings <- character()
+  record <- function(f) {
+    function(...) {
+      withCallingHandlers(f(...), warning = function(w) {
+        seen$warnings <- c(seen$warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      })
+    }
+  }
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, ...) {
+      transfer(opts, record(data), record(debug), ...)
+    },
+    .package = "ssrfr",
+    .env = env
+  )
+  seen
+}
+
+# RFC 9110 §5.5: obs-text in a field value, here a Latin-1 filename, is a
+# valid response, and no warning quotes the header block, Set-Cookie
+# included (INV-12, §2.3).
+test_that("a Latin-1 byte in a header value is a response, with no warning", {
+  e9 <- as.raw(0xe9)
+  web <- local_raw_server(c(
+    wire(
+      "HTTP/1.1 200 OK\r\n",
+      "Content-Type: text/plain\r\n",
+      "Set-Cookie: session=secret-cookie\r\n",
+      "Content-Disposition: attachment; filename=\"caf"
+    ),
+    e9,
+    wire(".txt\"\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+  ))
+  mock_answers("127.0.0.1")
+  callbacks <- local_callback_warnings()
+  r <- NULL
+  expect_no_warning(
+    r <- guarded_get(pinned_url(web$port), loopback_policy(web$port))
+  )
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$status, 200L)
+  expect_identical(body_text(r), "ok")
+  expect_identical(
+    charToRaw(unname(r$headers[["content-disposition"]])),
+    c(wire("attachment; filename=\"caf"), e9, wire(".txt\""))
+  )
+  expect_identical(callbacks$warnings, character())
+  expect_identical(format(r)[[3L]], "  type: text/plain")
+})
+
 # --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how

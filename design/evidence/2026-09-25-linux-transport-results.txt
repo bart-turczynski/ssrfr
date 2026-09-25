@@ -1,0 +1,807 @@
+# Output of design/evidence/2026-09-25-linux-transport-matrix.sh
+# Generated 2026-09-25T17:09:00Z. Ports, connection numbers and
+# pointers vary between runs; everything else is the observed behaviour.
+
+################################################################
+## host: Darwin 25.6.0 arm64
+################################################################
+Warning message:
+package ‘curl’ was built under R version 4.6.1
+os: Darwin 25.6.0 arm64 | R 4.6.0 | LC_CTYPE en_US.UTF-8
+curl 8.0.0 | libcurl 8.14.1 | LibreSSL/3.3.6 (SecureTransport) | ipv6 TRUE | idn FALSE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | connect to 127.0.0.1 port 1 from 127.0.0.1 port <n> failed: Connection refused
+        | Failed to connect to 127.0.0.1 port 1 after <n> ms: Could not connect to server
+        | closing connection #0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+ok      3c request U-label, key U-label                            honoured
+ok      3d request U-label, key A-label                            IGNORED (resolved the name: failed)
+ok      3e request U-label, key = curl_parse_url() host            honoured
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | connect to ::1 port 1 from ::1 port <n> failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Could not connect to server
+        | closing connection #36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | connect to ::1 port 1 from ::1 port <n> failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Could not connect to server
+        | closing connection #37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+ok      4c ... refused by ::1, not unreachable                     TRUE
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 24 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp smb smbs smtp smtps telnet tftp ws wss
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp smb smbs smtp smtps telnet tftp ws wss [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing http: connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing http: connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | using HTTP/1.x
+        | Request completely sent off
+        | shutting down connection #87
+ok      9a first Trying line names the pin                         honoured
+webfakes web server errors:
+[1790356154] [error] [client 127.0.0.1] GET /chunked: ERROR @ response_send_chunk rweb.c:899
+[1790356154] [error] [client 127.0.0.1] GET /chunked: Cleaning up broken connection 0x99b8227a0 at rweb.c:701
+
+done
+
+################################################################
+## docker ssrfr-probe:ubuntu2204, --network none
+################################################################
+libcurl4:arm64	7.81.0-1ubuntu1.29
+libcurl4-dev
+libcurl4-doc
+libcurl4-gnutls-dev
+libcurl4-nss-dev
+libcurl4-openssl-dev:arm64	7.81.0-1ubuntu1.29
+os: Ubuntu 22.04.5 LTS | R 4.4.1 | LC_CTYPE en_US.UTF-8
+curl 8.0.0 | libcurl 7.81.0 | OpenSSL/3.0.2 | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | connect to 127.0.0.1 port 1 failed: Connection refused
+        | Failed to connect to 127.0.0.1 port 1 after <n> ms: Connection refused
+        | Closing connection 0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Connection refused
+        | Closing connection 36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Connection refused
+        | Closing connection 37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+ok      4c ... refused by ::1, not unreachable                     TRUE
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 25 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp
+        protocols_str        listed FALSE NOT settable: Unknown option: protocols_str
+        redir_protocols_str  listed FALSE NOT settable: Unknown option: redir_protocols_str
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: not settable on this build, skipped
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+        6d redir_protocols_str: not settable on this build, skipped
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing connection! (#70) with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing connection! (#71) with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+DIFFERS 8b chunked 250000, maxfilesize 1000                        delivered 250000 bytes   [ref: aborted]
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Found bundle for host 127.0.0.1: 0xaaaaed8998b0 [serially]
+        | Can not multiplex, even if we wanted to!
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to (nil) (127.0.0.1) port <port> (#85)
+        | Mark bundle as not supporting multiuse
+        | Closing connection 85
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+################################################################
+## docker ssrfr-probe:ubuntu2404, --network none
+################################################################
+libcurl4
+libcurl4-dev
+libcurl4-doc
+libcurl4-gnutls-dev
+libcurl4-openssl-dev:arm64	8.5.0-2ubuntu10.15
+libcurl4t64:arm64	8.5.0-2ubuntu10.15
+os: Ubuntu 24.04.4 LTS | R 4.6.1 | LC_CTYPE en_US.UTF-8
+curl 8.0.0 | libcurl 8.5.0 | OpenSSL/3.0.13 | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | WARNING: failed to open cookie file ""
+        | Trying 127.0.0.1:1...
+        | connect to 127.0.0.1 port 1 from 127.0.0.1 port <n> failed: Connection refused
+        | Failed to connect to 127.0.0.1 port 1 after <n> ms: Couldn't connect to server
+        | Closing connection
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | WARNING: failed to open cookie file ""
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | connect to ::1 port 1 from ::1 port <n> failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Couldn't connect to server
+        | Closing connection
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | WARNING: failed to open cookie file ""
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | connect to ::1 port 1 from ::1 port <n> failed: Connection refused
+        | Failed to connect to ::1 port 1 after <n> ms: Couldn't connect to server
+        | Closing connection
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+ok      4c ... refused by ::1, not unreachable                     TRUE
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 30 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtmpe rtmps rtmpt rtmpte rtmpts rtsp scp sftp smb smbs smtp smtps telnet tftp
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtmpe rtmps rtmpt rtmpte rtmpts rtsp scp sftp smb smbs smtp smtps telnet tftp [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtmpe rtmps rtmpt rtmpte rtmpts rtsp scp sftp smb smbs smtp smtps telnet tftp [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtmpe rtmps rtmpt rtmpte rtmpts rtsp scp sftp smb smbs smtp smtps telnet tftp [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | WARNING: failed to open cookie file ""
+        | Connecting to hostname: 127.0.0.1
+        | Found bundle for host: 0xaaaad536ba50 [serially]
+        | Can not multiplex, even if we wanted to
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | Closing connection
+ok      9a first Trying line names the pin                         honoured
+webfakes web server errors:
+[1790356161] [error] [client 127.0.0.1] GET /chunked: ERROR @ response_send_chunk rweb.c:899
+[1790356161] [error] [client 127.0.0.1] GET /chunked: Cleaning up broken connection 0xaaab15597778 at rweb.c:701
+
+done
+
+################################################################
+## docker ssrfr-probe:rocky9, --network none
+################################################################
+libcurl-minimal-7.76.1-40.el9_8.7.aarch64
+libcurl-devel-7.76.1-40.el9_8.7.aarch64
+os: Rocky Linux 9.3 (Blue Onyx) | R 4.6.1 | LC_CTYPE C
+curl 8.0.0 | libcurl 7.76.1 | OpenSSL/3.5.8 | ipv6 TRUE | idn FALSE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | connect to 127.0.0.1 port 1 failed: Connection refused
+        | Failed to connect to 127.0.0.1 port 1: Connection refused
+        | Closing connection 0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+ok      3c request U-label, key U-label                            honoured
+ok      3d request U-label, key A-label                            IGNORED (resolved the name: failed)
+ok      3e request U-label, key = curl_parse_url() host            honoured
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [0:0:0:0:0:0:0:1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+DIFFERS 3l request [0:..:1], key [::1]                             IGNORED (dialed ::1:1)   [ref: honoured]
+DIFFERS 3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 honoured   [ref: IGNORED (dialed ::1:1)]
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 0177.0.0.1
+DIFFERS 3q request 0177.0.0.1, key 127.0.0.1                       IGNORED (dialed 127.0.0.1:1)   [ref: honoured]
+DIFFERS 3r request 0177.0.0.1, key 0177.0.0.1                      honoured   [ref: IGNORED (dialed 127.0.0.1:1)]
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 2130706433
+DIFFERS 3q request 2130706433, key 127.0.0.1                       IGNORED (dialed 127.0.0.1:1)   [ref: honoured]
+DIFFERS 3r request 2130706433, key 2130706433                      honoured   [ref: IGNORED (dialed 127.0.0.1:1)]
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1: Connection refused
+        | Closing connection 36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1: Connection refused
+        | Closing connection 37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+ok      4c ... refused by ::1, not unreachable                     TRUE
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 5 ): file ftp ftps http https
+        protocols_str        listed FALSE NOT settable: Unknown option: protocols_str
+        redir_protocols_str  listed FALSE NOT settable: Unknown option: redir_protocols_str
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: ftp ftps http https [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: not settable on this build, skipped
+        6b protocols: http https [ATTEMPTED (dialed)]; file ftp ftps [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+        6d redir_protocols_str: not settable on this build, skipped
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing connection! (#50) with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing connection! (#51) with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+DIFFERS 8b chunked 250000, maxfilesize 1000                        delivered 250000 bytes   [ref: aborted]
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Found bundle for host 127.0.0.1: 0xaaab1d464350 [serially]
+        | Can not multiplex, even if we wanted to!
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port> (#65)
+        | Mark bundle as not supporting multiuse
+        | Closing connection 65
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+################################################################
+## docker ssrfr-probe:rocky9full, --network none
+################################################################
+libcurl-devel-7.76.1-40.el9_8.7.aarch64
+libcurl-7.76.1-40.el9_8.7.aarch64
+os: Rocky Linux 9.3 (Blue Onyx) | R 4.6.1 | LC_CTYPE C
+curl 8.0.0 | libcurl 7.76.1 | OpenSSL/3.5.8 | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | connect to 127.0.0.1 port 1 failed: Connection refused
+        | Failed to connect to 127.0.0.1 port 1: Connection refused
+        | Closing connection 0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [0:0:0:0:0:0:0:1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+DIFFERS 3l request [0:..:1], key [::1]                             IGNORED (dialed ::1:1)   [ref: honoured]
+DIFFERS 3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 honoured   [ref: IGNORED (dialed ::1:1)]
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 0177.0.0.1
+DIFFERS 3q request 0177.0.0.1, key 127.0.0.1                       IGNORED (dialed 127.0.0.1:1)   [ref: honoured]
+DIFFERS 3r request 0177.0.0.1, key 0177.0.0.1                      honoured   [ref: IGNORED (dialed 127.0.0.1:1)]
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 2130706433
+DIFFERS 3q request 2130706433, key 127.0.0.1                       IGNORED (dialed 127.0.0.1:1)   [ref: honoured]
+DIFFERS 3r request 2130706433, key 2130706433                      honoured   [ref: IGNORED (dialed 127.0.0.1:1)]
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1: Connection refused
+        | Closing connection 33
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying ::1:1...
+        | connect to ::1 port 1 failed: Connection refused
+        | Failed to connect to ::1 port 1: Connection refused
+        | Closing connection 34
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+ok      4c ... refused by ::1, not unreachable                     TRUE
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 24 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp
+        protocols_str        listed FALSE NOT settable: Unknown option: protocols_str
+        redir_protocols_str  listed FALSE NOT settable: Unknown option: redir_protocols_str
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: not settable on this build, skipped
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+        6d redir_protocols_str: not settable on this build, skipped
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing connection! (#66) with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing connection! (#67) with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+DIFFERS 8b chunked 250000, maxfilesize 1000                        delivered 250000 bytes   [ref: aborted]
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Found bundle for host 127.0.0.1: 0xaaaae9c032b0 [serially]
+        | Can not multiplex, even if we wanted to!
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port> (#81)
+        | Mark bundle as not supporting multiuse
+        | Closing connection 81
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+################################################################
+## docker ssrfr-probe:ubuntu2404, --network none, LANG=C, U-label rows only
+################################################################
+curl 8.0.0 | libcurl 8.5.0 | OpenSSL/3.0.13 | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            no dial: URL using bad/illegal format or missing URL [bücher.invalid   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+
+################################################################
+## docker ssrfr-probe:rocky9full, --network none, LANG=C.UTF-8, U-label rows only
+################################################################
+curl 8.0.0 | libcurl 7.76.1 | OpenSSL/3.5.8 | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+ok      3c request U-label, key U-label                            honoured
+ok      3d request U-label, key A-label                            IGNORED (resolved the name: failed)
+ok      3e request U-label, key = curl_parse_url() host            honoured
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+
+################################################################
+## docker ssrfr-probe:ubuntu2204, network ssrfr-probe-net, --dns-search corp.test
+################################################################
+
+nameserver 127.0.0.11
+search corp.test
+options ndots:0
+
+curl 8.0.0 | libcurl 7.81.0
+fixture: svc.corp.test -> 172.22.0.2
+ok      a nslookup("svc.corp.test") (control)                172.22.0.2
+ok      b nslookup("svc.corp.test.")                         172.22.0.2
+ok      c nslookup("svc"): search list applies               172.22.0.2
+ok      d nslookup("svc."): absolute, no search              no answer
+ok      e libcurl http://svc:1/ dials                        172.22.0.2
+DIFFERS f libcurl http://svc.:1/ dials                       172.22.0.2   [ref: could not resolve]
+
+################################################################
+## docker ssrfr-probe:ubuntu2404, network ssrfr-probe-net, --dns-search corp.test
+################################################################
+
+nameserver 127.0.0.11
+search corp.test
+options ndots:0
+
+curl 8.0.0 | libcurl 8.5.0
+fixture: svc.corp.test -> 172.22.0.2
+ok      a nslookup("svc.corp.test") (control)                172.22.0.2
+ok      b nslookup("svc.corp.test.")                         172.22.0.2
+ok      c nslookup("svc"): search list applies               172.22.0.2
+ok      d nslookup("svc."): absolute, no search              no answer
+ok      e libcurl http://svc:1/ dials                        172.22.0.2
+ok      f libcurl http://svc.:1/ dials                       could not resolve
+
+################################################################
+## docker ssrfr-probe:rocky9, network ssrfr-probe-net, --dns-search corp.test
+################################################################
+
+nameserver 127.0.0.11
+search corp.test
+options ndots:0
+
+curl 8.0.0 | libcurl 7.76.1
+fixture: svc.corp.test -> 172.22.0.2
+ok      a nslookup("svc.corp.test") (control)                172.22.0.2
+ok      b nslookup("svc.corp.test.")                         172.22.0.2
+ok      c nslookup("svc"): search list applies               172.22.0.2
+ok      d nslookup("svc."): absolute, no search              no answer
+ok      e libcurl http://svc:1/ dials                        172.22.0.2
+DIFFERS f libcurl http://svc.:1/ dials                       172.22.0.2   [ref: could not resolve]
+
+################################################################
+## docker ssrfr-probe:rocky9full, network ssrfr-probe-net, --dns-search corp.test
+################################################################
+
+nameserver 127.0.0.11
+search corp.test
+options ndots:0
+
+curl 8.0.0 | libcurl 7.76.1
+fixture: svc.corp.test -> 172.22.0.2
+ok      a nslookup("svc.corp.test") (control)                172.22.0.2
+ok      b nslookup("svc.corp.test.")                         172.22.0.2
+ok      c nslookup("svc"): search list applies               172.22.0.2
+ok      d nslookup("svc."): absolute, no search              no answer
+ok      e libcurl http://svc:1/ dials                        172.22.0.2
+DIFFERS f libcurl http://svc.:1/ dials                       172.22.0.2   [ref: could not resolve]

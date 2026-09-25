@@ -56,7 +56,7 @@ test_that("each provider endpoint refuses by value as cloud-metadata", {
   }
 })
 
-test_that("each metadata hostname refuses as cloud-metadata, and only exactly", {
+test_that("each metadata hostname refuses exactly, as cloud-metadata", {
   for (name in ssrf_vocabulary("metadata_hostnames")$hostname) {
     expect_identical(
       ssrf_inspect_url(paste0("http://", name, "/"))$code,

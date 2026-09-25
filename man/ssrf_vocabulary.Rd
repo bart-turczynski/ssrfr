@@ -7,26 +7,30 @@
 ssrf_vocabulary(domain = NULL)
 }
 \arguments{
-\item{domain}{The vocabulary to list: \code{"reason_codes"}, \code{"causes"} or
-\code{"condition_classes"}. \code{NULL}, the default, lists the vocabularies
-themselves.}
+\item{domain}{The vocabulary to list: \code{"reason_codes"}, \code{"causes"},
+\code{"condition_classes"}, \code{"provider_endpoints"} or \code{"metadata_hostnames"}.
+\code{NULL}, the default, lists the vocabularies themselves.}
 }
 \value{
 A data frame. For a named \code{domain}, one row per entry, keyed by the
-first column (\code{code}, \code{cause} or \code{class}), with the attributes \code{domain},
-\code{version} (the vocabulary's version stamp) and \code{package_version}. For
-\code{NULL}, one row per vocabulary with its \code{domain}, \code{version} and \code{size}, and
-the \code{package_version} attribute.
+first column (\code{code}, \code{cause}, \code{class}, \code{address} or \code{hostname}), with the
+attributes \code{domain}, \code{version} (the vocabulary's version stamp) and
+\code{package_version}. For \code{NULL}, one row per vocabulary with its \code{domain},
+\code{version} and \code{size}, and the \code{package_version} attribute.
 }
 \description{
 Enumerates one of the closed vocabularies \code{ssrfr} publishes: the reason
-codes a refusal carries, the causes an operational failure carries, and the
-classes of the misuse conditions it raises. Each vocabulary is API, carries
-a version stamp, and changes only with a new version.
+codes a refusal carries, the causes an operational failure carries, the
+classes of the misuse conditions it raises, and the two tables of policy
+data it owns: the provider endpoints refused by address and the metadata
+hostnames refused by name, each row citing the vendor documentation that
+names it. Each vocabulary is API, carries a version stamp, and changes only
+with a new version.
 }
 \examples{
 ssrf_vocabulary()
 ssrf_vocabulary("reason_codes")$code
 attr(ssrf_vocabulary("causes"), "version")
+ssrf_vocabulary("metadata_hostnames")$hostname
 
 }

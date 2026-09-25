@@ -63,7 +63,10 @@ domain_provider_endpoints <- function() {
       "100.100.100.200",
       "Alibaba Cloud",
       "instance-metadata",
-      "https://www.alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata/",
+      paste0(
+        "https://www.alibabacloud.com/help/en/ecs/user-guide/",
+        "view-instance-metadata/"
+      ),
       paste(
         "100.100.100.200 is a link-local address reachable only from within an",
         "ECS instance over its virtual network interface."
@@ -99,7 +102,10 @@ domain_provider_endpoints <- function() {
       "169.254.170.23",
       "AWS (EKS Pod Identity)",
       "instance-metadata",
-      "https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html",
+      paste0(
+        "https://docs.aws.amazon.com/eks/latest/userguide/",
+        "pod-id-agent-setup.html"
+      ),
       paste(
         "The agent uses the loopback (localhost) IP address 169.254.170.23 for",
         "IPv4 and the localhost IP address [fd00:ec2::23] for IPv6."
@@ -109,7 +115,10 @@ domain_provider_endpoints <- function() {
       "fd00:ec2::23",
       "AWS (EKS Pod Identity, IPv6)",
       "instance-metadata",
-      "https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html",
+      paste0(
+        "https://docs.aws.amazon.com/eks/latest/userguide/",
+        "pod-id-agent-setup.html"
+      ),
       paste(
         "The agent uses the loopback (localhost) IP address 169.254.170.23 for",
         "IPv4 and the localhost IP address [fd00:ec2::23] for IPv6."
@@ -194,14 +203,20 @@ domain_provider_endpoints <- function() {
 }
 
 domain_metadata_hostnames <- function() {
-  google <- "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata"
+  google <- paste0(
+    "https://docs.cloud.google.com/compute/docs/metadata/",
+    "querying-metadata"
+  )
   rows <- list(
     c(
       "metadata.google.internal",
       "169.254.169.254",
       "GCP",
       google,
-      "The DNS name: http://metadata.google.internal/computeMetadata/v1 (Recommended)"
+      paste(
+        "The DNS name: http://metadata.google.internal/computeMetadata/v1",
+        "(Recommended)"
+      )
     ),
     c(
       "metadata.goog",

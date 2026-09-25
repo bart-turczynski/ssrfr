@@ -18,10 +18,10 @@ knitr::opts_chunk$set(
 library(ssrfr)
 ```
 
-`ssrfr` is in its design phase and exports no guard functions yet. The
-contract it will implement is `design/specs/ssrfr-v1.md` in the source
-repository. This vignette will show a guarded fetch and a caller-owned redirect
-loop once `ssrf_prepare_hop()` and `ssrf_fetch()` exist.
+`ssrfr` is under development and does not guard a fetch yet. The contract it
+implements is `design/specs/ssrfr-v1.md` in the source repository. This
+vignette will show a guarded fetch and a caller-owned redirect loop once
+`ssrf_prepare_hop()` and `ssrf_fetch()` exist.
 
 What exists so far is the policy a hop will be evaluated under. It is
 validated when it is built, so a malformed rule is an error rather than a rule
@@ -38,4 +38,36 @@ The reason codes a refusal will carry are a closed, versioned vocabulary:
 
 ```{r}
 ssrf_vocabulary("reason_codes")$code
+```
+
+## Inspecting a URL
+
+`ssrf_inspect_url()` reports what a URL is under a policy, with no network
+I/O. It parses the URL as the guarded fetch will, with `rurl` and then with
+libcurl's own parser, and reports the first check that applies: a parse the two
+parsers disagree on, the scheme, embedded credentials, the port, an ambiguous
+numeric host, the hostname rules, and, for a host written as an address, the
+address rules.
+
+```{r}
+ssrf_inspect_url("http://0177.0.0.1/")$code
+ssrf_inspect_url("http://[64:ff9b::a9fe:a9fe]/latest/meta-data/")
+```
+
+It is a pre-filter and a way to lint a configuration, not a defense. It
+resolves no name, so a name it finds nothing wrong with may still point
+anywhere:
+
+```{r}
+ssrf_inspect_url("https://example.com/")$code
+
+policy <- ssrf_policy(allow_ranges = "10.0.0.0/8")
+ssrf_inspect_url("http://10.1.2.3/", policy)$code
+```
+
+The provider endpoints and metadata hostnames it refuses by default are
+vocabularies too, each row citing the vendor documentation that names it:
+
+```{r}
+ssrf_vocabulary("metadata_hostnames")$hostname
 ```

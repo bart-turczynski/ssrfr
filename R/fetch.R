@@ -54,7 +54,8 @@ connected_cause <- function(error) {
 #' The whole response is read before `ssrf_fetch()` returns, within the
 #' policy's limits: `max_response_size` counts the body's bytes after any
 #' `gzip` or `deflate` decoding, as they arrive, so a compressed body cannot
-#' exceed it; `max_header_bytes` and `max_header_fields` bound the header;
+#' exceed it; `max_header_bytes` and `max_header_fields` bound the header,
+#' including any interim `1xx` responses, as it arrives;
 #' `connect_timeout` bounds each connection attempt and `total_timeout` the
 #' time spent in `ssrfr` for the chain, decoding included.
 #'
@@ -81,8 +82,10 @@ connected_cause <- function(error) {
 #'
 #'   A response is a plain list that owns no handle, connection or file:
 #'   `status` (the HTTP status code), `headers` (the final response's header
-#'   fields, a character vector named by lowercase field name) and `body` (the
-#'   decoded body, a raw vector; `rawToChar(response$body)` reads text). Its
+#'   fields, a character vector named by lowercase field name, without the
+#'   trailer fields of a chunked body; a value that is not valid UTF-8 is
+#'   kept byte for byte and marked `"bytes"`) and `body` (the decoded
+#'   body, a raw vector; `rawToChar(response$body)` reads text). Its
 #'   `print()` and `format()` show only the status, the media type and the
 #'   body size, never the body or another header value.
 #'

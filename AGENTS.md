@@ -20,5 +20,3 @@ For open decisions blocking v1, see design/specs/ssrfr-v1.md §8.
 For R and libcurl specifics and the test layers, see design/specs/r-binding.md.
 For permitted compliance claims, see design/specs/ssrfr-v1.md §15.
 For the design-doc lifecycle and status markers, see design/README.md.
-
-@FP_AGENTS.md

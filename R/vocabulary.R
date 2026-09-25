@@ -1,12 +1,14 @@
 # Closed domains (ssrfr-v1.md §6.1): reason codes (§6.5), operational causes
-# (§6.6) and misuse condition classes (§6.6). Each is a data frame whose first
-# column is the key, stamped with a version. tests/testthat/test-vocabulary.R
-# pins every version to its key set in both directions, so changing a domain's
-# keys means bumping its version here and pinning the new set there.
+# (§6.6), misuse condition classes (§6.6), and the two policy-data tables of
+# R/policy-data.R, the provider endpoints (§5 gate 2) and the metadata
+# hostnames (§5 gate 5). Each is a data frame whose first column is the key,
+# stamped with a version. tests/testthat/test-vocabulary.R pins every version
+# to its key set in both directions, so changing a domain's keys means bumping
+# its version here and pinning the new set there.
 #
-# To add a domain (the provider-endpoint table and the metadata hostname list
-# are next): write a `domain_<name>()` builder that returns closed_domain(), add
-# it to closed_domains(), and add its pin history to test-vocabulary.R.
+# To add a domain: write a `domain_<name>()` builder that returns
+# closed_domain(), add it to closed_domains(), and add its pin history to
+# test-vocabulary.R.
 
 # Stamps a data frame as a closed domain. The first column is the key: a
 # character vector with no missing or repeated value.
@@ -154,7 +156,9 @@ closed_domains <- function() {
   list(
     reason_codes = domain_reason_codes(),
     causes = domain_causes(),
-    condition_classes = domain_condition_classes()
+    condition_classes = domain_condition_classes(),
+    provider_endpoints = domain_provider_endpoints(),
+    metadata_hostnames = domain_metadata_hostnames()
   )
 }
 
@@ -166,24 +170,28 @@ domain_keys <- function(name) {
 #' List a closed vocabulary
 #'
 #' Enumerates one of the closed vocabularies `ssrfr` publishes: the reason
-#' codes a refusal carries, the causes an operational failure carries, and the
-#' classes of the misuse conditions it raises. Each vocabulary is API, carries
-#' a version stamp, and changes only with a new version.
+#' codes a refusal carries, the causes an operational failure carries, the
+#' classes of the misuse conditions it raises, and the two tables of policy
+#' data it owns: the provider endpoints refused by address and the metadata
+#' hostnames refused by name, each row citing the vendor documentation that
+#' names it. Each vocabulary is API, carries a version stamp, and changes only
+#' with a new version.
 #'
-#' @param domain The vocabulary to list: `"reason_codes"`, `"causes"` or
-#'   `"condition_classes"`. `NULL`, the default, lists the vocabularies
-#'   themselves.
+#' @param domain The vocabulary to list: `"reason_codes"`, `"causes"`,
+#'   `"condition_classes"`, `"provider_endpoints"` or `"metadata_hostnames"`.
+#'   `NULL`, the default, lists the vocabularies themselves.
 #'
 #' @return A data frame. For a named `domain`, one row per entry, keyed by the
-#'   first column (`code`, `cause` or `class`), with the attributes `domain`,
-#'   `version` (the vocabulary's version stamp) and `package_version`. For
-#'   `NULL`, one row per vocabulary with its `domain`, `version` and `size`, and
-#'   the `package_version` attribute.
+#'   first column (`code`, `cause`, `class`, `address` or `hostname`), with the
+#'   attributes `domain`, `version` (the vocabulary's version stamp) and
+#'   `package_version`. For `NULL`, one row per vocabulary with its `domain`,
+#'   `version` and `size`, and the `package_version` attribute.
 #'
 #' @examples
 #' ssrf_vocabulary()
 #' ssrf_vocabulary("reason_codes")$code
 #' attr(ssrf_vocabulary("causes"), "version")
+#' ssrf_vocabulary("metadata_hostnames")$hostname
 #'
 #' @export
 ssrf_vocabulary <- function(domain = NULL) {

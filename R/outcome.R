@@ -13,6 +13,8 @@
 # itself stays on the object for the operator.
 
 display_detail_keys <- c(
+  "step",
+  "check",
   "gate",
   "tier",
   "limit",

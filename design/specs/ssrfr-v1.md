@@ -1,6 +1,6 @@
 ---
 status: draft
-version: 1.5.0-draft
+version: 1.6.0-draft
 date: 2026-09-25
 tracking: SSRF-xrlijlqq, SSRF-ibxdyzcy
 ---
@@ -41,7 +41,8 @@ fields (§5.3), and Part II, as answered in the v1 decision brief (fp brainstorm
 `nftbfuli`; ADR 0004). **Ratified 2026-09-25:** the local research-note
 findings proposed on 2026-09-24 (§8 item 23, `SSRF-nbcgyled`), with INV-10's rationale
 corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
-unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007).
+unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
+items 32–33, two gaps a review of the implementation tickets found.
 The transport findings are unverified off macOS (§8 items 6 and 7), so L2 stays
 blocked on them.
 
@@ -313,6 +314,15 @@ one `Location` field line. A redirect status without `Location` is a final
 response, as in Fetch, so its binding is not accepted as `from`. More than one
 `Location` field line is `protocol-error` (§6.6). No other 3xx status is
 followed.
+
+Once the chain's redirect budget is spent, including under `max_redirects = 0`,
+every 3xx response refuses as `redirect-limit`, whether or not it carries
+`Location` and whether or not its status is one `ssrfr` follows: a `304` or a
+`Location`-less `302` is then a refusal, not a final response. While budget
+remains, the rule above applies. This is §5.3's "refuse any 3xx" read
+literally, as the OWASP sources behind it intend; a caller that expects a `304`
+raises `max_redirects`. *Ratified 2026-09-25* (§8 item 33, `SSRF-cnljaaek`
+review).
 
 The deterministic v1 transformation is:
 
@@ -1195,7 +1205,7 @@ reference pages list the same set is unchecked.
 | `6to4` | 6to4 address (refused at tier 1, §5.1) |
 | `teredo` | Teredo address (refused at tier 1, §5.1) |
 | `isatap` | ISATAP, prohibited embedded value |
-| `malformed-address` | address literal that could not be decoded (ADR 0001 §3) |
+| `malformed-address` | address literal that could not be decoded (ADR 0001 §3), or an address `raddr` failed to classify (§8 item 32) |
 | `numeric-literal` | ambiguous numeric host encoding |
 | `scheme` | scheme not permitted |
 
@@ -1232,6 +1242,7 @@ the decoded category is carried in operator detail (§6.4).
 | category `loopback`, `private`, `link_local`, `unspecified`, `this_network`, `shared`, `multicast` | same name, `kebab-case` |
 | any other non-global category (`broadcast`, `documentation`, `benchmarking`, `future_use`, `protocol`, `anycast`, `discard`, `dummy`, `discovery`, `special`, `unallocated`) | `reserved` (ADR 0004) |
 | parse failure codes | `malformed-address` |
+| a `raddr` call that errors, returns `NULL` or returns a wrong shape for an address it has already parsed (INV-11) | `malformed-address` |
 | `rurl` `layer1_syntax_verdict` `"fail"`, or `rurl`/libcurl host disagreement | `parse` |
 | `rurl` `layer2_policy_verdict` other than `"admitted"` (e.g. `"rejected-scheme"`) | `scheme` |
 | `rurl` numeric-literal shape diagnostic on the input host | `numeric-literal` |
@@ -1395,6 +1406,8 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 29 | A test helper for consumers, or only the documented `allow_ranges = "127.0.0.0/8"` recipe | **closed — ratified** 2026-09-25 by a unanimous four-model vote: the recipe only (§9) — `SSRF-cnljaaek` |
 | 30 | A runtime refusal or warning on an untested major version of `curl`, `rurl` or `raddr`, or the corpus (§7) as the only check | **closed — ratified** 2026-09-25 by a unanimous four-model vote: no runtime check; the corpus and published results (§4.3) — `SSRF-cnljaaek` |
 | 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: straight to the guarded fetch, with no L0 adapter (S6, ADR 0007) — `SSRF-cnljaaek` |
+| 32 | The reason code when a `raddr` call fails on an address it has already parsed: INV-11 requires refusal, and §6.6's `unresolvable` covers only an answer `raddr` cannot parse | **closed — ratified** 2026-09-25 by the maintainer: `malformed-address`, the existing code for an address that could not be interpreted; no new code (§6.5). Raised by a GPT-6 Sol review of the implementation tickets — `SSRF-ifldwmnc` |
+| 33 | A 3xx without `Location` once the redirect budget is spent: §2.3 calls it a final response, while §5.3 and §6.5 refuse any 3xx | **closed — ratified** 2026-09-25 by the maintainer: every 3xx refuses as `redirect-limit` once the budget is spent, including under `max_redirects = 0` (§2.3). Raised by the same review — `SSRF-fvtqbanc` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency

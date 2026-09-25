@@ -1,15 +1,16 @@
-# Every call ssrfr makes into rurl, libcurl's URL parser and raddr goes through
-# one of the internal wrappers below (ssrfr-v1.md §4, §5.3, INV-11). A wrapper
-# is the call and nothing else, so a test can replace it with
-# testthat::local_mocked_bindings(); callers therefore look each wrapper up by
-# name at call time (r-binding.md §7, Rules).
+# Every call ssrfr makes into rurl, libcurl's URL parser, raddr and the system
+# resolver goes through one of the internal wrappers below (ssrfr-v1.md §4,
+# §5.3, INV-11). A wrapper is the call and nothing else, so a test can replace
+# it with testthat::local_mocked_bindings(); callers therefore look each
+# wrapper up by name at call time (r-binding.md §7, Rules).
 #
 # No caller uses a wrapper's value directly. It goes through dep_call(), which
 # turns an error, a NULL or a value of the wrong shape into NULL, and callers
 # read NULL as a refusal: `parse` for a parser (§5.3), `malformed-address` for
-# raddr (§6.5, §8 item 32). Warnings and messages from a dependency are
-# muffled: they are not refusals (r-binding.md §2.2), and their text can quote
-# the URL, userinfo included, which ssrfr never relays (§2.3).
+# raddr (§6.5, §8 item 32), and the operational cause `unresolvable` for the
+# resolver (§6.6). Warnings and messages from a dependency are muffled: they
+# are not refusals (r-binding.md §2.2), and their text can quote the URL,
+# userinfo included, which ssrfr never relays (§2.3).
 
 # The fixed rurl bundle (r-binding.md §2.1). It is internal and not
 # caller-configurable (INV-1): every argument is passed on every call that
@@ -123,6 +124,16 @@ dep_raddr_format <- function(x) {
   raddr::addr_format(x)
 }
 
+# --- the system resolver ------------------------------------------------------
+# The only DNS call in ssrfr (r-binding.md §3). `multiple = TRUE` keeps every
+# address the one resolver call returns (INV-4). It is unexported and no
+# function takes a resolver argument (INV-5); tests replace it with
+# testthat::local_mocked_bindings().
+
+dep_nslookup <- function(query) {
+  curl::nslookup(query, ipv4_only = FALSE, multiple = TRUE, error = TRUE)
+}
+
 # --- guarded readings ---------------------------------------------------------
 # Each returns the value in the shape ssrfr reads, or NULL.
 
@@ -185,12 +196,38 @@ read_curl_parse <- function(url) {
   p[c("scheme", "host", "port", "user", "password")]
 }
 
+# The resolver's answer set for one query: a character vector, possibly
+# empty, or NULL when the resolver errors or returns anything else (§6.6).
+read_answers <- function(query) {
+  dep_call(dep_nslookup, query, valid = function(a) {
+    is.character(a) && !anyNA(a)
+  })
+}
+
 # One address, parsed from canonical text (r-binding.md §2.6). NULL when raddr
 # errors, returns the wrong shape, or cannot read the text (NA).
 read_address <- function(text) {
   dep_call(dep_raddr_pton, text, valid = function(a) {
     inherits(a, "raddr_address") && length(a) == 1L && !is.na(a)
   })
+}
+
+# Whether raddr reads one resolver answer as an address: TRUE, FALSE when it
+# answers NA (the text is not an address), or NULL when the call fails. The
+# two failures differ: an answer that is not an address is `unresolvable`
+# (§6.6), a raddr call that fails is `malformed-address` (§8 item 32).
+read_is_address <- function(text) {
+  a <- dep_call(dep_raddr_pton, text, valid = function(a) {
+    inherits(a, "raddr_address") && length(a) == 1L
+  })
+  if (is.null(a)) {
+    return(NULL)
+  }
+  missing <- tryCatch(is.na(a), error = function(e) NULL)
+  if (!is.logical(missing) || length(missing) != 1L || is.na(missing)) {
+    return(NULL)
+  }
+  !missing
 }
 
 read_format <- function(x) {

@@ -10,7 +10,8 @@ Description: Protects R applications that fetch URLs an attacker can
     once, resolved once, and every resolved address is classified before the
     connection is pinned to a validated address, so a hostname cannot be
     rebound between check and connect. Refusals carry stable reason codes.
-    Under development; the design is documented but not yet implemented.
+    Under development: the policy and result model are implemented, the
+    guarded fetch is not yet.
 License: MIT + file LICENSE
 URL: https://ssrfr-290b3f.gitlab.io, https://gitlab.com/bart-turczynski/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
@@ -19,6 +20,10 @@ Language: en-US
 Roxygen: list(markdown = TRUE)
 Depends:
     R (>= 4.0.0)
+Imports:
+    curl (>= 7.0.0),
+    raddr (>= 0.1.2),
+    rurl (>= 3.0.0)
 Suggests:
     cucumber (>= 2.0.0),
     knitr,

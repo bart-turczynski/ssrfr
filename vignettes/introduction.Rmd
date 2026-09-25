@@ -23,8 +23,19 @@ contract it will implement is `design/specs/ssrfr-v1.md` in the source
 repository. This vignette will show a guarded fetch and a caller-owned redirect
 loop once `ssrf_prepare_hop()` and `ssrf_fetch()` exist.
 
-For now the package exports only a placeholder:
+What exists so far is the policy a hop will be evaluated under. It is
+validated when it is built, so a malformed rule is an error rather than a rule
+that silently matches nothing:
 
 ```{r}
-scaffold_ready()
+policy <- ssrf_policy(allow_ranges = "10.0.0.0/8", deny_hosts = ".corp")
+policy
+
+try(ssrf_policy(deny_hosts = "com, ru"))
+```
+
+The reason codes a refusal will carry are a closed, versioned vocabulary:
+
+```{r}
+ssrf_vocabulary("reason_codes")$code
 ```

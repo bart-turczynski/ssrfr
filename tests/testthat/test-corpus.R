@@ -22,43 +22,10 @@ has_bad_escape <- function(x) {
   grepl("\\", rest, fixed = TRUE)
 }
 
-reason_codes <- c(
-  "loopback",
-  "private",
-  "link-local",
-  "cloud-metadata",
-  "shared",
-  "unspecified",
-  "this-network",
-  "ipv4-mapped",
-  "ipv4-translated",
-  "ipv4-compatible",
-  "nat64",
-  "6to4",
-  "teredo",
-  "isatap",
-  "malformed-address",
-  "numeric-literal",
-  "scheme",
-  "downgrade",
-  "userinfo",
-  "port",
-  "host-denied",
-  "range-denied",
-  "parse",
-  "multicast",
-  "redirect-limit",
-  "reserved"
-)
-causes <- c(
-  "unresolvable",
-  "pin-mismatch",
-  "connect-failed",
-  "tls-failed",
-  "timeout",
-  "response-too-large",
-  "protocol-error"
-)
+# The corpus may use only codes and causes from the closed domains (§6.1), which
+# test-vocabulary.R pins.
+reason_codes <- ssrf_vocabulary("reason_codes")$code
+causes <- ssrf_vocabulary("causes")$cause
 status_ok <- function(x) grepl("^(active|pending:.+|superseded:.+)$", x)
 
 test_that("every corpus file matches its committed row count and checksum", {

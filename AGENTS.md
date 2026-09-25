@@ -12,7 +12,8 @@ R package: an SSRF guard for applications that fetch attacker-supplied URLs (`pl
 - `docs/` is pkgdown output, never design docs.
 - No CI yet. The pre-push hooks (`verify`, `check-design`) are the only gate; enable them per clone with `pre-commit install && pre-commit install --hook-type pre-push`.
 - New top-level tooling files need a `.Rbuildignore` entry.
-- `_scratch/` is local-only; durable knowledge goes in `design/`.
+- `_scratch/` is disposable working space: never cite it, never update it, never read it as
+  documentation. Durable knowledge goes in `design/`, ideas in an fp brainstorm.
 
 For setup, verification, and the roxygen-generated `NAMESPACE` and `man/`, see README.md.
 For the document map and package ownership across the stack, see ARCHITECTURE.md.

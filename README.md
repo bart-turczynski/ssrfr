@@ -52,4 +52,3 @@ would. All four run as pre-push hooks (`verify` and `check-design`).
 - `DESCRIPTION` declares package metadata and dependencies.
 - `design/` contains the specification, ADRs and committed evidence; `ARCHITECTURE.md` maps them.
 - `docs/` is reserved for pkgdown output.
-- `_scratch/` is local-only planning space and is ignored by git.

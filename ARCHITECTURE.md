@@ -65,7 +65,6 @@ tried and reverted (`19f08fb`).
 - `scripts/corpus-manifest.R` — rewrites the corpus row counts and checksums
   (`ssrfr-v1.md` §7.2).
 - `docs/` — reserved for pkgdown output. Never design documents.
-- `_scratch/` — local-only research and drafts, git-ignored.
 
 ## Consumers
 

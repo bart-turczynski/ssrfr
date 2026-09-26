@@ -352,6 +352,7 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `redir_protocols_str` | `"http,https"` | removes `ftp`/`ftps` from redirect hops |
 | `followlocation` | `0L` | INV-7 |
 | `forbid_reuse` | `1L` | reuse must not outlive the pin |
+| `http_version` | `2L` (`CURL_HTTP_VERSION_1_1`) | spec §2.5, the request sent at most once — see below |
 | `dns_cache_timeout` | `0L` | libcurl caches DNS 60 s by default |
 | `proxy` | `""` | INV-10 |
 | `noproxy` | `"*"` | INV-10 — see the warning below |
@@ -360,7 +361,7 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `cookiefile` | `NULL` | stops the cookie engine the `curl` package starts — see below |
 | `cookiejar` | never set | it writes received cookies to disk at cleanup |
 | `connecttimeout`, `timeout` | finite | libcurl's `timeout` default is **0 = never** |
-| `maxfilesize` | set, not trusted | see below |
+| `maxfilesize` | never set | see below |
 | `path_as_is` | `1L` | libcurl removes no dot segments; `rurl`'s WHATWG serialization has already removed them, `%2e` forms included (`design/evidence/2026-09-25-dot-segments.R`), so this only makes the serialized path the one sent (`ssrfr-v1.md` §8 item 24). It does not make the whole request line equal the recorded URL |
 | `altsvc`, `hsts` | never set | INV-10 |
 | `unix_socket_path`, `abstract_unix_socket` | never set | container control planes |
@@ -368,12 +369,8 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `dns_shuffle_addresses` | `0L` | ordering stays ours |
 | `accept_encoding` | set explicitly, never `NULL` | fixes the request; the package default is build-dependent — see below |
 
-Left at their defaults on purpose: `http_version` — libcurl 8.14.1 reuses a
-connection only for the same host name and port, so HTTP/2 coalesces nothing
-**[sourced]**, and HTTP/3 is neither in the evidence build (`http_version =
-30L` fails at `setopt` **[verified]**) nor reachable without asking or
-`Alt-Svc`; `ipresolve` — a literal `connect_to` target overrides it
-**[verified]**; `maxage_conn` — under `forbid_reuse` nothing idles in the pool;
+Left at their defaults on purpose: `ipresolve` — a literal `connect_to`
+target overrides it **[verified]**; `maxage_conn` — under `forbid_reuse` nothing idles in the pool;
 `low_speed_limit`/`low_speed_time` — the package's 1 byte/s over 600 s is
 inside the finite `timeout` anyway.
 
@@ -391,7 +388,7 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 | `useragent` from `getOption("HTTPUserAgent")` | overridden (spec §5.3 `user_agent`) |
 | `connecttimeout = 10` | overridden (`connect_timeout`) |
 | `low_speed_limit = 1`, `low_speed_time = 600` | left — inside the finite `timeout` |
-| `httpauth = CURLAUTH_ANY` | left — inert without credentials, which `netrc = 0L` removes |
+| `httpauth = CURLAUTH_ANY` | overridden (`1L`, `CURLAUTH_BASIC`). Not inert under `allow_userinfo = TRUE`: URL userinfo is a credential, and a `401` challenge made libcurl send the request a second time within one transfer, against spec §2.5. A regression test pins it (`tests/testthat/test-fetch.R`, "an auth challenge never makes the request a second time"; `SSRF-rgcijatt`); no probe under `../evidence/` yet, so it carries no evidence tag. Basic sends the credentials on the first request, with no challenge round-trip |
 | `pipewait = 1` | left — inert under `forbid_reuse` |
 | Windows only: `ssl_options = CURLSSLOPT_NO_REVOKE`, plus `CURLSSLOPT_NATIVE_CA` under OpenSSL when `CURL_CA_BUNDLE` is unset **[sourced]** | left — revocation is outside INV-9 (spec §13). The flag affects Schannel only, and libcurl checks neither OCSP stapling nor a CRL unless asked **[sourced]**, so no platform checks revocation. Overriding `ssl_options` would also drop `NATIVE_CA`. Unverified on Windows (spec §8 item 6) |
 
@@ -434,7 +431,27 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   connection outlives its hop (spec §14; **[verified]**, §4.1). The other
   direction needs no option: libcurl never gives a `connect_to` transfer a
   connection opened without a connect-to host, or with a different one
-  **[sourced]**.
+  **[sourced]**. Nor can a pooled connection carry a transfer's first
+  request, because `dep_curl_transfer()` runs each transfer in a pool of its
+  own (`curl::new_pool()`), so its initial connection is always fresh and
+  libcurl's retry of a request that a reused connection answered with
+  nothing (`Curl_retry_request()`, `lib/transfer.c` at `curl-8_14_1`) never
+  applies **[sourced]**; a regression test pins the fresh connection
+  (`tests/testthat/test-fetch-limits.R`, "every fetch opens a fresh
+  connection"; `SSRF-rgcijatt`), with no probe under `../evidence/` yet.
+- **`http_version` is pinned to HTTP/1.1.** Over HTTP/2, a stream the server
+  resets with `REFUSED_STREAM` makes libcurl close the connection and send
+  the request again on a new one within the same transfer, up to five times
+  (`lib/http2.c` sets `refused_stream`, which `Curl_retry_request()` in
+  `lib/transfer.c` retries, at `curl-8_14_1`) **[sourced]**, against spec
+  §2.5's at-most-once. One request per transfer gains nothing from HTTP/2,
+  and libcurl 8.14.1 reuses a connection only for the same host name and
+  port, so HTTP/2 would coalesce nothing anyway **[sourced]**. HTTP/3 is
+  not in the evidence build (`http_version = 30L` fails at `setopt`
+  **[verified]**). The pin also takes `h2` out of the TLS ALPN offer; a
+  regression test pins that (`tests/testthat/test-fetch.R`, "HTTP/2 is never
+  offered, even over TLS"; `SSRF-rgcijatt`), with no probe under
+  `../evidence/` yet.
 - **netrc is on whenever `getOption("netrc")` is set.** R 4.6.0 added the
   option for `download.file()`, and `curl` 7.0.0 applies it to every new handle
   as `CURL_NETRC_OPTIONAL` **[sourced]**; libcurl's own default ignores netrc.
@@ -462,7 +479,11 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   `Content-Length` over the cap aborts on all four; matrix, probes 8a–8b).
   Either way it counts
   wire bytes, so a compressed bomb passes. A real cap needs a write-callback byte
-  counter.
+  counter. It also refuses a `HEAD` whose `Content-Length` is over the cap, and a
+  compressed body whose wire size is over the cap while its decoded size is
+  within it (pinned by `tests/testthat/test-fetch-limits.R`, `SSRF-rgcijatt`; no probe
+  under `../evidence/` yet), so
+  `ssrfr` never sets it: its own decoded-byte counter is the limit (spec §5.3).
 - **`accept_encoding` sets what is advertised, not what is decoded.** With any
   non-`NULL` value libcurl decodes every encoding it was built with that the
   response names in `Content-Encoding`: `"gzip"` and `"identity"` both decode a
@@ -614,7 +635,12 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 | `Alt-Svc` has no effect | INV-10 | L2 | served header | if `webfakes` |
 | Timeouts; byte cap on a chunked body | §5.3, §14 | L2 | `res$delay()`, `res$send_chunk()` | if `webfakes`; wide margins |
 | Compression bomb: a `gzip` body under `max_response_size` on the wire and over it decoded → `response-too-large`, from `ssrfr`'s own counter, never `maxfilesize`; `total_timeout` re-checked after decoding | §5.3, §14 | L2 | served pre-compressed body | if `webfakes` |
+| Accepted residual, decoding after a stop: a limit stop takes effect when the libcurl round it came in ends, because no callback may raise (row below), and within that round libcurl goes on reading and decoding what arrives; `ssrfr` drops it, never keeps or counts it, so the response and its limits hold, but the work is done. Against a 404,282-byte `gzip` bomb stopped at 100,000 decoded bytes, the bytes decoded and dropped after the stop were 178 MB on libcurl 8.14.1 (10 reads of 16 KiB), about 400 MB on 8.5.0 (the whole body), and 16 MB on 7.81.0 and 7.76.1 (the rest of the read in hand) **[verified]** ([`2026-09-26-post-stop-reads.txt`](../evidence/2026-09-26-post-stop-reads.txt)). `buffersize` scales this on every build but bounds it on none. Declined: turning decoding off and refusing compressed responses, which costs every caller the bandwidth compression saves (maintainer, 2026-09-26). The fix is a write callback that can end the transfer without an R error, a short write, which `curl`'s R callback cannot return today (`SSRF-qqfvoxch`) | §5.3, §14 | — | none: a measured residual | — |
 | An interrupt mid-transfer leaves the binding spent and no handle open | §2.5 | L2 | `res$send_chunk()` with a delay, and an interrupt raised during the transfer | if `webfakes` |
+| `ssrfr` raises no interrupt and no R error of its own inside a `curl` callback, so a limit stop is always a failure and every interrupt is the user's and propagates, one pending as `ssrfr` stops a transfer at a limit included. `curl` evaluates each callback as a top-level call, so an R error raised there runs the user's `options(error = )` hook, and libcurl reports a transfer a progress callback aborted as an abort by callback, which `curl` raises as an interrupt. So no callback raises or aborts: a limit reached in the write or the progress callback is recorded, later deliveries are dropped unread, and the transfer is cancelled between libcurl rounds. An error in `ssrfr`'s own write or progress callback is caught and ends the fetch as `protocol-error`, check `callback-error`, naming the callback; one in the trace callback, whose errors `curl` would discard, leaves the pin unconfirmed, so `pin-mismatch`, naming `debug`: check `trace-error` when the trace otherwise matches, or the trace's own check when it does not. A progress callback that fails before libcurl traces `Trying` leaves the check `absent`, and the failure names it; the write callback cannot run before the dial, and whether libcurl calls progress before tracing `Trying` on every build is untested **[assumption]** (`SSRF-dmmcitul`). A transfer the wrapper reports stopped with neither a limit record nor a callback failure ends as `protocol-error`, check `aborted`. Callbacks run with interrupts suspended, because a top-level call swallows an interrupt R acts on inside it. Residual: R may act on one in the few evaluations before a callback's suspension takes hold or after it lifts; in the trace or write callback it is then lost, and the transfer goes on or ends as `protocol-error` | §2.5, §6.6 | L3 | the process sends itself `SIGINT`, interrupts suspended, from the progress call that reaches `max_header_bytes`; twenty header-limit stops in a row against a counting server; an `options(error = )` hook that must not run through a size, a `total_timeout` and two header-limit stops; `data`, `progress` and `debug` made to throw | runs; the `SIGINT` test not on Windows |
+| The request is sent at most once: a `417` to a body, a `401` challenge with URL credentials, a `3xx` with `Location`, `1xx` before a final response; `Expect` and `h2` are never offered | §2.5 | L3; L2 for the `401` and TLS | a raw server that answers every request on every connection it accepts and keeps them open, counting requests | runs; the `401` and TLS rows if `webfakes` |
+| Each transfer's first request goes on a fresh connection | §14 | L3 | two fetches to a server that keeps connections open arrive on two | runs |
+| A chunked body's trailer fields count against `max_header_bytes` and `max_header_fields` as they arrive. libcurl writes trailer lines to the header buffer but not to the trace's header lines, so `ssrfr` measures header and trailers alike from the header buffer, never from the trace, and the limits hold in flight even on a build that traces no line for a read of header or trailer bytes. No empty line ends the trailer lines, so one segmenter, shared by the measure and the parse, classifies each line by the block before it: a status line at the start or after an empty line opens a header block, ended or not, unless a complete final block precedes it, and every line after that block is a trailer line, and a field unless it is empty, one shaped like a status line included. A count taken in flight and one taken at the end therefore agree: a header cut short at `max_header_fields` ends with the transfer's own cause, and a status-shaped first trailer counts before any body byte is delivered | §5.3, §6.6 | L3; L0 for the segmenter and the status-shaped line | raw server sending many, wide and never-ending trailers, and a header cut short at the field limit; a never-ending header and never-ending trailers with every trace line but text withheld; a scripted progress call over a final block and a status-shaped trailer; the segmenter and the header measure run on raw buffers | runs |
 | Ordinary HTTP still works through the guard: methods, headers, `gzip`, a redirect chain | §2 | L2 | `webfakes::httpbin_app()` via `ssrf_prepare_hop()` / `ssrf_fetch()` | if `webfakes` |
 | IPv6 pin | INV-6 | L2 (`httpuv`) | `"HOST::[::1]:"` | if `httpuv` and `::1` bind |
 | Real DNS, certificate chains, live rebinding | INV-4, INV-5, INV-9 | L4 | `SSRFR_INTEGRATION_TESTS` | never |
@@ -890,5 +916,6 @@ Each script records its environment and expected output; run it with
 | [`2026-09-25-platform-transport-probes.R`](../evidence/2026-09-25-platform-transport-probes.R) | platform-neutral re-run of the transport findings, one `ok`/`DIFFERS` row per probe: the `debugfunction` seam, key forms and the port-key fail-open, host-key mismatches, the bracketed IPv6 pin, failover, protocol exposure under `protocols_str` and the bitmask, redirect-hop protocols, connection reuse and the DNS cache, `maxfilesize`, the trace text (§4–§6) |
 | [`2026-09-25-search-domain-probe.R`](../evidence/2026-09-25-search-domain-probe.R) | a single-label name under a DNS search list, with and without the trailing root dot, through `nslookup()` and libcurl (`ssrfr-v1.md` §5.0) |
 | [`2026-09-25-linux-transport-matrix.sh`](../evidence/2026-09-25-linux-transport-matrix.sh) | runs the two scripts above on the host and in Docker on Ubuntu 22.04, Ubuntu 24.04 and Rocky 9 (both libcurl builds); its output is [`2026-09-25-linux-transport-results.txt`](../evidence/2026-09-25-linux-transport-results.txt) |
+| [`2026-09-26-post-stop-reads.R`](../evidence/2026-09-26-post-stop-reads.R) | how much libcurl reads and decodes after a write callback records a stop and returns, per `buffersize`, reproduced with `curl` alone; run on the host and in the Docker images above, output in [`2026-09-26-post-stop-reads.txt`](../evidence/2026-09-26-post-stop-reads.txt) (§7) |
 
 External sources for this file are in [`../references.md`](../references.md).

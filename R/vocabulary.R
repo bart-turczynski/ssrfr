@@ -1,10 +1,11 @@
 # Closed domains (ssrfr-v1.md §6.1): reason codes (§6.5), operational causes
-# (§6.6), misuse condition classes (§6.6), and the two policy-data tables of
-# R/policy-data.R, the provider endpoints (§5 gate 2) and the metadata
-# hostnames (§5 gate 5). Each is a data frame whose first column is the key,
-# stamped with a version. tests/testthat/test-vocabulary.R pins every version
-# to its key set in both directions, so changing a domain's keys means bumping
-# its version here and pinning the new set there.
+# (§6.6), misuse condition classes (§6.6), and the policy-data tables of
+# R/policy-data.R: the provider endpoints (§5 gate 2), the metadata hostnames
+# (§5 gate 5) and the metadata-service request headers (§2.3). Each is a data
+# frame whose first column is the key, stamped with a version.
+# tests/testthat/test-vocabulary.R pins every version to its key set in both
+# directions, so changing a domain's keys means bumping its version here and
+# pinning the new set there.
 #
 # To add a domain: write a `domain_<name>()` builder that returns
 # closed_domain(), add it to closed_domains(), and add its pin history to
@@ -158,7 +159,8 @@ closed_domains <- function() {
     causes = domain_causes(),
     condition_classes = domain_condition_classes(),
     provider_endpoints = domain_provider_endpoints(),
-    metadata_hostnames = domain_metadata_hostnames()
+    metadata_hostnames = domain_metadata_hostnames(),
+    metadata_headers = domain_metadata_headers()
   )
 }
 
@@ -171,18 +173,21 @@ domain_keys <- function(name) {
 #'
 #' Enumerates one of the closed vocabularies `ssrfr` publishes: the reason
 #' codes a refusal carries, the causes an operational failure carries, the
-#' classes of the misuse conditions it raises, and the two tables of policy
+#' classes of the misuse conditions it raises, and the three tables of policy
 #' data it owns: the provider endpoints refused by address and the metadata
 #' hostnames refused by name, each row citing the vendor documentation that
-#' names it. Each vocabulary is API, carries a version stamp, and changes only
+#' names it, and the metadata-service request headers a request plan may not
+#' carry. Each vocabulary is API, carries a version stamp, and changes only
 #' with a new version.
 #'
 #' @param domain The vocabulary to list: `"reason_codes"`, `"causes"`,
-#'   `"condition_classes"`, `"provider_endpoints"` or `"metadata_hostnames"`.
-#'   `NULL`, the default, lists the vocabularies themselves.
+#'   `"condition_classes"`, `"provider_endpoints"`, `"metadata_hostnames"` or
+#'   `"metadata_headers"`. `NULL`, the default, lists the vocabularies
+#'   themselves.
 #'
 #' @return A data frame. For a named `domain`, one row per entry, keyed by the
-#'   first column (`code`, `cause`, `class`, `address` or `hostname`), with the
+#'   first column (`code`, `cause`, `class`, `address`, `hostname` or
+#'   `header`), with the
 #'   attributes `domain`, `version` (the vocabulary's version stamp) and
 #'   `package_version`. For `NULL`, one row per vocabulary with its `domain`,
 #'   `version` and `size`, and the `package_version` attribute.

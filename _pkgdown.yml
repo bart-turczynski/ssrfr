@@ -8,6 +8,10 @@ home:
   title: "ssrfr"
 
 reference:
+  - title: Fetch through the guard
+    contents:
+      - ssrf_prepare_hop
+      - ssrf_fetch
   - title: Inspect a URL
     contents:
       - ssrf_inspect_url

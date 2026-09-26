@@ -4,9 +4,11 @@
 influence: `plumber` endpoints, Shiny apps, webhook receivers, crawlers. It is in
 development. `R/` holds the policy, the result model, the closed
 vocabularies with the policy data, the structural layer (L0): the parse
-boundary and the gates an address-literal host meets without resolution, and
-the resolved layer (L1): one resolution through an internal resolver wrapper
-and the gates every answer meets. The guarded fetch is not implemented yet.
+boundary and the gates an address-literal host meets without resolution, the
+resolved layer (L1): one resolution through an internal resolver wrapper and
+the gates every answer meets, and the guarded hop (L2) for a first hop: the
+binding, the pinned and hardened transport, and the response. Redirect hops
+through the guard are not implemented yet.
 
 ## Where the design lives
 
@@ -58,8 +60,11 @@ tried and reverted (`19f08fb`).
 ## Package layout
 
 - `R/` — package source: policy, result model, closed vocabularies and policy
-  data, the dependency and resolver wrappers, the L0 parse boundary and gates,
-  and L1 resolution and answer-set classification so far.
+  data, the dependency, resolver and transport wrappers, the L0 parse boundary
+  and gates, L1 resolution and answer-set classification, and the L2 guarded
+  hop: the request plan (`request.R`), the binding (`binding.R`), the
+  transport's option builder and trace matcher (`transport.R`) and the fetch
+  (`fetch.R`). Redirect hops come next.
 - `tests/testthat/` — testthat tests and cucumber feature specs;
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.

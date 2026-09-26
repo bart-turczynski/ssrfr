@@ -77,6 +77,17 @@ test_that("a failing raddr wrapper refuses as malformed-address", {
   }
 })
 
+test_that("canonical_address() tells a name from a raddr failure", {
+  canonical <- ssrfr:::canonical_address
+  expect_identical(canonical("0:0:0:0:0:0:0:1"), "::1")
+  expect_identical(canonical("127.0.0.1"), "127.0.0.1")
+  expect_null(canonical("pinned.example.invalid"))
+  local_mocked_bindings(dep_raddr_format = function(x) stop("raddr"))
+  expect_identical(canonical("::1"), NA_character_)
+  local_mocked_bindings(dep_raddr_pton = function(x) stop("raddr"))
+  expect_null(canonical("::1"))
+})
+
 test_that("a dependency's warning is muffled and never refuses", {
   local_mocked_bindings(
     dep_rurl_verdicts = function(url) {

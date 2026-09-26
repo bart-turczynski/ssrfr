@@ -11,9 +11,9 @@ Description: Protects R applications that fetch URLs an attacker can
     connection is pinned to a validated address, so a hostname cannot be
     rebound between check and connect. Refusals carry stable reason codes.
     Under development: the policy, the result model, structural inspection
-    of a URL without network access and resolved inspection of every
-    address a name resolves to are implemented; the guarded fetch is not
-    yet.
+    of a URL without network access, resolved inspection of every address a
+    name resolves to, and the guarded fetch of a single hop are
+    implemented; following a redirect through the guard is not yet.
 License: MIT + file LICENSE
 URL: https://ssrfr-290b3f.gitlab.io, https://gitlab.com/bart-turczynski/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
@@ -27,10 +27,15 @@ Imports:
     raddr (>= 0.1.2),
     rurl (>= 3.0.0)
 Suggests:
+    callr,
     cucumber (>= 2.0.0),
+    httpuv,
     knitr,
+    processx,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    webfakes,
+    withr
 SystemRequirements: libcurl (>= 7.73.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr

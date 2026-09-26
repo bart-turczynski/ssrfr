@@ -1,0 +1,33 @@
+# Output of 2026-09-26-post-stop-reads.R, captured 2026-09-26: macOS on the host,
+# the Linux builds in the ssrfr-probe Docker images of 2026-09-25-linux-transport-matrix.sh
+# (docker run --rm -v "$PWD/design/evidence/2026-09-26-post-stop-reads.R:/p.R:ro" ssrfr-probe:<tag> Rscript --vanilla /p.R).
+# Body: memCompress(raw(4e8), "gzip"), 404,282 bytes on the wire; the stop falls at 100,000 decoded bytes.
+
+== macOS (host)
+curl 8.0.0 | libcurl 8.14.1 | aarch64-apple-darwin23
+buffersize default wire bytes after the stop   163840 | decoded bytes after the stop   178080753
+buffersize 4096    wire bytes after the stop    40960 | decoded bytes after the stop    44327877
+buffersize 1024    wire bytes after the stop    10240 | decoded bytes after the stop    10899333
+
+== ssrfr-probe:ubuntu2204
+curl 8.0.0 | libcurl 7.81.0 | aarch64-unknown-linux-gnu
+buffersize default wire bytes after the stop        0 | decoded bytes after the stop    15963873
+buffersize 4096    wire bytes after the stop        0 | decoded bytes after the stop     3798657
+buffersize 1024    wire bytes after the stop        0 | decoded bytes after the stop      770253
+
+== ssrfr-probe:ubuntu2404
+curl 8.0.0 | libcurl 8.5.0 | aarch64-unknown-linux-gnu
+buffersize default wire bytes after the stop   388024 | decoded bytes after the stop   399885312
+buffersize 4096    wire bytes after the stop   400312 | decoded bytes after the stop   399885312
+buffersize 1024    wire bytes after the stop   102400 | decoded bytes after the stop   102086853
+
+== ssrfr-probe:rocky9
+curl 8.0.0 | libcurl 7.76.1 | aarch64-redhat-linux-gnu
+buffersize default wire bytes after the stop        0 | decoded bytes after the stop    15963873
+buffersize 4096    wire bytes after the stop        0 | decoded bytes after the stop     3798657
+buffersize 1024    wire bytes after the stop        0 | decoded bytes after the stop      770253
+
+# Reading: after the stop, libcurl reads 10 buffers per round on 8.14.1 and up to 100 on 8.5.0
+# (the whole body at 4096), and on 7.76.1 and 7.81.0 decodes only the rest of the read in hand.
+# buffersize scales the post-stop work on every build but bounds it on none: the decoded
+# remainder is the wire remainder times the compression ratio.

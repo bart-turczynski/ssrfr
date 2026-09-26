@@ -572,6 +572,7 @@ option_problems <- function(opts, host, address) {
   want("noproxy", "*")
   want("unrestricted_auth", 0L)
   want("httpauth", 1L)
+  want("http_version", 2L)
   want("netrc", 0L)
   want("path_as_is", 1L)
   want("ssl_verifypeer", 1L)

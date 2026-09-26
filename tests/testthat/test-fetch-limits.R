@@ -417,6 +417,24 @@ test_that("a connection is never reused, within a pin or across pins", {
   )
 })
 
+# §14, r-binding.md §5: each transfer runs in a pool of its own, so no
+# pooled connection can carry even its first request. The server keeps
+# every connection open and answers each request on it, so two fetches
+# that shared a connection would arrive on one.
+test_that("every fetch opens a fresh connection", {
+  mock_answers("127.0.0.1")
+  server <- local_counting_server(
+    wire("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+  )
+  for (i in 1:2) {
+    r <- guarded_get(pinned_url(server$port), loopback_policy(server$port))
+    expect_identical(r$status, 200L)
+  }
+  seen <- server$stop()
+  expect_identical(nrow(seen), 2L)
+  expect_identical(seen$connection, c(1L, 2L))
+})
+
 # §14, r-binding.md §7, Rules: the scheme allowlist is enforced at the
 # transport too, for every scheme this libcurl was built with, and the guard
 # refuses each of them first.

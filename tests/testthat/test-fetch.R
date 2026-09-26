@@ -119,6 +119,28 @@ test_that("a missing trace or another peer is pin-mismatch", {
   }
 })
 
+# §2.5: the transport speaks HTTP/1.1 only (r-binding.md §5). Over HTTP/2
+# libcurl sends a request again after the server refuses its stream
+# (RST_STREAM REFUSED_STREAM). webfakes has no HTTP/2, so what shows the
+# pin on the wire is the TLS handshake: h2 is never offered in ALPN.
+test_that("HTTP/2 is never offered, even over TLS", {
+  skip_if_no_webfakes()
+  skip_if_not(isTRUE(curl::curl_version()$http2), "libcurl has no HTTP/2")
+  tls <- local_test_server(tls = TRUE)
+  port <- tls$get_port()
+  local_trust_test_ca()
+  mock_answers("127.0.0.1")
+  trace <- local_trace_recorder()
+  r <- guarded_get(
+    pinned_url(port, scheme = "https", host = "alpha.example.invalid"),
+    loopback_policy(port)
+  )
+  expect_identical(r$status, 200L)
+  offers <- grep("ALPN", trace$lines, value = TRUE)
+  expect_gt(length(offers), 0L)
+  expect_false(any(grepl("h2", offers, fixed = TRUE)))
+})
+
 # --- the request plan (§2.3) --------------------------------------------------
 
 # The request head a raw server received, split into lines.

@@ -140,7 +140,9 @@ dep_nslookup <- function(query) {
 # list transport_options() builds (R/transport.R), pin included; `data`,
 # `debug` and `progress` are the per-delivery, trace and progress callbacks.
 # libcurl calls `progress` as bytes arrive, the header's included, and
-# whenever it waits. Each attempt gets a new handle in a private pool, so no
+# whenever it waits; its third argument is a function returning the header
+# buffer received so far, which holds a chunked body's trailer fields too,
+# although the trace's header lines do not. Each attempt gets a new handle in a private pool, so no
 # DNS cache, connection or cookie is shared with another attempt or with
 # other curl users in the process (r-binding.md §4.1). handle_reset() is
 # never used.
@@ -173,14 +175,18 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
   )
   outcome <- new.env(parent = emptyenv())
   outcome$stopped <- FALSE
+  handle <- curl::new_handle()
+  received <- function() curl::handle_data(handle)$headers
   watch <- function(down, up) {
-    go <- tryCatch(isTRUE(progress(down, up)), error = function(e) FALSE)
+    go <- tryCatch(
+      isTRUE(progress(down, up, received)),
+      error = function(e) FALSE
+    )
     if (!go) {
       outcome$stopped <- TRUE
     }
     go
   }
-  handle <- curl::new_handle()
   curl::handle_setopt(handle, .list = opts)
   curl::handle_setopt(
     handle,

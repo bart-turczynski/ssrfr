@@ -451,7 +451,7 @@ test_that("the transport refuses every scheme but http and https", {
       replace(opts, "url", target(scheme)),
       function(x, final = FALSE) invisible(),
       function(type, msg) NULL,
-      function(down, up) TRUE
+      function(down, up, received) TRUE
     )
     expect_identical(
       got$error,

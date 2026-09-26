@@ -257,9 +257,15 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   seen$header_fields <- 0L
   seen$body <- list()
   seen$bytes <- 0
+  seen$trailer_bytes <- 0
+  seen$trailer_fields <- 0L
+  seen$arrived <- FALSE
   seen$abort <- NULL
-  abort <- function(cause, check, limit) {
+  record_abort <- function(cause, check, limit) {
     seen$abort <- list(cause = cause, check = check, limit = limit)
+  }
+  abort <- function(cause, check, limit) {
+    record_abort(cause, check, limit)
     stop(errorCondition("transfer aborted", class = "ssrfr_transfer_abort"))
   }
   # Every text match here is byte by byte: a header line may carry obs-text,
@@ -279,6 +285,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       if (!grepl("^(HTTP/|\r?\n?$)", line, useBytes = TRUE)) {
         seen$header_fields <- seen$header_fields + 1L
       }
+    } else if (type == 3L) {
+      # Response bytes arrived, which may carry trailer fields.
+      seen$arrived <- TRUE
     }
     NULL
   }
@@ -306,16 +315,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # body does. libcurl calls this after each read, header lines included,
   # so a header that never ends, a run of 1xx blocks, or an endless header
   # on a response with no body stops at its limit, not at total_timeout.
-  # Returning FALSE ends the transfer.
-  progress <- function(down, up) {
+  # Trailer fields count against the same limits as they arrive:
+  # `received()` is the header buffer so far, trailers included. Returning
+  # FALSE ends the transfer.
+  progress <- function(down, up, received) {
     if (is.null(seen$abort)) {
+      if (seen$arrived) {
+        seen$arrived <- FALSE
+        count_trailers(seen, received())
+      }
       over <- header_limit(seen, policy)
       if (!is.null(over)) {
-        seen$abort <- list(
-          cause = "response-too-large",
-          check = "header",
-          limit = over
-        )
+        record_abort("response-too-large", "header", over)
       }
     }
     is.null(seen$abort)
@@ -359,7 +370,10 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
-  # so a header limit it passed was the first limit reached (§6.6).
+  # so a header limit it passed was the first limit reached (§6.6). Trailer
+  # fields that arrived after the last progress call are counted here,
+  # before any response is recorded.
+  count_trailers(seen, transfer$headers)
   over <- header_limit(seen, policy)
   if (!is.null(over)) {
     return(ended("response-too-large", 12L, "header", over))
@@ -399,15 +413,31 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   )
 }
 
-# The header limit the response has passed (§5.3), or NULL.
+# The header limit the response has passed (§5.3), or NULL. A chunked
+# body's trailer fields count against the same limits as the header.
 header_limit <- function(seen, policy) {
-  if (seen$header_bytes > policy$max_header_bytes) {
+  if (seen$header_bytes + seen$trailer_bytes > policy$max_header_bytes) {
     return("max_header_bytes")
   }
-  if (seen$header_fields > policy$max_header_fields) {
+  if (seen$header_fields + seen$trailer_fields > policy$max_header_fields) {
     return("max_header_fields")
   }
   NULL
+}
+
+# Records the trailer section of `buffer`, libcurl's header buffer so far.
+# libcurl writes each header line to the trace as it writes it to the
+# buffer, and each trailer line, CRLF-terminated, to the buffer only, after
+# the header; so the trailer section is what the buffer holds beyond the
+# header bytes the trace counted, and each line in it is one field.
+count_trailers <- function(seen, buffer) {
+  if (!is.raw(buffer) || length(buffer) <= seen$header_bytes) {
+    return(invisible())
+  }
+  section <- buffer[-seq_len(seen$header_bytes)]
+  seen$trailer_bytes <- length(section)
+  seen$trailer_fields <- sum(section == as.raw(0x0aL))
+  invisible()
 }
 
 new_ssrf_response <- function(status, headers, body) {

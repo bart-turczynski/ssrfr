@@ -208,6 +208,32 @@ test_that("a changed chain budget raises budget_change", {
   expect_s3_class(ssrf_prepare_hop("/echo", same, from = b), "ssrfr_binding")
 })
 
+# §2.3, §2.5: the inherited plan is checked again under the redirect hop's
+# own policy. A metadata-service marker admitted where the policy named a
+# provider endpoint exactly is refused where the policy does not.
+test_that("the inherited plan is checked under the redirect hop's policy", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  named <- ssrf_policy(
+    allow_ranges = c("127.0.0.0/8", "169.254.169.254/32"),
+    allow_ports = c(80, 443, port)
+  )
+  b <- ssrf_prepare_hop(
+    pinned_url(port, "/r/302?to=/echo"),
+    named,
+    request = list(headers = c(`Metadata-Flavor` = "Google"))
+  )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  expect_s3_class(ssrf_prepare_hop("/echo", named, from = b), "ssrfr_binding")
+  err <- expect_error(
+    ssrf_prepare_hop("/echo", loopback_policy(port), from = b),
+    class = "ssrfr_error_invalid_request"
+  )
+  expect_false(grepl("Google", conditionMessage(err), fixed = TRUE))
+})
+
 # --- chain budgets (§2.5, §5.3, §6.5, §8 item 33) ----------------------------
 
 test_that("the chain budgets are inherited through from", {

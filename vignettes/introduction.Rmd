@@ -18,11 +18,11 @@ knitr::opts_chunk$set(
 library(ssrfr)
 ```
 
-`ssrfr` is under development. It guards a single hop: `ssrf_prepare_hop()`
-decides whether a URL may be fetched and `ssrf_fetch()` fetches it through a
-pinned connection. Following a redirect through the guard comes next. The
-contract it implements is `design/specs/ssrfr-v1.md` in the source
-repository.
+`ssrfr` is under development. It guards one hop at a time:
+`ssrf_prepare_hop()` decides whether a URL may be fetched and `ssrf_fetch()`
+fetches it through a pinned connection; a redirect is followed by preparing
+the next hop from the previous one. The contract it implements is
+`design/specs/ssrfr-v1.md` in the source repository.
 
 Every hop is evaluated under a policy. It is validated when it is built, so a
 malformed rule is an error rather than a rule that silently matches nothing:
@@ -155,11 +155,45 @@ try(ssrf_fetch(binding))
 #> Error : This binding was already fetched; prepare the hop again.
 ```
 
+A failure on the wire is a value, not an error: `cause` is one of
+`ssrf_vocabulary("causes")`, and `detail` lists the addresses tried and how
+each attempt ended. Like a refusal, project it with `ssrf_public_reason()`
+before an untrusted party sees it.
+
+## Following redirects
+
 A redirect is returned, not followed: its status is in the response and its
-`Location` in `binding$state$location`. A failure on the wire is a value, not
-an error: `cause` is one of `ssrf_vocabulary("causes")`, and `detail` lists
-the addresses tried and how each attempt ended. Like a refusal, project it
-with `ssrf_public_reason()` before an untrusted party sees it.
+`Location` in `binding$state$location`. To follow it, prepare the next hop
+with `from = binding`. The `Location` may be relative; it is resolved against
+the previous hop's URL, and the new URL is checked from the start. The
+request plan is inherited, never restated: a redirect to another origin
+drops the body and every header field the plan did not nominate in `carry`,
+and `Authorization`, `Proxy-Authorization` and `Cookie` never cross.
+
+```{r, eval = FALSE}
+policy <- ssrf_policy(max_redirects = 5)
+hop <- ssrf_prepare_hop(
+  "https://example.com/start",
+  policy,
+  request = list(headers = c(Authorization = "Bearer not-shown"))
+)
+repeat {
+  if (!inherits(hop, "ssrfr_binding")) break # a refusal or a failure
+  result <- ssrf_fetch(hop)
+  followed <- inherits(result, "ssrfr_response") &&
+    result$status %in% c(301, 302, 303, 307, 308) &&
+    !is.null(hop$state$location)
+  if (!followed) break
+  hop <- ssrf_prepare_hop(hop$state$location, policy, from = hop)
+}
+```
+
+The loop ends with a response, a refusal or a failure, and a redirect hop
+can be refused like any other: `"downgrade"` for `https` to `http`, or any
+code a first hop can get. The chain's `max_redirects` and `total_timeout`
+are fixed by its first hop: once `max_redirects` redirects have been
+followed, `ssrf_fetch()` refuses the next `3xx` as `"redirect-limit"`, and a
+policy that restates either budget differently mid-chain is an error.
 
 ## What the guard cannot protect
 

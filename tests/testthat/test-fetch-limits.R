@@ -604,8 +604,8 @@ test_that("a stop at a limit never runs the error hook", {
 
 # The header buffer holds every header block, each ended by an empty line,
 # then a chunked body's trailer lines, which no empty line ends. A trailer
-# line shaped like a status line opens no block: it is a field, as libcurl
-# 7.76.1 and 7.81.0 accept one there.
+# line shaped like a status line opens no block: it is a field, on a
+# libcurl that accepts one into the buffer.
 test_that("a trailer line shaped like a status line is a field", {
   seen <- new.env(parent = emptyenv())
   buffer <- wire(

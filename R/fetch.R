@@ -472,10 +472,10 @@ header_limit <- function(seen, policy) {
 # lines, which no empty line ends. So a status-shaped line at the start or
 # after an empty line opens a block only when an empty line ends that block,
 # or when it is the last block and still `arriving`, before any body byte;
-# otherwise it is a trailer line, and a field like any other (libcurl 7.76.1
-# and 7.81.0 accept one there). The buffer only grows, so a buffer of the
-# length last measured, in the same state, is not scanned again. Read as
-# bytes: a line may carry obs-text or a NUL.
+# otherwise it is a trailer line, and a field like any other, on a libcurl
+# that accepts one there. The buffer only grows, so a buffer of the length
+# last measured, in the same state, is not scanned again. Read as bytes: a
+# line may carry obs-text or a NUL.
 measure_header <- function(seen, buffer, arriving = FALSE) {
   if (!is.raw(buffer)) {
     return(invisible())

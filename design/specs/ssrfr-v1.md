@@ -1638,6 +1638,14 @@ a divergence there shows as drift (§7) rather than as a runtime refusal.
   classification does not replace step 8.
 - **Step 11 is not optional but is also not sufficient.** It is a detector; the
   pin at step 9 is the control. See INV-5.
+- **Past the redirect budget, step 13 is decided at the status line.** Once the
+  budget is spent, a 3xx refuses as `redirect-limit` as soon as its final status
+  line has arrived, and the transfer stops there. Nothing after that line
+  changes the outcome: not its header fields, a second `Location`, a body over
+  step 12's limits, nor one that stalls past `total_timeout`. A step 12 limit
+  reached before the line was complete, by interim `1xx` blocks or by the status
+  line itself, was reached first and wins (§6.6). *Amended 2026-09-27*
+  (`SSRF-fvtqbanc`).
 
 ---
 

@@ -516,7 +516,7 @@ test_that("the transport refuses every scheme but http and https", {
   for (scheme in schemes) {
     got <- ssrfr:::dep_curl_transfer(
       replace(opts, "url", target(scheme)),
-      function(x, final = FALSE) invisible(),
+      function(x, received) TRUE,
       function(type, msg) NULL,
       function(down, up, received) TRUE
     )
@@ -615,4 +615,13 @@ test_that("a trailer line shaped like a status line is a field", {
   ssrfr:::measure_header(seen, buffer)
   expect_identical(seen$header_bytes, length(buffer))
   expect_identical(seen$header_fields, 2L + 2L)
+  # Before any body byte, the last block may still be arriving: its status
+  # line opens it. Once the transfer ends, a block no empty line ended is
+  # read as trailers, so its status line is a field.
+  arriving <- wire("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nX: 1\r\n")
+  seen <- new.env(parent = emptyenv())
+  ssrfr:::measure_header(seen, arriving, arriving = TRUE)
+  expect_identical(seen$header_fields, 1L)
+  ssrfr:::measure_header(seen, arriving)
+  expect_identical(seen$header_fields, 2L)
 })

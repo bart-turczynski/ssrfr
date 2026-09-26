@@ -558,7 +558,7 @@ test_that("a spent total_timeout makes no attempt", {
   expect_identical(r$detail$limit, "total_timeout")
   expect_identical(r$detail$step, 10L)
   expect_null(r$detail$attempts)
-  expect_null(b$state$attempts)
+  expect_identical(b$state$attempts, character())
   expect_false(connection_arrives(listener$socket, 1))
 })
 

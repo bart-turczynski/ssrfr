@@ -164,6 +164,11 @@ guarded_transfer <- function(binding, started) {
   remaining <- function() budget - elapsed_since(started)
   capabilities <- session_curl_capabilities()
   endings <- character()
+  # §6.6: no attempt is made once total_timeout is spent, the first
+  # included; the check after a failed attempt below covers each later one.
+  if (remaining() <= 0) {
+    return(total_timeout_failure(binding, NA_character_, endings, step = 10L))
+  }
   for (address in binding$validated) {
     attempt <- attempt_address(binding, address, remaining, capabilities)
     endings <- c(endings, paste(address, attempt$ending))
@@ -175,7 +180,8 @@ guarded_transfer <- function(binding, started) {
         address,
         endings,
         step = 11L,
-        check = attempt$check
+        check = attempt$check,
+        callback = attempt$callback
       ))
     }
     if (attempt$ending %in% c("connect-failed", "connect-timeout")) {
@@ -193,7 +199,8 @@ guarded_transfer <- function(binding, started) {
         endings,
         step = attempt$step,
         check = attempt$check,
-        limit = attempt$limit
+        limit = attempt$limit,
+        callback = attempt$callback
       ))
     }
     # §5.3: elapsed time is re-checked after decoding, which the transport's
@@ -258,16 +265,14 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   seen$header_fields <- 0L
   seen$body <- list()
   seen$bytes <- 0
-  seen$delivered <- FALSE
+  seen$body_started <- FALSE
+  seen$body_since_progress <- FALSE
   seen$abort <- NULL
-  record_abort <- function(cause, check, limit) {
-    seen$abort <- list(cause = cause, check = check, limit = limit)
-  }
-  # Ends the transfer at once: the transport wrapper turns a failing `data`
-  # into a failed write (R/dependencies.R).
+  # Records the limit reached and answers FALSE, which ends the transfer:
+  # the transport wrapper cancels it within the round (R/dependencies.R).
   abort <- function(cause, check, limit) {
-    record_abort(cause, check, limit)
-    stop("transfer aborted", call. = FALSE)
+    seen$abort <- list(cause = cause, check = check, limit = limit)
+    FALSE
   }
   # Every text match here is byte by byte: a trace line may carry obs-text,
   # and a failed translation would warn with the line's bytes (INV-12).
@@ -283,25 +288,37 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     }
     NULL
   }
-  # The header limits are checked by `progress`, which the transport wrapper
-  # calls before the first delivery, so a header over them ends the transfer
-  # before any body byte is counted (§6.6).
-  data <- function(x) {
+  # Answers TRUE to go on. The header is complete when the first body byte
+  # arrives, so a header over its limits ends the transfer there, before any
+  # body byte is counted (§6.6). `received` is the transport wrapper's
+  # header buffer reader; without it, the buffer is measured once the
+  # transfer ends.
+  data <- function(x, received = NULL) {
     if (!length(x)) {
-      return(invisible())
+      return(TRUE)
     }
-    seen$delivered <- TRUE
+    seen$body_since_progress <- TRUE
+    if (!seen$body_started) {
+      seen$body_started <- TRUE
+      if (is.function(received)) {
+        measure_header(seen, received())
+        over <- header_limit(seen, policy)
+        if (!is.null(over)) {
+          return(abort("response-too-large", "header", over))
+        }
+      }
+    }
     if (remaining() <= 0) {
-      abort("timeout", "total", "total_timeout")
+      return(abort("timeout", "total", "total_timeout"))
     }
     # §5.3: decoded bytes, counted on each delivery; the delivery that passes
     # the limit is not kept.
     if (seen$bytes + length(x) > policy$max_response_size) {
-      abort("response-too-large", "decoded-bytes", "max_response_size")
+      return(abort("response-too-large", "decoded-bytes", "max_response_size"))
     }
     seen$bytes <- seen$bytes + length(x)
     seen$body[[length(seen$body) + 1L]] <- x
-    invisible()
+    TRUE
   }
   # §14: the header limits hold while the header arrives, not only once a
   # body does. libcurl calls this after each read and whenever it waits, so
@@ -313,55 +330,81 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # every read. The buffer grows only while no body byte is delivered: before
   # the body, and after it as trailers. So it is read only on a call that no
   # delivery preceded, which keeps a body in flight from paying for it, and
-  # each reading costs at most the header limit plus one read. Returning
-  # FALSE ends the transfer.
+  # scanned only when it has grown, so an idle wait pays for no scan and
+  # each scan costs at most the header limit plus one read. Answers TRUE to
+  # go on.
   progress <- function(down, up, received) {
-    if (is.null(seen$abort)) {
-      if (!seen$delivered) {
-        measure_header(seen, received())
-        over <- header_limit(seen, policy)
-        if (!is.null(over)) {
-          record_abort("response-too-large", "header", over)
-        }
-      }
-      seen$delivered <- FALSE
+    if (!is.null(seen$abort)) {
+      return(FALSE)
     }
-    is.null(seen$abort)
+    if (!seen$body_since_progress) {
+      measure_header(seen, received(), arriving = !seen$body_started)
+      over <- header_limit(seen, policy)
+      if (!is.null(over)) {
+        return(abort("response-too-large", "header", over))
+      }
+    }
+    seen$body_since_progress <- FALSE
+    TRUE
   }
 
   transfer <- read_transfer(opts, data, debug, progress)
   if (is.null(transfer)) {
     return(list(ending = "pin-mismatch", check = "no-transfer"))
   }
+  # The callbacks that raised an error, which the wrapper caught (a defect,
+  # never a limit): `failed[[1L]]` is named in the failure's detail.
+  failed <- transfer$failed
   # INV-5: the detector runs on every attempt, whatever its outcome. Absent or
-  # unreadable evidence is a mismatch (§6.6).
+  # unreadable evidence is a mismatch (§6.6), and so is a trace whose
+  # callback failed: evidence it may have missed cannot confirm the pin.
   pin <- pin_check(seen$trace, address, binding$origin$port)
+  if (pin == "match" && "debug" %in% failed) {
+    pin <- "trace-error"
+  }
   if (pin != "match") {
-    return(list(ending = "pin-mismatch", check = pin))
+    return(list(
+      ending = "pin-mismatch",
+      check = pin,
+      callback = if (pin == "trace-error") "debug" else failed[1L]
+    ))
   }
   connected <- transfer$connect > 0 ||
     any(startsWith(seen$trace, "Connected to "))
-  if (is.null(seen$abort) && !is.null(transfer$error) && !connected) {
+  stopped <- !is.null(seen$abort) || length(failed)
+  if (!stopped && !is.null(transfer$error) && !connected) {
     timed_out <- transfer$error == "curl_error_operation_timedout"
     return(list(
       ending = if (timed_out) "connect-timeout" else "connect-failed"
     ))
   }
-  ended <- function(cause, step, check, limit = NULL) {
+  ended <- function(cause, step, check, limit = NULL, callback = NULL) {
     list(
       ending = "connected",
       cause = cause,
       step = step,
       check = check,
-      limit = limit
+      limit = limit,
+      callback = callback
     )
   }
-  # A limit a callback reached ends the transfer: the wrapper cancels it, or
-  # libcurl ends it with a write error. Either way the record the callback
-  # left decides.
+  # A limit a callback reached ends the transfer, which the wrapper cancels;
+  # the record the callback left decides.
   if (!is.null(seen$abort)) {
     a <- seen$abort
     return(ended(a$cause, 12L, a$check, a$limit))
+  }
+  # A callback that failed ends the transfer too, and fails closed. No cause
+  # names a defect of ssrfr's own (§6.6); the closest is `protocol-error`,
+  # and the check says what happened. The condition itself is not kept: its
+  # message may quote response bytes (INV-12).
+  if (length(failed)) {
+    return(ended(
+      "protocol-error",
+      12L,
+      "callback-error",
+      callback = failed[[1L]]
+    ))
   }
   if (transfer$aborted) {
     return(ended("protocol-error", 12L, "aborted"))
@@ -424,15 +467,24 @@ header_limit <- function(seen, policy) {
 
 # Records the size of `buffer`, libcurl's header buffer so far: every byte,
 # and as fields every complete line but an empty one and the status line
-# that opens a block, at the start or after an empty line. The buffer holds
-# every header block, interim ones included, and then a chunked body's
-# trailer lines, with no empty line after them, so each trailer line is a
-# field too, even one shaped like a status line past the first. Read as
+# that opens a block. The buffer holds every header block, interim ones
+# included, each ended by an empty line, and then a chunked body's trailer
+# lines, which no empty line ends. So a status-shaped line at the start or
+# after an empty line opens a block only when an empty line ends that block,
+# or when it is the last block and still `arriving`, before any body byte;
+# otherwise it is a trailer line, and a field like any other (libcurl 7.76.1
+# and 7.81.0 accept one there). The buffer only grows, so a buffer of the
+# length last measured, in the same state, is not scanned again. Read as
 # bytes: a line may carry obs-text or a NUL.
-measure_header <- function(seen, buffer) {
+measure_header <- function(seen, buffer, arriving = FALSE) {
   if (!is.raw(buffer)) {
     return(invisible())
   }
+  key <- paste(length(buffer), arriving)
+  if (identical(seen$measured, key)) {
+    return(invisible())
+  }
+  seen$measured <- key
   seen$header_bytes <- length(buffer)
   ends <- which(buffer == as.raw(0x0aL))
   starts <- c(1L, ends[-length(ends)] + 1L)[seq_along(ends)]
@@ -444,7 +496,8 @@ measure_header <- function(seen, buffer) {
     at <- pmin(starts + k - 1L, length(buffer))
     status <- status & buffer[at] == prefix[[k]]
   }
-  opens <- status & c(TRUE, empty[-length(empty)])
+  ended <- seq_along(ends) < max(which(empty), 0L)
+  opens <- status & c(TRUE, empty[-length(empty)]) & (ended | arriving)
   seen$header_fields <- sum(!empty & !opens)
   invisible()
 }

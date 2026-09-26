@@ -513,12 +513,16 @@ reverse is not true.
 carried by `from` (§2.6). Callers MUST NOT be required to resolve references
 themselves.
 
-**Not because doing so would be unsafe.** A caller who resolves a reference with
-a foreign resolver and passes the resulting absolute URL is still safe: `ssrfr`
-re-parses it with the transport-agreeing parser and pins to what it derived, so a
-bad resolver produces a crawl-correctness bug, not a bypass. A caller who passes
-the relative reference through unresolved gets a `parse` refusal under INV-2,
-which is fail-closed.
+**Not because doing so would be unsafe.** An absolute URL from a foreign resolver
+would be safe to decide: `ssrfr` re-parses what it is given with the
+transport-agreeing parser and pins to what it derived, so a bad resolver would
+produce a crawl-correctness bug, not a bypass. A redirect hop still refuses it:
+its `url` is the `Location` byte for byte (§2.6), so a pre-resolved URL raises
+`ssrfr_error_invalid_from`. A relative reference passed without `from` gets a
+`parse` refusal under INV-2, which is fail-closed. *Amended 2026-09-27* (was "A
+caller who resolves a reference with a foreign resolver and passes the resulting
+absolute URL is still safe: … A caller who passes the relative reference through
+unresolved gets a `parse` refusal"; `SSRF-fvtqbanc`).
 
 The reason is duplication. All three consumers follow redirects. If `ssrfr` does
 not own reference resolution, each implements RFC 3986 §5.2 — or reaches for
@@ -1302,7 +1306,7 @@ logging. The kinds:
 |---|---|
 | `ssrfr_error_invalid_policy` | building a policy fails its construction checks (§5.3) |
 | `ssrfr_error_invalid_request` | a request plan breaks §2.3's header or body rules |
-| `ssrfr_error_invalid_from` | `from` is unspent, records a failed fetch, or is not a followed redirect (§2.3) |
+| `ssrfr_error_invalid_from` | `from` is unspent, records a failed fetch, or is not a followed redirect (§2.3); or, on a redirect hop, `url` is not the `Location` `from` recorded, byte for byte (§2.6). *Amended 2026-09-27* (`url` clause added; `SSRF-fvtqbanc`) |
 | `ssrfr_error_spent_binding` | `ssrf_fetch()` receives a binding whose fetchability is spent (§2.5) |
 | `ssrfr_error_budget_change` | a redirect-hop policy states a different `max_redirects` or `total_timeout` (§2.5) |
 | `ssrfr_error_invalid_argument` | any other argument of the wrong type or shape, including `request` and `from` passed together, or neither |

@@ -799,6 +799,76 @@ test_that("header_stop decides at the final status line", {
   )
 })
 
+# §6.6, §12 as amended 2026-09-27: the status line itself counts before the
+# decision, so a status line that alone passes max_header_bytes is the
+# header limit, reached first; one exactly at the limit is redirect-limit.
+# The status line is not a field.
+test_that("the status line counts against the header limits it decides", {
+  spent <- list(hop = 1L, budget = list(max_redirects = 0))
+  final <- "HTTP/1.1 302 Found\r\n"
+  expect_identical(nchar(final, type = "bytes"), 20L)
+  stop_for <- function(text, max_bytes, max_fields = 128) {
+    seen <- new.env(parent = emptyenv())
+    ssrfr:::measure_header(seen, charToRaw(text))
+    policy <- ssrf_policy(
+      max_header_bytes = max_bytes,
+      max_header_fields = max_fields
+    )
+    ssrfr:::header_stop(seen, policy, spent)
+  }
+  too_large <- list(
+    cause = "response-too-large",
+    check = "header",
+    limit = "max_header_bytes"
+  )
+  rest <- "Location: /a\r\nX-F: 1\r\n\r\n"
+  expect_identical(stop_for(paste0(final, rest), 19), too_large)
+  expect_identical(stop_for(final, 19), too_large)
+  expect_identical(
+    stop_for(paste0(final, rest), 20),
+    list(redirect_limit = 302L)
+  )
+  # After interim 1xx blocks, the status line's own bytes count too.
+  early <- "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n"
+  upto <- nchar(early, type = "bytes") + 20L
+  expect_identical(stop_for(paste0(early, final, rest), upto - 1L), too_large)
+  expect_identical(
+    stop_for(paste0(early, final, rest), upto),
+    list(redirect_limit = 302L)
+  )
+  # Neither status line is a field: one 1xx field fits a limit of one.
+  expect_identical(
+    stop_for(paste0(early, final, rest), 16 * 1024, max_fields = 1),
+    list(redirect_limit = 302L)
+  )
+
+  # On the wire, under max_redirects = 0.
+  mock_answers("127.0.0.1")
+  over <- function(max_bytes) {
+    server <- local_raw_server(wire(
+      final,
+      "Location: /next\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    ))
+    guarded_get(
+      pinned_url(server$port),
+      loopback_policy(
+        server$port,
+        max_redirects = 0,
+        max_header_bytes = max_bytes
+      )
+    )
+  }
+  r <- over(19)
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "response-too-large")
+  expect_identical(r$detail$limit, "max_header_bytes")
+  # The binding records no status, which was never decided.
+  expect_null(attr(r, "binding")$state$status)
+  r <- over(20)
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "redirect-limit")
+})
+
 # --- INV-7 --------------------------------------------------------------------
 
 # r-binding.md §7: a webfakes redirect chain whose second redirect points at

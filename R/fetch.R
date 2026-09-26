@@ -506,8 +506,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
 # with, or NULL: a header limit (§5.3), as an abort record, or, once the
 # final response's status line is a 3xx and the chain's redirect budget is
 # spent, `redirect_limit`, that status (§2.3, §12 step 13, §8 item 33). The
-# status line decides: a header limit that the bytes before it passed, in
-# interim 1xx blocks, was reached first and wins, and nothing after it (its
+# status line decides: a header limit that the bytes up to its end passed,
+# in interim 1xx blocks or in the line itself, was reached first and wins
+# (§6.6), and nothing after it (its
 # fields, a second Location, the body, trailers, a stall or an error of
 # libcurl's) changes the outcome. A status line is final when it is not
 # 1xx, whether or not its block has ended; libcurl writes whole lines to
@@ -519,15 +520,22 @@ header_stop <- function(seen, policy, binding) {
     status <- blocks$status[[final]]
     if (status >= 300L && status <= 399L) {
       start <- blocks$start[[final]]
-      # The bytes and fields before the status line, as measure_header()
-      # counts them: the buffer's lines split at each LF.
+      # The bytes and fields up to the end of the status line, which count
+      # before the decision (§6.6: a limit the line itself passes was
+      # reached first), as measure_header() counts them: the buffer's lines
+      # split at each LF, every non-empty line a field but the status line
+      # opening each block, this one included.
       ends <- which(seen$segmented == as.raw(10L))
-      before <- list(
-        header_bytes = if (start > 1L) ends[[start - 1L]] else 0,
-        header_fields = sum(nzchar(seen$segments$lines[seq_len(start - 1L)])) -
-          (final - 1L)
+      through <- list(
+        header_bytes = if (length(ends) >= start) {
+          ends[[start]]
+        } else {
+          length(seen$segmented)
+        },
+        header_fields = sum(nzchar(seen$segments$lines[seq_len(start)])) -
+          final
       )
-      over <- header_limit(before, policy)
+      over <- header_limit(through, policy)
       if (!is.null(over)) {
         return(header_limit_stop(over))
       }

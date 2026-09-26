@@ -130,8 +130,9 @@ request_head <- function(server) {
 }
 
 # §2.3: the plan the binding records is the plan the transport sends. libcurl
-# adds a form Content-Type to every POST and Expect: 100-continue to a large
-# body; neither was in the plan, so neither may reach the wire.
+# adds Accept: */* to every request, a form Content-Type to every POST and
+# Expect: 100-continue to a large body; none was in the plan, so none may
+# reach the wire.
 test_that("the transport sends no field the plan did not carry", {
   mock_answers("127.0.0.1")
   ok <- wire(
@@ -151,7 +152,7 @@ test_that("the transport sends no field the plan did not carry", {
   expect_identical(head[[1L]], "POST /p HTTP/1.1")
   expect_setequal(
     fields(head),
-    c("host", "user-agent", "accept", "accept-encoding", "content-length")
+    c("host", "user-agent", "accept-encoding", "content-length")
   )
   expect_true("Content-Length: 0" %in% head)
 
@@ -167,7 +168,7 @@ test_that("the transport sends no field the plan did not carry", {
   head <- request_head(big)
   expect_setequal(
     fields(head),
-    c("host", "user-agent", "accept", "accept-encoding", "content-length")
+    c("host", "user-agent", "accept-encoding", "content-length")
   )
   sent <- big$request()
   expect_identical(tail(sent, length(body)), body)
@@ -189,6 +190,19 @@ test_that("the transport sends no field the plan did not carry", {
     "Content-Type: text/plain"
   )
   expect_false(any(grepl("^Expect", head)))
+
+  # An Accept the plan carries is sent once, as given.
+  accepts <- local_raw_server(ok)
+  guarded_get(
+    pinned_url(accepts$port, "/a"),
+    loopback_policy(accepts$port),
+    request = list(headers = c(Accept = "application/json"))
+  )
+  head <- request_head(accepts)
+  expect_identical(
+    grep("^Accept:", head, value = TRUE),
+    "Accept: application/json"
+  )
 })
 
 # --- the response ------------------------------------------------------------

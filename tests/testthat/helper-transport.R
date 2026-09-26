@@ -326,6 +326,161 @@ wire <- function(...) {
   charToRaw(paste0(...))
 }
 
+# A raw server's response: `prefix`, then `chunk` every 20 ms until the
+# client goes away or 30 s pass.
+stream_forever <- function(prefix, chunk) {
+  respond <- function(con) {
+    writeBin(PREFIX, con)
+    t0 <- Sys.time()
+    while (difftime(Sys.time(), t0, units = "secs") < 30) {
+      sent <- tryCatch(
+        {
+          writeBin(CHUNK, con)
+          flush(con)
+          TRUE
+        },
+        error = function(e) FALSE
+      )
+      if (!sent) {
+        break
+      }
+      Sys.sleep(0.02)
+    }
+  }
+  body(respond) <- do.call(
+    substitute,
+    list(body(respond), list(PREFIX = prefix, CHUNK = chunk))
+  )
+  respond
+}
+
+# A raw server that counts requests and connections (ssrfr-v1.md §2.5: the
+# request is sent at most once). It answers every request on every
+# connection with `response` and keeps each connection open until the client
+# closes it, so a request sent again, on the same connection or on a new
+# one, is counted. A request's body is read by its Content-Length, unless the
+# request asks for 100-continue: that one is answered at once. Returns the
+# port and `stop()`, which ends the server once no socket has been readable
+# for 0.3 s and returns one row per request: `connection` (a number per
+# accepted connection) and `line` (the request line).
+local_counting_server <- function(response, env = parent.frame()) {
+  skip_if_not_installed("callr")
+  port <- free_port()
+  ready <- tempfile("count-listening-")
+  halt <- tempfile("count-stop-")
+  log <- tempfile("count-log-")
+  server <- callr::r_bg(
+    function(port, ready, halt, log, response) {
+      s <- serverSocket(port)
+      on.exit(close(s))
+      file.create(log)
+      file.create(ready)
+      cons <- list()
+      ids <- integer()
+      accepted <- 0L
+      end <- charToRaw("\r\n\r\n")
+      serve <- function(con, id) {
+        head <- raw()
+        repeat {
+          b <- readBin(con, raw(), 1L)
+          if (!length(b)) {
+            return(FALSE)
+          }
+          head <- c(head, b)
+          n <- length(head)
+          if (n >= 4L && identical(head[(n - 3L):n], end)) {
+            break
+          }
+        }
+        text <- rawToChar(head)
+        line <- sub("\r\n.*$", "", text)
+        cat(id, "\t", line, "\n", sep = "", file = log, append = TRUE)
+        declared <- regmatches(
+          text,
+          regexpr("(?i)\r\ncontent-length: *[0-9]+", text, perl = TRUE)
+        )
+        waits <- grepl("(?i)\r\nexpect: *100-continue", text, perl = TRUE)
+        want <- if (length(declared) && !waits) {
+          as.numeric(sub("^.*: *", "", declared))
+        } else {
+          0
+        }
+        got <- 0
+        while (got < want) {
+          chunk <- readBin(con, raw(), min(65536, want - got))
+          if (!length(chunk)) {
+            return(FALSE)
+          }
+          got <- got + length(chunk)
+        }
+        writeBin(response, con)
+        flush(con)
+        TRUE
+      }
+      t0 <- Sys.time()
+      quiet <- NULL
+      while (difftime(Sys.time(), t0, units = "secs") < 30) {
+        readable <- socketSelect(c(list(s), cons), timeout = 0.1)
+        if (!any(readable)) {
+          if (file.exists(halt)) {
+            if (is.null(quiet)) {
+              quiet <- Sys.time()
+            } else if (difftime(Sys.time(), quiet, units = "secs") > 0.3) {
+              break
+            }
+          }
+          next
+        }
+        quiet <- NULL
+        if (readable[[1L]]) {
+          accepted <- accepted + 1L
+          con <- socketAccept(s, blocking = TRUE, open = "r+b", timeout = 5)
+          cons <- c(cons, list(con))
+          ids <- c(ids, accepted)
+        }
+        for (i in rev(which(readable[-1L]))) {
+          open <- tryCatch(serve(cons[[i]], ids[[i]]), error = function(e) {
+            FALSE
+          })
+          if (!open) {
+            close(cons[[i]])
+            cons[[i]] <- NULL
+            ids <- ids[-i]
+          }
+        }
+      }
+      for (con in cons) {
+        close(con)
+      }
+      "done"
+    },
+    args = list(
+      port = port,
+      ready = ready,
+      halt = halt,
+      log = log,
+      response = response
+    )
+  )
+  withr::defer(server$kill(), envir = env)
+  t0 <- Sys.time()
+  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
+    Sys.sleep(0.05)
+  }
+  list(
+    port = port,
+    stop = function() {
+      file.create(halt)
+      server$wait(20000)
+      lines <- readLines(log, warn = FALSE)
+      data.frame(
+        connection = as.integer(sub("\t.*$", "", lines)),
+        line = sub("^[^\t]*\t", "", lines)
+      )
+    }
+  )
+}
+
 # --- tripwires (r-binding.md §7, Rules) --------------------------------------
 
 # The functions named in call position anywhere in `expr`, nested closures

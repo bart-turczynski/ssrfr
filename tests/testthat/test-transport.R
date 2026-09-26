@@ -140,21 +140,21 @@ test_that("limits and the request plan reach the options", {
   # Fields libcurl would add on its own are suppressed (§2.3).
   expect_identical(
     opts$httpheader,
-    c("X-A: 1", "X-Empty;", "Content-Type:", "Expect:")
+    c("X-A: 1", "X-Empty;", "Accept:", "Content-Type:", "Expect:")
   )
   # The connect timeout never exceeds what is left of the total.
   opts <- ssrfr:::transport_options(b, "93.184.216.34", 0.5, caps_modern)
   expect_identical(opts$connecttimeout_ms, 500L)
 
   methods <- list(
-    GET = list(httpget = 1L),
-    HEAD = list(nobody = 1L),
+    GET = list(httpget = 1L, httpheader = "Accept:"),
+    HEAD = list(nobody = 1L, httpheader = "Accept:"),
     POST = list(
       postfields = raw(),
       postfieldsize_large = 0,
-      httpheader = "Content-Type:"
+      httpheader = c("Accept:", "Content-Type:")
     ),
-    DELETE = list(customrequest = "DELETE", httpheader = NULL)
+    DELETE = list(customrequest = "DELETE", httpheader = "Accept:")
   )
   for (m in names(methods)) {
     b <- ssrf_prepare_hop(
@@ -173,15 +173,25 @@ test_that("limits and the request plan reach the options", {
     policy,
     request = list(
       method = "POST",
-      headers = c(`content-type` = "text/plain", Expect = "100-continue"),
+      headers = c(`content-type` = "text/plain", ACCEPT = "text/html"),
       body = "x"
     )
   )
   opts <- ssrfr:::transport_options(b, "93.184.216.34", 5, caps_modern)
   expect_identical(
     opts$httpheader,
-    c("content-type: text/plain", "Expect: 100-continue")
+    c("content-type: text/plain", "ACCEPT: text/html", "Expect:")
   )
+  # Expect is the transport's (§2.5): 100-continue lets libcurl send the
+  # request again after a 417. prepare refuses it in a plan, and the
+  # builder suppresses it on every body, whatever a plan says.
+  planted <- list(
+    method = "POST",
+    headers = c(Expect = "100-continue"),
+    body = charToRaw("x")
+  )
+  lines <- ssrfr:::request_options(planted, policy)$httpheader
+  expect_identical(lines[[length(lines)]], "Expect:")
 })
 
 # r-binding.md §7, Rules: one place dials. Walk every closure in the

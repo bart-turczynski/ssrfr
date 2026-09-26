@@ -54,6 +54,8 @@ test_that("transport-owned and pseudo-header fields are refused", {
     "Content-Length",
     "Accept-Encoding",
     "User-Agent",
+    "Expect",
+    "EXPECT",
     ":authority",
     ":path"
   )

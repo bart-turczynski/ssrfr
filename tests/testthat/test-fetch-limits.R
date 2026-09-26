@@ -152,34 +152,6 @@ test_that("header bytes and header fields have limits of their own", {
   expect_identical(unname(ok$headers[["x-field-50"]]), strrep("v", 40))
 })
 
-# A raw server's response: `prefix`, then `chunk` every 20 ms until the
-# client goes away or 30 s pass.
-stream_forever <- function(prefix, chunk) {
-  respond <- function(con) {
-    writeBin(PREFIX, con)
-    t0 <- Sys.time()
-    while (difftime(Sys.time(), t0, units = "secs") < 30) {
-      sent <- tryCatch(
-        {
-          writeBin(CHUNK, con)
-          flush(con)
-          TRUE
-        },
-        error = function(e) FALSE
-      )
-      if (!sent) {
-        break
-      }
-      Sys.sleep(0.02)
-    }
-  }
-  body(respond) <- do.call(
-    substitute,
-    list(body(respond), list(PREFIX = prefix, CHUNK = chunk))
-  )
-  respond
-}
-
 # §14: header bytes and field counts have limits of their own, which hold
 # while the header arrives. A header that never ends, a run of 1xx blocks,
 # or an endless header on a response to HEAD ends at its limit, well before

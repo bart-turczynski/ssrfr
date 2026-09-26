@@ -235,6 +235,91 @@ local_listener <- function(env = parent.frame()) {
   list(port = port, socket = listener)
 }
 
+# What the raw servers below share. Each runs in a background process, so
+# every function it calls there travels to that process as an argument and
+# must be self-contained.
+raw_server_io <- list(
+  # The request head from `con`: bytes up to and including the empty line
+  # that ends it, or fewer when the client closes first or `max` bytes pass.
+  head = function(con, max = Inf) {
+    end <- charToRaw("\r\n\r\n")
+    head <- raw()
+    repeat {
+      b <- readBin(con, raw(), 1L)
+      if (!length(b)) {
+        break
+      }
+      head <- c(head, b)
+      n <- length(head)
+      if (n >= 4L && identical(head[(n - 3L):n], end) || n > max) {
+        break
+      }
+    }
+    head
+  },
+  # Whether `head` ends with the empty line that ends a request head.
+  complete = function(head) {
+    n <- length(head)
+    n >= 4L && identical(head[(n - 3L):n], charToRaw("\r\n\r\n"))
+  },
+  # The body length a request head declares, 0 when it declares none.
+  declared = function(head) {
+    text <- rawToChar(head)
+    field <- regmatches(
+      text,
+      regexpr("(?i)\r\ncontent-length: *[0-9]+", text, perl = TRUE)
+    )
+    if (length(field)) as.numeric(sub("^.*: *", "", field)) else 0
+  },
+  # Up to `want` body bytes from `con`, fewer when the client closes first.
+  body = function(con, want) {
+    body <- raw()
+    while (length(body) < want) {
+      chunk <- readBin(con, raw(), min(65536, want - length(body)))
+      if (!length(chunk)) {
+        break
+      }
+      body <- c(body, chunk)
+    }
+    body
+  }
+)
+
+# Runs `serve(socket, io, ...)` in a background process, where `socket`
+# listens on a free port, `io` is raw_server_io and `...` is `args`, and
+# returns once the socket listens. The process is killed when the calling
+# test ends. Returns the port and the callr process.
+local_server_process <- function(serve, args = list(), env = parent.frame()) {
+  skip_if_not_installed("callr")
+  shipped <- function(f) {
+    environment(f) <- globalenv()
+    f
+  }
+  port <- free_port()
+  ready <- tempfile("listening-")
+  server <- callr::r_bg(
+    function(port, ready, serve, io, args) {
+      s <- serverSocket(port)
+      on.exit(close(s))
+      file.create(ready)
+      do.call(serve, c(list(s, io), args))
+    },
+    args = list(
+      port = port,
+      ready = ready,
+      serve = shipped(serve),
+      io = lapply(raw_server_io, shipped),
+      args = args
+    )
+  )
+  withr::defer(server$kill(), envir = env)
+  t0 <- Sys.time()
+  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
+    Sys.sleep(0.05)
+  }
+  list(port = port, process = server)
+}
+
 # A raw HTTP server for responses webfakes cannot send (obs-text, trailers,
 # a header that never ends). It runs in a background process, accepts one
 # connection, reads the request head and any body its Content-Length
@@ -243,51 +328,16 @@ local_listener <- function(env = parent.frame()) {
 # connection, run in the server process. Returns the port and `request()`,
 # the recorded request bytes (NULL until they arrive).
 local_raw_server <- function(response, env = parent.frame()) {
-  skip_if_not_installed("callr")
-  port <- free_port()
-  ready <- tempfile("raw-listening-")
   recorded <- tempfile("raw-request-")
   if (is.function(response)) {
     environment(response) <- globalenv()
   }
-  server <- callr::r_bg(
-    function(port, ready, recorded, response) {
-      s <- serverSocket(port)
-      on.exit(close(s))
-      file.create(ready)
+  server <- local_server_process(
+    function(s, io, recorded, response) {
       con <- socketAccept(s, blocking = TRUE, open = "r+b", timeout = 30)
-      on.exit(close(con), add = TRUE)
-      end <- charToRaw("\r\n\r\n")
-      head <- raw()
-      repeat {
-        b <- readBin(con, raw(), 1L)
-        if (!length(b)) {
-          break
-        }
-        head <- c(head, b)
-        n <- length(head)
-        if (n >= 4L && identical(head[(n - 3L):n], end)) {
-          break
-        }
-      }
-      text <- rawToChar(head)
-      declared <- regmatches(
-        text,
-        regexpr("(?i)\r\ncontent-length: *[0-9]+", text, perl = TRUE)
-      )
-      want <- if (length(declared)) {
-        as.numeric(sub("^.*: *", "", declared))
-      } else {
-        0
-      }
-      body <- raw()
-      while (length(body) < want) {
-        chunk <- readBin(con, raw(), want - length(body))
-        if (!length(chunk)) {
-          break
-        }
-        body <- c(body, chunk)
-      }
+      on.exit(close(con))
+      head <- io$head(con)
+      body <- io$body(con, io$declared(head))
       writeBin(c(head, body), paste0(recorded, ".part"))
       file.rename(paste0(recorded, ".part"), recorded)
       if (is.raw(response)) {
@@ -298,20 +348,11 @@ local_raw_server <- function(response, env = parent.frame()) {
       }
       "done"
     },
-    args = list(
-      port = port,
-      ready = ready,
-      recorded = recorded,
-      response = response
-    )
+    args = list(recorded = recorded, response = response),
+    env = env
   )
-  withr::defer(server$kill(), envir = env)
-  t0 <- Sys.time()
-  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
-    Sys.sleep(0.05)
-  }
   list(
-    port = port,
+    port = server$port,
     request = function() {
       if (!file.exists(recorded)) {
         return(NULL)
@@ -364,58 +405,27 @@ stream_forever <- function(prefix, chunk) {
 # for 0.3 s and returns one row per request: `connection` (a number per
 # accepted connection) and `line` (the request line).
 local_counting_server <- function(response, env = parent.frame()) {
-  skip_if_not_installed("callr")
-  port <- free_port()
-  ready <- tempfile("count-listening-")
   halt <- tempfile("count-stop-")
   log <- tempfile("count-log-")
-  server <- callr::r_bg(
-    function(port, ready, halt, log, response) {
-      s <- serverSocket(port)
-      on.exit(close(s))
-      file.create(log)
-      file.create(ready)
+  file.create(log)
+  server <- local_server_process(
+    function(s, io, halt, log, response) {
       cons <- list()
       ids <- integer()
       accepted <- 0L
-      end <- charToRaw("\r\n\r\n")
       serve <- function(con, id) {
-        head <- raw()
-        repeat {
-          b <- readBin(con, raw(), 1L)
-          if (!length(b)) {
-            return(FALSE)
-          }
-          head <- c(head, b)
-          n <- length(head)
-          if (n >= 4L && identical(head[(n - 3L):n], end)) {
-            break
-          }
-          if (n > 16384L) {
-            # Not a request head: body bytes after an early answer.
-            return(FALSE)
-          }
+        head <- io$head(con, max = 16384L)
+        if (!io$complete(head)) {
+          # The client closed, or sent body bytes after an early answer.
+          return(FALSE)
         }
         text <- rawToChar(head)
         line <- sub("\r\n.*$", "", text)
         cat(id, "\t", line, "\n", sep = "", file = log, append = TRUE)
-        declared <- regmatches(
-          text,
-          regexpr("(?i)\r\ncontent-length: *[0-9]+", text, perl = TRUE)
-        )
         waits <- grepl("(?i)\r\nexpect: *100-continue", text, perl = TRUE)
-        want <- if (length(declared) && !waits) {
-          as.numeric(sub("^.*: *", "", declared))
-        } else {
-          0
-        }
-        got <- 0
-        while (got < want) {
-          chunk <- readBin(con, raw(), min(65536, want - got))
-          if (!length(chunk)) {
-            return(FALSE)
-          }
-          got <- got + length(chunk)
+        want <- if (waits) 0 else io$declared(head)
+        if (length(io$body(con, want)) < want) {
+          return(FALSE)
         }
         writeBin(response, con)
         flush(con)
@@ -458,24 +468,14 @@ local_counting_server <- function(response, env = parent.frame()) {
       }
       "done"
     },
-    args = list(
-      port = port,
-      ready = ready,
-      halt = halt,
-      log = log,
-      response = response
-    )
+    args = list(halt = halt, log = log, response = response),
+    env = env
   )
-  withr::defer(server$kill(), envir = env)
-  t0 <- Sys.time()
-  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
-    Sys.sleep(0.05)
-  }
   list(
-    port = port,
+    port = server$port,
     stop = function() {
       file.create(halt)
-      server$wait(20000)
+      server$process$wait(20000)
       lines <- readLines(log, warn = FALSE)
       data.frame(
         connection = as.integer(sub("\t.*$", "", lines)),

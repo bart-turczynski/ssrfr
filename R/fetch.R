@@ -258,18 +258,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   seen$header_fields <- 0L
   seen$body <- list()
   seen$bytes <- 0
-  seen$trailer_bytes <- 0
-  seen$trailer_fields <- 0L
-  seen$arrived <- FALSE
+  seen$delivered <- FALSE
   seen$abort <- NULL
   record_abort <- function(cause, check, limit) {
     seen$abort <- list(cause = cause, check = check, limit = limit)
   }
+  # Ends the transfer at once: the transport wrapper turns a failing `data`
+  # into a failed write (R/dependencies.R).
   abort <- function(cause, check, limit) {
     record_abort(cause, check, limit)
-    stop(errorCondition("transfer aborted", class = "ssrfr_transfer_abort"))
+    stop("transfer aborted", call. = FALSE)
   }
-  # Every text match here is byte by byte: a header line may carry obs-text,
+  # Every text match here is byte by byte: a trace line may carry obs-text,
   # and a failed translation would warn with the line's bytes (INV-12).
   debug <- function(type, msg) {
     if (type == 0L) {
@@ -280,26 +280,17 @@ attempt_address <- function(binding, address, remaining, capabilities) {
         seen$trace,
         grep("^(Trying|Connected to) ", lines, value = TRUE, useBytes = TRUE)
       )
-    } else if (type == 1L) {
-      seen$header_bytes <- seen$header_bytes + length(msg)
-      line <- rawToChar(msg[msg != as.raw(0L)])
-      if (!grepl("^(HTTP/|\r?\n?$)", line, useBytes = TRUE)) {
-        seen$header_fields <- seen$header_fields + 1L
-      }
-    } else if (type == 3L) {
-      # Response bytes arrived, which may carry trailer fields.
-      seen$arrived <- TRUE
     }
     NULL
   }
-  data <- function(x, final = FALSE) {
+  # The header limits are checked by `progress`, which the transport wrapper
+  # calls before the first delivery, so a header over them ends the transfer
+  # before any body byte is counted (§6.6).
+  data <- function(x) {
     if (!length(x)) {
       return(invisible())
     }
-    over <- header_limit(seen, policy)
-    if (!is.null(over)) {
-      abort("response-too-large", "header", over)
-    }
+    seen$delivered <- TRUE
     if (remaining() <= 0) {
       abort("timeout", "total", "total_timeout")
     }
@@ -313,22 +304,27 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     invisible()
   }
   # §14: the header limits hold while the header arrives, not only once a
-  # body does. libcurl calls this after each read, header lines included,
-  # so a header that never ends, a run of 1xx blocks, or an endless header
-  # on a response with no body stops at its limit, not at total_timeout.
-  # Trailer fields count against the same limits as they arrive:
-  # `received()` is the header buffer so far, trailers included. Returning
+  # body does. libcurl calls this after each read and whenever it waits, so
+  # a header that never ends, a run of 1xx blocks, or an endless header on
+  # a response with no body stops at its limit, not at total_timeout. A
+  # chunked body's trailer lines count against the same limits as they
+  # arrive. Both are measured from one source, libcurl's header buffer
+  # (`received()`), never from the trace, which a build may not write for
+  # every read. The buffer grows only while no body byte is delivered: before
+  # the body, and after it as trailers. So it is read only on a call that no
+  # delivery preceded, which keeps a body in flight from paying for it, and
+  # each reading costs at most the header limit plus one read. Returning
   # FALSE ends the transfer.
   progress <- function(down, up, received) {
     if (is.null(seen$abort)) {
-      if (seen$arrived) {
-        seen$arrived <- FALSE
-        count_trailers(seen, received())
+      if (!seen$delivered) {
+        measure_header(seen, received())
+        over <- header_limit(seen, policy)
+        if (!is.null(over)) {
+          record_abort("response-too-large", "header", over)
+        }
       }
-      over <- header_limit(seen, policy)
-      if (!is.null(over)) {
-        record_abort("response-too-large", "header", over)
-      }
+      seen$delivered <- FALSE
     }
     is.null(seen$abort)
   }
@@ -360,9 +356,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       limit = limit
     )
   }
-  # A limit a callback reached ends the transfer. curl reports it either by
-  # re-raising the callback's condition or as a write error, so the record
-  # the callback left decides.
+  # A limit a callback reached ends the transfer: the wrapper cancels it, or
+  # libcurl ends it with a write error. Either way the record the callback
+  # left decides.
   if (!is.null(seen$abort)) {
     a <- seen$abort
     return(ended(a$cause, 12L, a$check, a$limit))
@@ -371,10 +367,10 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
-  # so a header limit it passed was the first limit reached (§6.6). Trailer
-  # fields that arrived after the last progress call are counted here,
-  # before any response is recorded.
-  count_trailers(seen, transfer$headers)
+  # so a header limit it passed was the first limit reached (§6.6). The
+  # buffer is measured once more here, before any response is recorded, for
+  # trailer lines that arrived after the last progress call.
+  measure_header(seen, transfer$headers)
   over <- header_limit(seen, policy)
   if (!is.null(over)) {
     return(ended("response-too-large", 12L, "header", over))
@@ -417,27 +413,39 @@ attempt_address <- function(binding, address, remaining, capabilities) {
 # The header limit the response has passed (§5.3), or NULL. A chunked
 # body's trailer fields count against the same limits as the header.
 header_limit <- function(seen, policy) {
-  if (seen$header_bytes + seen$trailer_bytes > policy$max_header_bytes) {
+  if (seen$header_bytes > policy$max_header_bytes) {
     return("max_header_bytes")
   }
-  if (seen$header_fields + seen$trailer_fields > policy$max_header_fields) {
+  if (seen$header_fields > policy$max_header_fields) {
     return("max_header_fields")
   }
   NULL
 }
 
-# Records the trailer section of `buffer`, libcurl's header buffer so far.
-# libcurl writes each header line to the trace as it writes it to the
-# buffer, and each trailer line, CRLF-terminated, to the buffer only, after
-# the header; so the trailer section is what the buffer holds beyond the
-# header bytes the trace counted, and each line in it is one field.
-count_trailers <- function(seen, buffer) {
-  if (!is.raw(buffer) || length(buffer) <= seen$header_bytes) {
+# Records the size of `buffer`, libcurl's header buffer so far: every byte,
+# and as fields every complete line but an empty one and the status line
+# that opens a block, at the start or after an empty line. The buffer holds
+# every header block, interim ones included, and then a chunked body's
+# trailer lines, with no empty line after them, so each trailer line is a
+# field too, even one shaped like a status line past the first. Read as
+# bytes: a line may carry obs-text or a NUL.
+measure_header <- function(seen, buffer) {
+  if (!is.raw(buffer)) {
     return(invisible())
   }
-  section <- buffer[-seq_len(seen$header_bytes)]
-  seen$trailer_bytes <- length(section)
-  seen$trailer_fields <- sum(section == as.raw(0x0aL))
+  seen$header_bytes <- length(buffer)
+  ends <- which(buffer == as.raw(0x0aL))
+  starts <- c(1L, ends[-length(ends)] + 1L)[seq_along(ends)]
+  size <- ends - starts
+  empty <- size == 0L | (size == 1L & buffer[starts] == as.raw(0x0dL))
+  status <- size >= 5L
+  prefix <- charToRaw("HTTP/")
+  for (k in seq_along(prefix)) {
+    at <- pmin(starts + k - 1L, length(buffer))
+    status <- status & buffer[at] == prefix[[k]]
+  }
+  opens <- status & c(TRUE, empty[-length(empty)])
+  seen$header_fields <- sum(!empty & !opens)
   invisible()
 }
 

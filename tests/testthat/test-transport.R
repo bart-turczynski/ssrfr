@@ -302,6 +302,33 @@ test_that("response headers are read from the final block only", {
   expect_null(ssrfr:::parse_response_headers(as.raw(c(0x48, 0x00, 0x49))))
 })
 
+# libcurl reports the status of the last response it received, so the
+# status and the fields both come from the last final block. Two final
+# blocks in one buffer: the first one's Location must not leak.
+test_that("status and fields come from the last final block", {
+  parsed <- ssrfr:::parse_response_headers(wire(
+    "HTTP/1.1 401 Unauthorized\r\n",
+    "Location: /a\r\nWWW-Authenticate: Basic realm=\"x\"\r\n\r\n",
+    "HTTP/1.1 100 Continue\r\n\r\n",
+    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
+  ))
+  expect_identical(parsed$status, 200L)
+  expect_identical(parsed$headers, c(`content-type` = "text/plain"))
+  expect_false("location" %in% names(parsed$headers))
+  # A trailer section follows the final block with no empty line of its
+  # own, so a trailer line shaped like a status line never starts a block.
+  forged <- ssrfr:::parse_response_headers(wire(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+    "HTTP/1.1 302 Found\r\nLocation: /trailer\r\n"
+  ))
+  expect_identical(forged$status, 200L)
+  expect_identical(forged$headers, c(`transfer-encoding` = "chunked"))
+  # A buffer whose only final block never ends is not a response.
+  expect_null(ssrfr:::parse_response_headers(wire(
+    "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nX: 1\r\n"
+  )))
+})
+
 # RFC 9110 §5.5: a field value may carry obs-text. The block is read as
 # bytes, so a Latin-1 byte neither fails the parse nor raises a warning that
 # would quote the header block (INV-12).

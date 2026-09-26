@@ -283,6 +283,36 @@ test_that("a trailer field never joins the header", {
   expect_null(b$state$location)
 })
 
+# The status libcurl reports and the status line of the header block ssrfr
+# reads must be one response's; when they differ, neither is recorded
+# (§2.3: the status is transport-observed).
+test_that("a status that disagrees with the header block is a protocol error", {
+  mock_answers("127.0.0.1")
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      list(
+        aborted = FALSE,
+        error = NULL,
+        status = 200L,
+        headers = wire("HTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n"),
+        connect = 0.01
+      )
+    }
+  )
+  b <- ssrf_prepare_hop(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(),
+    request = list()
+  )
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "header")
+  expect_null(b$state$status)
+  expect_null(b$state$location)
+})
+
 # --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how

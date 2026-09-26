@@ -1,6 +1,7 @@
-# ssrf_fetch() (ssrfr-v1.md §2.2, §2.5, §12 steps 9-12, §14): consumes a
+# ssrf_fetch() (ssrfr-v1.md §2.2, §2.5, §12 steps 9-13, §14): consumes a
 # binding, connects only to its validated addresses through a `connect_to`
-# pin, checks the pin held, and reads the whole response within the limits.
+# pin, checks the pin held, reads the whole response within the limits, and
+# refuses a 3xx past the chain's redirect budget (step 13, R/redirect.R).
 #
 # Failover (§2.5): the validated addresses are tried in resolver order, and
 # the next is tried only after an attempt that ended before a connection was
@@ -61,7 +62,12 @@ connected_cause <- function(error) {
 #' time spent in `ssrfr` for the chain, decoding included.
 #'
 #' A redirect is returned, not followed: its status and `Location` are in the
-#' response. `ssrfr` guards only requests made through a binding. R's own
+#' response, and the next hop is prepared with
+#' `ssrf_prepare_hop(location, policy, from = binding)`. Once the chain has
+#' followed the policy's `max_redirects` redirects, a `3xx` response is
+#' refused as `"redirect-limit"` instead, with or without `Location`; under
+#' `max_redirects = 0` every `3xx` is. `ssrfr` guards only requests made
+#' through a binding. R's own
 #' `download.file()`, `url()`, `readLines()` on a URL, direct `curl` calls,
 #' and the packages that read URLs through them, such as
 #' `jsonlite::fromJSON(url)`, `data.table::fread(url)` and
@@ -78,8 +84,10 @@ connected_cause <- function(error) {
 #' @param binding A binding from [ssrf_prepare_hop()] that has not been
 #'   fetched.
 #'
-#' @return Either a response, class `ssrfr_response`, or an operational
-#'   failure, class `ssrfr_failure`.
+#' @return A response, class `ssrfr_response`; an operational failure, class
+#'   `ssrfr_failure`; or, for a `3xx` response past the chain's redirect
+#'   budget, a refusal, class `ssrfr_refusal`, with code
+#'   `"redirect-limit"`.
 #'
 #'   A response is a plain list that owns no handle, connection or file:
 #'   `status` (the HTTP status code), `headers` (the final response's header
@@ -147,10 +155,23 @@ ssrf_fetch <- function(binding) {
     add = TRUE
   )
   result <- guarded_transfer(binding, started)
+  # §12 step 13: a 3xx past the chain's redirect budget refuses, with or
+  # without Location (§2.3, §8 item 33). The binding keeps the status it
+  # observed, but no response, so it is never a `from`.
+  if (
+    inherits(result, "ssrfr_response") &&
+      result$status >= 300L &&
+      result$status <= 399L &&
+      budget_spent(binding)
+  ) {
+    result <- redirect_limit_refusal(binding)
+  }
   set_state(
     binding,
     outcome = if (inherits(result, "ssrfr_response")) {
       "response"
+    } else if (inherits(result, "ssrfr_refusal")) {
+      result$code
     } else {
       result$cause
     }

@@ -7,7 +7,8 @@
 ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
 }
 \arguments{
-\item{url}{The URL, a single absolute URL string.}
+\item{url}{The URL, a single string: an absolute URL on a first hop; on a
+redirect hop, the \code{Location} value, which may be a relative reference.}
 
 \item{policy}{The policy to decide under, from \code{\link[=ssrf_policy]{ssrf_policy()}}.}
 
@@ -15,8 +16,9 @@ ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
 above; \code{list()} for a plain \code{GET}. Exactly one of \code{request} and \code{from}
 is required.}
 
-\item{from}{The binding of the previous hop, for a redirect. Not yet
-supported: it must be \code{NULL}.}
+\item{from}{The binding of the previous hop, for a redirect hop: fetched,
+and holding a followed redirect. Its plan, origin, status and chain
+budgets decide the new hop's plan.}
 }
 \value{
 One of three values, told apart by class:
@@ -26,7 +28,13 @@ Its fields can be read with \code{$}: \code{hop}, \code{url} (the URL the fetch
 requests, without fragment), \code{origin} (\code{scheme}, \code{host}, \code{port}),
 \code{validated} (the addresses a connection may use, in resolver
 order), \code{pin} (the first of them), \code{request} (the sanitized plan),
-\code{policy}, \code{tls} and \code{state}, the facts \code{\link[=ssrf_fetch]{ssrf_fetch()}} records.}
+\code{policy}, \code{budget} (the chain's \code{max_redirects} and
+\code{total_timeout}, and the seconds it had used), \code{redirect}, \code{tls}
+and \code{state}, the facts \code{\link[=ssrf_fetch]{ssrf_fetch()}} records. On a redirect hop,
+\code{redirect} records the previous hop and status, whether the hop
+crossed an origin, the method before and after, whether the body
+was dropped and which fields were (by lowercase name); it is \code{NULL}
+on a first hop.}
 \item{\code{ssrfr_refusal}}{The policy refuses the hop; \code{code} is a reason
 code from \code{ssrf_vocabulary("reason_codes")}.}
 \item{\code{ssrfr_failure}}{The hop failed on the wire before a connection:
@@ -79,8 +87,38 @@ nominated.}
 error of class \code{ssrfr_error_invalid_request}, raised before anything is
 parsed or resolved.
 
-Only the first hop of a redirect chain is supported so far: \code{from} must be
-\code{NULL}.
+A redirect is followed hop by hop: the caller fetches a binding, and when
+its response is a followed redirect (a \code{301}, \code{302}, \code{303}, \code{307} or \code{308}
+with exactly one \code{Location} field) prepares the next hop with
+\code{from = binding} and the \code{Location} value as \code{url}. A relative \code{Location}
+is resolved against the previous hop's URL, and the new URL is checked
+from the start, as a first hop is. The request plan is inherited, never
+restated, and changes with the redirect:
+\itemize{
+\item a \code{301} or \code{302} turns \code{POST} into \code{GET} without its body, and
+keeps any other method;
+\item a \code{303} keeps \code{HEAD} and turns every other method into \code{GET},
+without a body;
+\item a \code{307} or \code{308} keeps the method and the body.
+}
+A redirect to another origin (another scheme, host or port) drops the
+body and every header field but those \code{carry} nominated; \code{Authorization},
+\code{Proxy-Authorization} and \code{Cookie} never cross. Whenever the body is
+dropped, so are the fields that describe it, such as \code{Content-Type}, even
+when nominated. The binding's \code{redirect} field records what was dropped.
+An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"}.
+
+The chain's budgets are its first hop's: \code{max_redirects} and
+\code{total_timeout} travel through \code{from}, with the time the chain has used,
+and a redirect hop's policy that states other values is an error of class
+\code{ssrfr_error_budget_change}. Every other policy field applies to the hop
+it is passed to. Once the chain has followed \code{max_redirects} redirects,
+\code{\link[=ssrf_fetch]{ssrf_fetch()}} refuses the next \verb{3xx} response as \code{"redirect-limit"},
+whether or not it carries \code{Location}; under \code{max_redirects = 0} that is
+the first. A \code{from} that is not yet fetched, whose fetch failed or whose
+response is not a followed redirect is an error of class
+\code{ssrfr_error_invalid_from}. A spent binding stays usable as \code{from}, so a
+hop that failed can be prepared again from the same binding.
 
 The binding is single-use: \code{\link[=ssrf_fetch]{ssrf_fetch()}} spends it on entry. It prints
 without userinfo, header values or the body, and holds the policy by value,
@@ -107,6 +145,27 @@ try(ssrf_prepare_hop(
   policy,
   request = list(headers = c(Host = "internal.example"))
 ))
+
+\dontrun{
+# Following a redirect: prepare each hop from the previous binding.
+binding <- ssrf_prepare_hop(
+  "https://example.com/old",
+  policy,
+  request = list(headers = c(Authorization = "Bearer secret"))
+)
+response <- ssrf_fetch(binding)
+followed <- response$status \%in\% c(301, 302, 303, 307, 308) &&
+  !is.null(binding$state$location)
+if (followed) {
+  # A relative Location is resolved against the previous hop's URL, and
+  # Authorization is dropped if the redirect leaves the origin.
+  next_hop <- ssrf_prepare_hop(
+    binding$state$location,
+    policy,
+    from = binding
+  )
+}
+}
 
 }
 \seealso{

@@ -51,7 +51,7 @@ test_that("a redirect hop resolves Location against the previous hop", {
   expect_match(shown, "redirect: 308 from hop 2, same origin", fixed = TRUE)
 })
 
-# --- misuse (§2.3, §6.6) --------------------------------------------------------
+# --- misuse (§2.3, §6.6) ------------------------------------------------------
 
 test_that("a from that is not a spent, followed redirect is invalid_from", {
   skip_if_no_webfakes()
@@ -132,7 +132,7 @@ test_that("a from that is not a spent, followed redirect is invalid_from", {
   )
 })
 
-test_that("request with from, or a from that is no binding, is an argument error", {
+test_that("request with from, or a from that is no binding, is misuse", {
   skip_if_no_webfakes()
   web <- local_redirect_server()
   port <- web$get_port()
@@ -151,7 +151,7 @@ test_that("request with from, or a from that is no binding, is an argument error
     ssrf_prepare_hop("/echo", policy, request = list(), from = b),
     class = "ssrfr_error_invalid_argument"
   )
-  for (from in list(r, list(), "binding", unclass(b))) {
+  for (from in list(r, list(), "b", structure(list(), class = class(b)))) {
     expect_error(
       ssrf_prepare_hop("/echo", policy, from = from),
       class = "ssrfr_error_invalid_argument"
@@ -186,9 +186,10 @@ test_that("a changed chain budget raises budget_change", {
       ssrf_prepare_hop("/echo", p, from = b),
       class = "ssrfr_error_budget_change"
     )
-    expect_identical(
-      class(err),
-      c("ssrfr_error_budget_change", "ssrfr_error", "error", "condition")
+    expect_s3_class(
+      err,
+      c("ssrfr_error_budget_change", "ssrfr_error", "error", "condition"),
+      exact = TRUE
     )
     expect_identical(err$kind, "budget_change")
   }
@@ -207,7 +208,7 @@ test_that("a changed chain budget raises budget_change", {
   expect_s3_class(ssrf_prepare_hop("/echo", same, from = b), "ssrfr_binding")
 })
 
-# --- chain budgets (§2.5, §5.3, §6.5, §8 item 33) ------------------------------
+# --- chain budgets (§2.5, §5.3, §6.5, §8 item 33) ----------------------------
 
 test_that("the chain budgets are inherited through from", {
   skip_if_no_webfakes()
@@ -376,7 +377,11 @@ test_that("every dimension is revalidated on every hop", {
   for (target in names(targets)) {
     seen$queries <- character()
     to <- utils::URLencode(target, reserved = TRUE)
-    second <- utils::URLencode(other(paste0("/r/307?to=", to)), reserved = TRUE)
+    second <- utils::URLencode(
+      other(paste0("/r/307?to=", to)),
+      reserved = TRUE,
+      repeated = TRUE
+    )
     chain <- follow_chain(
       pinned_url(port, paste0("/r/302?to=", second)),
       policy

@@ -354,19 +354,22 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   failed <- transfer$failed
   # INV-5: the detector runs on every attempt, whatever its outcome. Absent or
   # unreadable evidence is a mismatch (§6.6), and so is a trace whose
-  # callback failed: evidence it may have missed cannot confirm the pin. Only
-  # that failure bears on the trace, so a mismatch names no other callback.
+  # callback failed: evidence it may have missed cannot confirm the pin. A
+  # trace naming another address, or one that cannot be read, is the pin's
+  # own finding and names no other callback; a trace with no `Trying` line
+  # beside a failed callback is the one that failure cut short, and names it.
   pin <- pin_check(seen$trace, address, binding$origin$port)
   traced <- !"debug" %in% failed
   if (pin == "match" && !traced) {
     pin <- "trace-error"
   }
   if (pin != "match") {
-    return(list(
-      ending = "pin-mismatch",
-      check = pin,
-      callback = if (!traced) "debug"
-    ))
+    callback <- if (!traced) {
+      "debug"
+    } else if (pin == "absent" && length(failed)) {
+      failed[[1L]]
+    }
+    return(list(ending = "pin-mismatch", check = pin, callback = callback))
   }
   connected <- transfer$connect > 0 ||
     any(startsWith(seen$trace, "Connected to "))

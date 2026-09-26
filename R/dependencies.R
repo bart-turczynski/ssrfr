@@ -142,20 +142,27 @@ dep_nslookup <- function(query) {
 # libcurl calls `progress` as bytes arrive, the header's included, and
 # whenever it waits; its third argument is a function returning the header
 # buffer received so far, which holds a chunked body's trailer fields too,
-# although the trace's header lines do not. Each attempt gets a new handle in a private pool, so no
-# DNS cache, connection or cookie is shared with another attempt or with
-# other curl users in the process (r-binding.md §4.1). handle_reset() is
-# never used.
+# although the trace's header lines do not. Each attempt gets a new handle
+# in a private pool, so no DNS cache, connection or cookie is shared with
+# another attempt or with other curl users in the process (r-binding.md
+# §4.1), and no pooled connection can carry even the first request.
+# handle_reset() is never used.
 #
 # `data` ends the transfer by raising a condition of class
 # `ssrfr_transfer_abort`. The callback fails, so libcurl stops the transfer,
 # and curl then either re-raises the condition from multi_run() or reports a
 # write error. `progress` ends it by returning FALSE; libcurl reports an
-# abort by callback, which curl raises as an interrupt from multi_run(). That
-# interrupt, and only that one, is caught here: a user's interrupt still
-# propagates. A `progress` that fails or answers anything but TRUE ends the
-# transfer too. Either way the caller reads which limit ended it from its own
-# record.
+# abort by callback, which curl raises as an interrupt from multi_run(),
+# right after the transfer's final delivery (`data` with `final = TRUE`).
+# That interrupt, and only that one, is caught here; a user's interrupt
+# propagates, leaving the caller to find the binding spent. So the final
+# delivery of a transfer `progress` stopped first raises any interrupt
+# already pending, which is the user's, and only then arms the catch for
+# the one interrupt that follows. A user's interrupt that reaches R in the
+# instant between the two is raised by R together with curl's, as one
+# interrupt; R offers no way to tell them apart (r-binding.md §7). A
+# `progress` that fails or answers anything but TRUE ends the transfer too.
+# Either way the caller reads which limit ended it from its own record.
 # Error printing is switched off while libcurl runs, because curl evaluates
 # callbacks as a top-level call that would print that condition. However the
 # call ends, an interrupt included, every handle still in the pool is
@@ -175,6 +182,7 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
   )
   outcome <- new.env(parent = emptyenv())
   outcome$stopped <- FALSE
+  outcome$armed <- FALSE
   handle <- curl::new_handle()
   received <- function() curl::handle_data(handle)$headers
   watch <- function(down, up) {
@@ -186,6 +194,16 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
       outcome$stopped <- TRUE
     }
     go
+  }
+  deliver <- function(x, final = FALSE) {
+    data(x, final)
+    if (final && outcome$stopped) {
+      # Sys.sleep() checks for a pending interrupt and raises it here,
+      # before the catch is armed.
+      Sys.sleep(0)
+      outcome$armed <- TRUE
+    }
+    invisible()
   }
   curl::handle_setopt(handle, .list = opts)
   curl::handle_setopt(
@@ -199,7 +217,7 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
     handle,
     done = function(res) outcome$done <- res,
     fail = function(msg) outcome$fail <- msg,
-    data = data,
+    data = deliver,
     pool = pool
   )
   quiet <- options(show.error.messages = FALSE)
@@ -212,7 +230,12 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
           FALSE
         },
         interrupt = function(i) {
-          if (outcome$stopped) invokeRestart("ssrfr_stopped")
+          # curl's own report of the abort comes before the done or fail
+          # callback; any other interrupt is the user's.
+          ours <- outcome$armed &&
+            is.null(outcome$done) &&
+            is.null(outcome$fail)
+          if (ours) invokeRestart("ssrfr_stopped")
         }
       ),
       ssrfr_transfer_abort = function(e) TRUE

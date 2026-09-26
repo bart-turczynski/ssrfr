@@ -391,7 +391,7 @@ test_that("the inherited plan is checked under the redirect hop's policy", {
   b2 <- ssrf_prepare_hop(b$state$location, loopback_policy(port), from = b)
   expect_s3_class(b2, "ssrfr_binding")
   expect_identical(b2$redirect$dropped, "metadata-flavor")
-  expect_identical(names(b2$request$headers), "X-Trace")
+  expect_named(b2$request$headers, "X-Trace")
   expect_identical(b2$request$carry, "x-trace")
   b <- cross(c("X-Trace", "Metadata-Flavor"))
   err <- expect_error(
@@ -530,6 +530,196 @@ test_that("a spent budget refuses every 3xx, with or without Location", {
     expect_identical(r$code, "redirect-limit", label = path)
     expect_identical(r$hop, 2L)
   }
+})
+
+# §2.3, §12 step 13: past the budget, a 3xx is decided at its status line.
+# Whatever follows it, a second Location, a body over max_response_size, or
+# a body that stalls past total_timeout, the outcome is redirect-limit, and
+# the transfer is stopped through the callbacks' record, not left to run.
+test_that("past the budget, a 3xx refuses whatever follows its status", {
+  mock_answers("127.0.0.1")
+  transfer <- ssrfr:::dep_curl_transfer
+  last <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      out <- transfer(opts, data, debug, progress)
+      last$aborted <- out$aborted
+      last$error <- out$error
+      out
+    }
+  )
+  # A server that sends `bytes` and then stalls.
+  stall_after <- function(bytes) {
+    respond <- function(con) {
+      writeBin(BYTES, con)
+      flush(con)
+      Sys.sleep(10)
+    }
+    body(respond) <- do.call(
+      substitute,
+      list(body(respond), list(BYTES = bytes))
+    )
+    respond
+  }
+  head <- wire(
+    "HTTP/1.1 302 Found\r\nLocation: /next\r\n",
+    "Content-Length: 100\r\nConnection: close\r\n\r\n"
+  )
+  cases <- list(
+    "two Location fields" = list(
+      bytes = wire(
+        "HTTP/1.1 302 Found\r\nLocation: /a\r\nLocation: /b\r\n",
+        "Content-Length: 0\r\nConnection: close\r\n\r\n"
+      ),
+      budget_left = "protocol-error"
+    ),
+    "a body over max_response_size" = list(
+      bytes = c(
+        wire(
+          "HTTP/1.1 307 Temporary Redirect\r\nLocation: /next\r\n",
+          "Content-Length: 5000\r\nConnection: close\r\n\r\n"
+        ),
+        as.raw(rep(0x61, 5000L))
+      ),
+      budget_left = "response-too-large",
+      stopped = TRUE
+    ),
+    "a body that stalls" = list(
+      bytes = stall_after(c(head, wire("ab"))),
+      budget_left = "timeout",
+      stopped = TRUE
+    ),
+    # No body byte arrives: the progress callback decides.
+    "a body that never starts" = list(
+      bytes = stall_after(head),
+      budget_left = "timeout",
+      stopped = TRUE
+    )
+  )
+  for (label in names(cases)) {
+    case <- cases[[label]]
+    local({
+      server <- local_raw_server(case$bytes)
+      policy <- loopback_policy(
+        server$port,
+        max_redirects = 0,
+        max_response_size = 100,
+        total_timeout = 2
+      )
+      r <- guarded_get(pinned_url(server$port), policy)
+      expect_s3_class(r, "ssrfr_refusal")
+      expect_identical(r$code, "redirect-limit", label = label)
+      expect_identical(r$detail$step, 13L, label = label)
+      # The address the connection was pinned to, recorded before the stop.
+      expect_identical(r$address, "127.0.0.1", label = label)
+      b <- attr(r, "binding")
+      expect_identical(b$state$outcome, "redirect-limit", label = label)
+      expect_identical(b$state$pin_used, "127.0.0.1", label = label)
+      expect_true(b$state$status %in% c(302L, 307L), label = label)
+      expect_false(b$state$fetched, label = label)
+      if (isTRUE(case$stopped)) {
+        # Stopped by ssrfr's record, not ended by libcurl's timer.
+        expect_true(last$aborted, label = label)
+        expect_null(last$error, label = label)
+      }
+    })
+  }
+  # With budget left, the same responses end as they always did.
+  for (label in names(cases)) {
+    case <- cases[[label]]
+    local({
+      server <- local_raw_server(case$bytes)
+      policy <- loopback_policy(
+        server$port,
+        max_redirects = 5,
+        max_response_size = 100,
+        total_timeout = 2
+      )
+      r <- guarded_get(pinned_url(server$port), policy)
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, case$budget_left, label = label)
+    })
+  }
+})
+
+# §12: the pin check (step 11) runs before step 13; a 3xx past the budget
+# whose pin cannot be confirmed is pin-mismatch.
+test_that("a pin failure wins over redirect-limit", {
+  mock_answers("127.0.0.1")
+  local_mocked_bindings(pin_check = function(lines, address, port) {
+    "other-address"
+  })
+  server <- local_raw_server(wire(
+    "HTTP/1.1 302 Found\r\nLocation: /next\r\n",
+    "Content-Length: 0\r\nConnection: close\r\n\r\n"
+  ))
+  r <- guarded_get(
+    pinned_url(server$port),
+    loopback_policy(server$port, max_redirects = 0)
+  )
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "pin-mismatch")
+})
+
+# The decision at the status line, on scripted header buffers: a header
+# limit the interim 1xx blocks passed was reached first; nothing after the
+# final status line counts against it.
+test_that("header_stop decides at the final status line", {
+  spent <- list(hop = 1L, budget = list(max_redirects = 0))
+  left <- list(hop = 1L, budget = list(max_redirects = 1))
+  policy <- ssrf_policy(max_header_fields = 4, max_header_bytes = 200)
+  stop_for <- function(text, binding = spent) {
+    seen <- new.env(parent = emptyenv())
+    ssrfr:::measure_header(seen, charToRaw(text))
+    ssrfr:::header_stop(seen, policy, binding)
+  }
+  many <- strrep("X-F: 1\r\n", 6)
+  final <- "HTTP/1.1 302 Found\r\n"
+  # Fields past the limit after the final status line: redirect-limit.
+  expect_identical(
+    stop_for(paste0(final, many, "\r\n")),
+    list(redirect_limit = 302L)
+  )
+  # Only the status line so far, the block not ended.
+  expect_identical(stop_for(final), list(redirect_limit = 302L))
+  # A 1xx block past the field limit before it: the header limit.
+  expect_identical(
+    stop_for(paste0("HTTP/1.1 103 Early Hints\r\n", many, "\r\n", final)),
+    list(
+      cause = "response-too-large",
+      check = "header",
+      limit = "max_header_fields"
+    )
+  )
+  # A 1xx block within the limits: the status line decides.
+  early <- "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n"
+  expect_identical(
+    stop_for(paste0(early, final, many)),
+    list(redirect_limit = 302L)
+  )
+  # 1xx bytes past max_header_bytes before the status line.
+  wide <- paste0("HTTP/1.1 103 Early Hints\r\nX-W: ", strrep("w", 200), "\r\n")
+  expect_identical(
+    stop_for(paste0(wide, "\r\n", final))$limit,
+    "max_header_bytes"
+  )
+  # A 1xx block alone decides nothing yet.
+  expect_null(stop_for(early))
+  # Budget left, or no 3xx: the header limits as before.
+  expect_identical(
+    stop_for(paste0(final, many, "\r\n"), left)$limit,
+    "max_header_fields"
+  )
+  expect_null(stop_for(paste0(final, "Location: /a\r\n\r\n"), left))
+  expect_identical(
+    stop_for(paste0("HTTP/1.1 200 OK\r\n", many, "\r\n"))$limit,
+    "max_header_fields"
+  )
+  expect_null(stop_for(paste0("HTTP/1.1 399 X\r\n"), left))
+  expect_identical(
+    stop_for("HTTP/1.1 399 X\r\n"),
+    list(redirect_limit = 399L)
+  )
 })
 
 # --- INV-7 --------------------------------------------------------------------
@@ -873,13 +1063,13 @@ test_that("a dropped body takes every field that describes it", {
   )
   for (status in c(301L, 303L)) {
     out <- ssrfr:::redirect_plan(plan, status, cross_origin = FALSE)
-    expect_identical(names(out$plan$headers), "X-Trace", label = status)
+    expect_named(out$plan$headers, "X-Trace", label = status)
     expect_setequal(out$record$dropped, tolower(names(content)))
   }
   # Across origins, nomination does not keep them either.
   plan$method <- "PUT"
   out <- ssrfr:::redirect_plan(plan, 307L, cross_origin = TRUE)
-  expect_identical(names(out$plan$headers), "X-Trace")
+  expect_named(out$plan$headers, "X-Trace")
   # A kept body keeps them.
   out <- ssrfr:::redirect_plan(plan, 307L, cross_origin = FALSE)
   expect_identical(out$plan$headers, plan$headers)

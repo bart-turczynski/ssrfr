@@ -66,7 +66,10 @@ connected_cause <- function(error) {
 #' `ssrf_prepare_hop(location, policy, from = binding)`. Once the chain has
 #' followed the policy's `max_redirects` redirects, a `3xx` response is
 #' refused as `"redirect-limit"` instead, with or without `Location`; under
-#' `max_redirects = 0` every `3xx` is. `ssrfr` guards only requests made
+#' `max_redirects = 0` every `3xx` is. The refusal is decided at the status
+#' line and the transfer stopped there, so nothing after it changes it: not
+#' a second `Location`, nor a body over the limits or one that stalls.
+#' `ssrfr` guards only requests made
 #' through a binding. R's own
 #' `download.file()`, `url()`, `readLines()` on a URL, direct `curl` calls,
 #' and the packages that read URLs through them, such as
@@ -154,18 +157,9 @@ ssrf_fetch <- function(binding) {
     ),
     add = TRUE
   )
+  # A 3xx past the chain's redirect budget comes back as the redirect-limit
+  # refusal (§12 step 13), decided in the attempt at its status line.
   result <- guarded_transfer(binding, started)
-  # §12 step 13: a 3xx past the chain's redirect budget refuses, with or
-  # without Location (§2.3, §8 item 33). The binding keeps the status it
-  # observed, but no response, so it is never a `from`.
-  if (
-    inherits(result, "ssrfr_response") &&
-      result$status >= 300L &&
-      result$status <= 399L &&
-      budget_spent(binding)
-  ) {
-    result <- redirect_limit_refusal(binding)
-  }
   set_state(
     binding,
     outcome = if (inherits(result, "ssrfr_response")) {
@@ -179,7 +173,7 @@ ssrf_fetch <- function(binding) {
   result
 }
 
-# Steps 9-12 over the validated addresses, in resolver order.
+# Steps 9-13 over the validated addresses, in resolver order.
 guarded_transfer <- function(binding, started) {
   budget <- binding$budget$total_timeout - binding$budget$elapsed
   remaining <- function() budget - elapsed_since(started)
@@ -212,6 +206,12 @@ guarded_transfer <- function(binding, started) {
       next
     }
     set_state(binding, pin_used = address)
+    # §12 step 13, decided at the status: the binding records the status it
+    # observed, and no response, so it is never a `from`.
+    if (!is.null(attempt$redirect_limit)) {
+      set_state(binding, status = attempt$redirect_limit)
+      return(redirect_limit_refusal(binding))
+    }
     if (!is.null(attempt$cause)) {
       return(fetch_failure(
         binding,
@@ -275,8 +275,9 @@ fetch_failure <- function(binding, cause, address, endings, step, ...) {
 
 # One connection attempt at `address`. Returns a list: `ending`, how the
 # attempt ended ("pin-mismatch", "connect-failed", "connect-timeout", or
-# "connected"); for a connected attempt either `cause` (with `step`, `check`
-# and `limit`) or `response`; for a pin mismatch, `check`.
+# "connected"); for a connected attempt `cause` (with `step`, `check`
+# and `limit`), `redirect_limit` (the status of a 3xx past the redirect
+# budget, §12 step 13) or `response`; for a pin mismatch, `check`.
 attempt_address <- function(binding, address, remaining, capabilities) {
   policy <- binding$policy
   opts <- transport_options(binding, address, remaining(), capabilities)
@@ -295,6 +296,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     seen$abort <- list(cause = cause, check = check, limit = limit)
     FALSE
   }
+  # Measures the header buffer and answers FALSE, through the same record,
+  # when what it holds ends the transfer: a header limit, or a 3xx past the
+  # chain's redirect budget (header_stop()). Answers TRUE to go on.
+  header_check <- function(buffer) {
+    measure_header(seen, buffer)
+    stop <- header_stop(seen, policy, binding)
+    if (is.null(stop)) {
+      return(TRUE)
+    }
+    seen$abort <- stop
+    FALSE
+  }
   # Every text match here is byte by byte: a trace line may carry obs-text,
   # and a failed translation would warn with the line's bytes (INV-12).
   debug <- function(type, msg) {
@@ -310,9 +323,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     NULL
   }
   # Answers TRUE to go on. The header is complete when the first body byte
-  # arrives, so a header over its limits ends the transfer there, before any
-  # body byte is counted (§6.6). `received` is the transport wrapper's
-  # header buffer reader.
+  # arrives, so a header over its limits, or a 3xx past the redirect budget,
+  # ends the transfer there, before any body byte is counted (§6.6, §12 step
+  # 13). `received` is the transport wrapper's header buffer reader.
   data <- function(x, received) {
     if (!length(x)) {
       return(TRUE)
@@ -320,10 +333,8 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     seen$body_since_progress <- TRUE
     if (!seen$body_started) {
       seen$body_started <- TRUE
-      measure_header(seen, received())
-      over <- header_limit(seen, policy)
-      if (!is.null(over)) {
-        return(abort("response-too-large", "header", over))
+      if (!header_check(received())) {
+        return(FALSE)
       }
     }
     if (remaining() <= 0) {
@@ -349,18 +360,16 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # the body, and after it as trailers. So it is read only on a call that no
   # delivery preceded, which keeps a body in flight from paying for it, and
   # scanned only when it has grown, so an idle wait pays for no scan and
-  # each scan costs at most the header limit plus one read. Answers TRUE to
-  # go on.
+  # each scan costs at most the header limit plus one read. The same check
+  # stops a 3xx past the redirect budget once its status line is in the
+  # buffer, so a body that stalls before its first byte does not run the
+  # transfer to total_timeout (§12 step 13). Answers TRUE to go on.
   progress <- function(down, up, received) {
     if (!is.null(seen$abort)) {
       return(FALSE)
     }
-    if (!seen$body_since_progress) {
-      measure_header(seen, received())
-      over <- header_limit(seen, policy)
-      if (!is.null(over)) {
-        return(abort("response-too-large", "header", over))
-      }
+    if (!seen$body_since_progress && !header_check(received())) {
+      return(FALSE)
     }
     seen$body_since_progress <- FALSE
     TRUE
@@ -415,11 +424,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       callback = callback
     )
   }
+  # A record header_stop() or a callback left, as the attempt's ending: a
+  # 3xx past the redirect budget carries its status (§12 step 13).
+  stopped_by <- function(record) {
+    if (!is.null(record$redirect_limit)) {
+      return(list(ending = "connected", redirect_limit = record$redirect_limit))
+    }
+    ended(record$cause, 12L, record$check, record$limit)
+  }
   # A limit a callback reached ends the transfer, which the wrapper cancels;
   # the record the callback left decides.
   if (!is.null(seen$abort)) {
-    a <- seen$abort
-    return(ended(a$cause, 12L, a$check, a$limit))
+    return(stopped_by(seen$abort))
   }
   # A callback that failed ends the transfer too, and fails closed. No cause
   # names a defect of ssrfr's own (§6.6); the closest is `protocol-error`,
@@ -439,13 +455,15 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
-  # so a header limit it passed was the first limit reached (§6.6). The
-  # buffer is measured once more here, before any response is recorded, for
-  # trailer lines that arrived after the last progress call.
+  # so a header limit it passed was the first limit reached (§6.6), and a
+  # 3xx past the redirect budget was decided at its status line, before
+  # anything libcurl did afterwards (§12 step 13). The buffer is measured
+  # once more here, before any response is recorded, for header and trailer
+  # lines that arrived after the last progress call.
   measure_header(seen, transfer$headers)
-  over <- header_limit(seen, policy)
-  if (!is.null(over)) {
-    return(ended("response-too-large", 12L, "header", over))
+  stop <- header_stop(seen, policy, binding)
+  if (!is.null(stop)) {
+    return(stopped_by(stop))
   }
   if (!is.null(transfer$error)) {
     cause <- connected_cause(transfer$error)
@@ -482,6 +500,46 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       if (length(seen$body)) do.call(c, seen$body) else raw()
     )
   )
+}
+
+# What the header buffer measure_header() last measured ends the transfer
+# with, or NULL: a header limit (§5.3), as an abort record, or, once the
+# final response's status line is a 3xx and the chain's redirect budget is
+# spent, `redirect_limit`, that status (§2.3, §12 step 13, §8 item 33). The
+# status line decides: a header limit that the bytes before it passed, in
+# interim 1xx blocks, was reached first and wins, and nothing after it (its
+# fields, a second Location, the body, trailers, a stall or an error of
+# libcurl's) changes the outcome. A status line is final when it is not
+# 1xx, whether or not its block has ended; libcurl writes whole lines to
+# the buffer.
+header_stop <- function(seen, policy, binding) {
+  blocks <- seen$segments$blocks
+  final <- which(blocks$status >= 200L)
+  if (length(final) && budget_spent(binding)) {
+    status <- blocks$status[[final]]
+    if (status >= 300L && status <= 399L) {
+      start <- blocks$start[[final]]
+      # The bytes and fields before the status line, as measure_header()
+      # counts them: the buffer's lines split at each LF.
+      ends <- which(seen$segmented == as.raw(10L))
+      before <- list(
+        header_bytes = if (start > 1L) ends[[start - 1L]] else 0,
+        header_fields = sum(nzchar(seen$segments$lines[seq_len(start - 1L)])) -
+          (final - 1L)
+      )
+      over <- header_limit(before, policy)
+      if (!is.null(over)) {
+        return(header_limit_stop(over))
+      }
+      return(list(redirect_limit = status))
+    }
+  }
+  over <- header_limit(seen, policy)
+  if (!is.null(over)) header_limit_stop(over)
+}
+
+header_limit_stop <- function(limit) {
+  list(cause = "response-too-large", check = "header", limit = limit)
 }
 
 # The header limit the response has passed (§5.3), or NULL. A chunked

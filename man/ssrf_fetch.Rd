@@ -69,7 +69,10 @@ response, and the next hop is prepared with
 \code{ssrf_prepare_hop(location, policy, from = binding)}. Once the chain has
 followed the policy's \code{max_redirects} redirects, a \verb{3xx} response is
 refused as \code{"redirect-limit"} instead, with or without \code{Location}; under
-\code{max_redirects = 0} every \verb{3xx} is. \code{ssrfr} guards only requests made
+\code{max_redirects = 0} every \verb{3xx} is. The refusal is decided at the status
+line and the transfer stopped there, so nothing after it changes it: not
+a second \code{Location}, nor a body over the limits or one that stalls.
+\code{ssrfr} guards only requests made
 through a binding. R's own
 \code{download.file()}, \code{url()}, \code{readLines()} on a URL, direct \code{curl} calls,
 and the packages that read URLs through them, such as

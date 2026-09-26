@@ -529,3 +529,90 @@ test_that("the transport refuses every scheme but http and https", {
     expect_true(guard$code %in% c("scheme", "parse"), label = scheme)
   }
 })
+
+# curl evaluates each callback as a top-level call, so an R error raised in
+# one runs the user's options(error = ) hook, which may quit the process.
+# ssrfr raises none: a limit reached in the write callback, at the first
+# delivery or mid-body, or in the progress callback, is recorded and the
+# transfer cancelled, and the fetch returns a failure.
+test_that("a stop at a limit never runs the error hook", {
+  skip_if_not_installed("withr")
+  mock_answers("127.0.0.1")
+  hook <- new.env(parent = emptyenv())
+  hook$runs <- 0L
+  withr::local_options(error = function() hook$runs <- hook$runs + 1L)
+  # ssrfr's own total_timeout check runs on each delivery; libcurl's timer
+  # is lifted so that check is the one that ends the transfer.
+  builder <- ssrfr:::transport_options
+  local_mocked_bindings(
+    transport_options = function(...) {
+      replace(builder(...), "timeout_ms", 60000L)
+    }
+  )
+  fields <- strrep(paste0("X-Field: ", strrep("v", 50), "\r\n"), 30)
+  cases <- list(
+    size = list(
+      bytes = c(
+        wire("HTTP/1.1 200 OK\r\nContent-Length: 50000\r\n\r\n"),
+        as.raw(rep(0x62, 50000))
+      ),
+      limits = list(max_response_size = 20000),
+      want = "response-too-large decoded-bytes max_response_size"
+    ),
+    total = list(
+      bytes = stream_forever(
+        wire("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"),
+        wire("1\r\nx\r\n")
+      ),
+      limits = list(total_timeout = 1),
+      want = "timeout total total_timeout"
+    ),
+    delivery = list(
+      bytes = wire(
+        "HTTP/1.1 200 OK\r\n",
+        fields,
+        "Content-Length: 5\r\n\r\nhello"
+      ),
+      limits = list(max_header_bytes = 1000),
+      want = "response-too-large header max_header_bytes"
+    ),
+    progress = list(
+      bytes = stream_forever(
+        wire("HTTP/1.1 200 OK\r\n"),
+        wire("X-Field: ", strrep("v", 50), "\r\n")
+      ),
+      limits = list(max_header_bytes = 1000),
+      want = "response-too-large header max_header_bytes"
+    )
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      server <- local_raw_server(case$bytes)
+      policy <- do.call(loopback_policy, c(list(server$port), case$limits))
+      r <- guarded_get(pinned_url(server$port), policy)
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(
+        paste(r$cause, r$detail$check, r$detail$limit),
+        case$want,
+        label = name
+      )
+      expect_identical(hook$runs, 0L, label = name)
+    })
+  }
+})
+
+# The header buffer holds every header block, each ended by an empty line,
+# then a chunked body's trailer lines, which no empty line ends. A trailer
+# line shaped like a status line opens no block: it is a field, as libcurl
+# 7.76.1 and 7.81.0 accept one there.
+test_that("a trailer line shaped like a status line is a field", {
+  seen <- new.env(parent = emptyenv())
+  buffer <- wire(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX: 1\r\n\r\n",
+    "HTTP/1.1 200 x\r\nA: b\r\n"
+  )
+  ssrfr:::measure_header(seen, buffer)
+  expect_identical(seen$header_bytes, length(buffer))
+  expect_identical(seen$header_fields, 2L + 2L)
+})

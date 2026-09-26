@@ -539,6 +539,122 @@ test_that("failover reaches the listener after a dead address", {
   expect_identical(tries[[2L]], paste0("Trying 127.0.0.1:", port, "..."))
 })
 
+# §2.5, §6.6: a fetch whose total_timeout is already spent makes no
+# attempt at all, rather than dialing with the shortest timeout libcurl
+# takes.
+test_that("a spent total_timeout makes no attempt", {
+  mock_answers("127.0.0.1")
+  listener <- local_listener()
+  b <- ssrf_prepare_hop(
+    pinned_url(listener$port),
+    loopback_policy(listener$port),
+    request = list()
+  )
+  local_mocked_bindings(elapsed_since = function(start) 1e6)
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "timeout")
+  expect_identical(r$detail$check, "total")
+  expect_identical(r$detail$limit, "total_timeout")
+  expect_identical(r$detail$step, 10L)
+  expect_null(r$detail$attempts)
+  expect_null(b$state$attempts)
+  expect_false(connection_arrives(listener$socket, 1))
+})
+
+# --- callback failures -------------------------------------------------------
+
+# A defect in ssrfr's own write or progress callback is not a limit: the
+# transfer still ends, with no R error raised inside the callback, and the
+# failure says a callback failed rather than passing for a limit stop.
+test_that("an error in ssrfr's own callback fails closed and says so", {
+  skip_if_not_installed("withr")
+  mock_answers("127.0.0.1")
+  hook <- new.env(parent = emptyenv())
+  hook$runs <- 0L
+  withr::local_options(error = function() hook$runs <- hook$runs + 1L)
+  transfer <- ssrfr:::dep_curl_transfer
+  broken <- list(
+    data = function(data, progress) {
+      list(data = function(x, ...) stop("a defect"), progress = progress)
+    },
+    progress = function(data, progress) {
+      failing <- function(down, up, received) {
+        if (length(received())) {
+          stop("a defect")
+        }
+        progress(down, up, received)
+      }
+      list(data = data, progress = failing)
+    }
+  )
+  for (name in names(broken)) {
+    local({
+      local_mocked_bindings(
+        dep_curl_transfer = function(opts, data, debug, progress) {
+          cb <- broken[[name]](data, progress)
+          transfer(opts, cb$data, debug, cb$progress)
+        }
+      )
+      server <- local_raw_server(wire(
+        "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n",
+        "hello"
+      ))
+      r <- NULL
+      expect_no_error(
+        r <- guarded_get(pinned_url(server$port), loopback_policy(server$port))
+      )
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, "protocol-error", label = name)
+      expect_identical(r$detail$check, "callback-error", label = name)
+      expect_identical(r$detail$callback, name, label = name)
+      expect_null(attr(r, "binding")$state$status)
+      expect_identical(hook$runs, 0L, label = name)
+    })
+  }
+})
+
+# R's curl discards an error from the trace callback and goes on. The trace
+# is the pin's only evidence, so a trace callback that fails leaves the pin
+# unconfirmed: the fetch ends as pin-mismatch, whatever arrived.
+test_that("an error in the trace callback fails closed as pin-mismatch", {
+  skip_if_not_installed("withr")
+  mock_answers("127.0.0.1")
+  hook <- new.env(parent = emptyenv())
+  hook$runs <- 0L
+  withr::local_options(error = function() hook$runs <- hook$runs + 1L)
+  transfer <- ssrfr:::dep_curl_transfer
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      traced <- new.env(parent = emptyenv())
+      traced$trying <- FALSE
+      failing <- function(type, msg) {
+        if (traced$trying) {
+          stop("a defect")
+        }
+        out <- debug(type, msg)
+        traced$trying <- type == 0L &&
+          grepl("Trying ", rawToChar(msg), fixed = TRUE)
+        out
+      }
+      transfer(opts, data, failing, progress)
+    }
+  )
+  server <- local_raw_server(wire(
+    "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+  ))
+  r <- NULL
+  expect_no_error(
+    r <- guarded_get(pinned_url(server$port), loopback_policy(server$port))
+  )
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "pin-mismatch")
+  expect_identical(r$detail$check, "trace-error")
+  expect_identical(r$detail$callback, "debug")
+  expect_null(attr(r, "binding")$state$status)
+  expect_identical(hook$runs, 0L)
+})
+
 # --- single use (§2.5) -------------------------------------------------------
 
 test_that("a binding is spent on entry, even when the fetch fails", {

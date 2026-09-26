@@ -123,14 +123,21 @@ request_options <- function(request, policy) {
   body <- request$body
   method <- request$method
   # A field libcurl adds on its own is suppressed, an empty "Name:" line,
-  # unless the plan carries it (§2.3): Content-Type
-  # (application/x-www-form-urlencoded) on every POST and on every request
-  # with a body, and Expect (100-continue) on a large body.
+  # unless the plan carries it (§2.3): Accept (*/*) on every request, and
+  # Content-Type (application/x-www-form-urlencoded) on every POST and on
+  # every request with a body.
   carried <- ascii_lower(names(headers))
+  if (!"accept" %in% carried) {
+    lines <- c(lines, "Accept:")
+  }
   if ((!is.null(body) || method == "POST") && !"content-type" %in% carried) {
     lines <- c(lines, "Content-Type:")
   }
-  if (!is.null(body) && !"expect" %in% carried) {
+  # Expect is suppressed on every body, whatever a plan says, and prepare
+  # refuses it in a plan (R/request.R). libcurl adds 100-continue to a large
+  # body, and answers a 417 to it by sending the request again within one
+  # fetch; the request is sent at most once (§2.5).
+  if (!is.null(body)) {
     lines <- c(lines, "Expect:")
   }
   opts <- list(useragent = policy$user_agent)

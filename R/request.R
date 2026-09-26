@@ -19,7 +19,9 @@ http_token <- paste0("^", http_tchars, "$")
 # transport-controlled routing and framing, plus any HTTP/2 or HTTP/3
 # pseudo-header (a name beginning with `:`, which is not a token anyway).
 # `user-agent` is transport-owned too: the policy's `user_agent` sets it
-# (§5.3), and a caller field would silently replace it.
+# (§5.3), and a caller field would silently replace it. So is `expect`:
+# under 100-continue, libcurl answers a 417 by sending the request a second
+# time within one fetch (§2.5), so the transport suppresses it on every body.
 transport_owned_fields <- c(
   "host",
   "connection",
@@ -31,7 +33,8 @@ transport_owned_fields <- c(
   "upgrade",
   "content-length",
   "accept-encoding",
-  "user-agent"
+  "user-agent",
+  "expect"
 )
 
 # Fields that are never carryable across an origin, whatever the plan

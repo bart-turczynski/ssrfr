@@ -335,6 +335,22 @@ test_that("a status that disagrees with the header block is a protocol error", {
   expect_null(b$state$location)
 })
 
+# RFC 9112 §4: a status line is HTTP-version SP status-code SP
+# [reason-phrase]. A tab after the code is not SP, so the block does not read
+# as a status line and the response is a protocol error, although libcurl
+# reports 200. Deliberate: it fails closed.
+test_that("a status line with a tab for its space is a protocol error", {
+  mock_answers("127.0.0.1")
+  web <- local_raw_server(wire(
+    "HTTP/1.1 200\tOK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+  ))
+  r <- guarded_get(pinned_url(web$port), loopback_policy(web$port))
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "header")
+  expect_null(attr(r, "binding")$state$status)
+})
+
 # --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how
@@ -786,4 +802,82 @@ test_that("a user interrupt during ssrfr's own abort still propagates", {
   expect_false(b$state$fetchable)
   expect_null(b$state$status)
   expect_error(ssrf_fetch(b), class = "ssrfr_error_spent_binding")
+})
+
+# §2.5: every interrupt is the user's and propagates, even one already
+# pending at the moment ssrfr stops a transfer at a limit. The SIGINT is
+# sent from inside the progress call that reaches max_header_bytes, with
+# R's interrupts suspended, so it waits exactly as one delivered while
+# libcurl runs in C does: R acts on it only at curl's next interrupt check,
+# after ssrfr has decided to stop.
+test_that("a user interrupt pending when ssrfr stops at a limit propagates", {
+  skip_on_os("windows")
+  mock_answers("127.0.0.1")
+  server <- local_raw_server(stream_forever(
+    wire("HTTP/1.1 200 OK\r\n"),
+    wire("X-Field: ", strrep("v", 50), "\r\n")
+  ))
+  transfer <- ssrfr:::dep_curl_transfer
+  sent <- new.env(parent = emptyenv())
+  sent$signal <- FALSE
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      pending <- function(down, up, ...) {
+        go <- progress(down, up, ...)
+        if (!isTRUE(go) && !sent$signal) {
+          sent$signal <- TRUE
+          suspendInterrupts(tools::pskill(Sys.getpid(), tools::SIGINT))
+        }
+        go
+      }
+      transfer(opts, data, debug, pending)
+    }
+  )
+  b <- ssrf_prepare_hop(
+    pinned_url(server$port),
+    loopback_policy(server$port, max_header_bytes = 1000, total_timeout = 20),
+    request = list()
+  )
+  got <- tryCatch(ssrf_fetch(b), interrupt = function(c) "interrupted")
+  expect_true(sent$signal)
+  expect_identical(got, "interrupted")
+  expect_false(b$state$fetchable)
+  expect_null(b$state$status)
+  expect_error(ssrf_fetch(b), class = "ssrfr_error_spent_binding")
+})
+
+# §2.5, §6.6: ssrfr never makes an interrupt of its own, so a limit stop is
+# always a failure object, never an R interrupt, however often it happens.
+test_that("a limit stop never surfaces as an interrupt", {
+  mock_answers("127.0.0.1")
+  # A header that never ends: 100 fields and no empty line.
+  server <- local_counting_server(wire(
+    "HTTP/1.1 200 OK\r\n",
+    strrep("X-Field: 1\r\n", 100)
+  ))
+  policy <- loopback_policy(
+    server$port,
+    max_header_fields = 20,
+    total_timeout = 10
+  )
+  ends <- character()
+  for (i in seq_len(20L)) {
+    r <- tryCatch(
+      guarded_get(pinned_url(server$port), policy),
+      interrupt = function(c) "interrupt"
+    )
+    ends <- c(
+      ends,
+      if (inherits(r, "ssrfr_failure")) {
+        paste(r$cause, r$detail$check, r$detail$limit)
+      } else {
+        paste(class(r), collapse = "/")
+      }
+    )
+  }
+  expect_identical(
+    ends,
+    rep("response-too-large header max_header_fields", 20L)
+  )
+  expect_identical(nrow(server$stop()), 20L)
 })

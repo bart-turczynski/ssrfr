@@ -270,6 +270,55 @@ test_that("trailer fields count against the header limits", {
   expect_named(r$headers, c("transfer-encoding", "connection"))
 })
 
+# §5.3, §14: the header limits hold in flight whatever libcurl's trace
+# says. A build may write no trace line for a read that carries only
+# header or trailer bytes, so ssrfr measures both from the header buffer.
+# Here every trace line but the text the pin check reads is withheld, and
+# a header or a trailer section that never ends still stops at its limit.
+test_that("the header limits hold without the trace's header or data lines", {
+  mock_answers("127.0.0.1")
+  transfer <- ssrfr:::dep_curl_transfer
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      text_only <- function(type, msg) {
+        if (type == 0L) debug(type, msg) else NULL
+      }
+      transfer(opts, data, text_only, progress)
+    }
+  )
+  cases <- list(
+    header = stream_forever(
+      wire("HTTP/1.1 200 OK\r\n"),
+      wire("X-T: vvvv\r\n")
+    ),
+    trailer = stream_forever(
+      wire(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n",
+        "Connection: close\r\n\r\n",
+        "5\r\nhello\r\n0\r\n"
+      ),
+      wire("X-T: vvvv\r\n")
+    )
+  )
+  for (name in names(cases)) {
+    local({
+      server <- local_raw_server(cases[[name]])
+      policy <- loopback_policy(
+        server$port,
+        max_header_fields = 20,
+        total_timeout = 10
+      )
+      t0 <- Sys.time()
+      r <- guarded_get(pinned_url(server$port), policy)
+      elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, "response-too-large", label = name)
+      expect_identical(r$detail$limit, "max_header_fields", label = name)
+      expect_lt(elapsed, 4, label = name)
+    })
+  }
+})
+
 test_that("a redirect is returned with Location; two are a protocol error", {
   skip_if_no_webfakes()
   web <- local_test_server()

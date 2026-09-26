@@ -113,7 +113,8 @@ when nominated. The binding's \code{redirect} field records what was dropped.
 The plan the redirect hop sends is checked under that hop's policy before
 the new name is resolved, so a field it keeps and that policy refuses,
 such as a metadata-service marker, is an error of class
-\code{ssrfr_error_invalid_request}; a field the redirect dropped is not.
+\code{ssrfr_error_invalid_request}, whose message names the field by its
+place in \code{from$request}; a field the redirect dropped is not.
 An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"}.
 
 The chain's budgets are its first hop's: \code{max_redirects} and

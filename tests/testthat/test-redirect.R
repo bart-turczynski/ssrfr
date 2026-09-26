@@ -476,6 +476,34 @@ test_that("the inherited plan is checked under the redirect hop's policy", {
     class = "ssrfr_error_invalid_request"
   )
   expect_false(grepl("Google", conditionMessage(err), fixed = TRUE))
+
+  # The caller passed `from`, not `request`: the message names the field by
+  # its place in `from$request`, the plan inherited, which is not its place
+  # in the plan the redirect derived from it once a field before it dropped.
+  to <- pinned_url(port, "/echo", host = other_host)
+  b <- ssrf_prepare_hop(
+    pinned_url(port, paste0("/r/302?to=", URLencode(to, TRUE))),
+    named,
+    request = list(
+      headers = c(
+        `X-Dropped` = "d1",
+        `Metadata-Flavor` = "Google",
+        `X-Trace` = "t1"
+      ),
+      carry = c("X-Trace", "Metadata-Flavor")
+    )
+  )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  expect_identical(names(b$request$headers)[[2L]], "Metadata-Flavor")
+  err <- expect_error(
+    ssrf_prepare_hop(b$state$location, loopback_policy(port), from = b),
+    class = "ssrfr_error_invalid_request"
+  )
+  message <- conditionMessage(err)
+  expect_match(message, "`from$request$headers[2]`", fixed = TRUE)
+  expect_false(grepl("`request$", message, fixed = TRUE))
+  expect_false(grepl("Google", message, fixed = TRUE))
+  expect_false(grepl("Metadata-Flavor", message, fixed = TRUE))
 })
 
 # --- chain budgets (§2.5, §5.3, §6.5, §8 item 33) ----------------------------

@@ -86,7 +86,8 @@ now <- function() {
 #' The plan the redirect hop sends is checked under that hop's policy before
 #' the new name is resolved, so a field it keeps and that policy refuses,
 #' such as a metadata-service marker, is an error of class
-#' `ssrfr_error_invalid_request`; a field the redirect dropped is not.
+#' `ssrfr_error_invalid_request`, whose message names the field by its
+#' place in `from$request`; a field the redirect dropped is not.
 #' An `https` hop that redirects to `http` is refused as `"downgrade"`.
 #'
 #' The chain's budgets are its first hop's: `max_redirects` and
@@ -279,8 +280,19 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
     )
     # §2.3, §2.5: the plan this hop sends, once the redirect has dropped
     # what it drops, is checked under this hop's policy, which may not admit
-    # a field the previous hop's did. A dropped field is not checked.
-    plan <- check_request(inherited$plan, policy)
+    # a field the previous hop's did. A dropped field is not checked. The
+    # caller passed `from`, not `request`, so a message names an entry by
+    # its place in `from$request`, the plan inherited, not in the plan
+    # derived from it.
+    label <- plan_label("from$request", function(field, i) {
+      switch(
+        field,
+        headers = inherited$kept[[i]],
+        carry = match(inherited$plan$carry[[i]], from$request$carry),
+        i
+      )
+    })
+    plan <- check_request(inherited$plan, policy, label)
     redirect <- c(list(from_hop = from$hop), inherited$record)
   }
   if (is.null(hop$finding)) {

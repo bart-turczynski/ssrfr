@@ -141,8 +141,9 @@ same_origin <- function(a, b) {
 
 # The plan a redirect hop inherits from `plan`, the previous hop's sanitized
 # plan, for the previous response's `status` (§2.3). Returns `plan`, the
-# new hop's plan, and `record`, what the transformation did, naming fields,
-# never values:
+# new hop's plan; `kept`, the positions in the old plan's headers of the
+# fields the new one keeps, in order; and `record`, what the transformation
+# did, naming fields, never values:
 #   301, 302  POST becomes GET without its body; other methods are kept
 #   303       HEAD stays HEAD; every other method becomes GET; no body
 #   307, 308  the method and the body are kept
@@ -186,6 +187,7 @@ redirect_plan <- function(plan, status, cross_origin) {
       method = c(from = method, to = to),
       body_dropped = no_body && !is.null(plan$body),
       dropped = unique(lower[!keep])
-    )
+    ),
+    kept = which(keep)
   )
 }

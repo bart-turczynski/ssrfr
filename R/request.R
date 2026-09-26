@@ -6,7 +6,9 @@
 # A plan of the wrong type or shape is `ssrfr_error_invalid_argument`; one
 # that breaks a header or body rule of §2.3 is `ssrfr_error_invalid_request`
 # (§6.6). Neither message quotes a header name, value or body (§2.3): an entry
-# is named by its position.
+# is named by its position, in the plan the caller can read: `request` on a
+# first hop, and on a redirect hop `from$request`, the plan inherited through
+# `from` (plan_label()).
 
 request_fields <- c("method", "headers", "body", "carry")
 
@@ -49,53 +51,78 @@ request_argument_error <- function(message) {
   abort_ssrfr("invalid_argument", message, fn = "ssrf_prepare_hop")
 }
 
-# Validates a first-hop plan and returns it sanitized: `method` (a string),
-# `headers` (a character vector named by field name, as given), `body` (a raw
-# vector, or NULL) and `carry` (the nominated field names, lowercase).
-check_request <- function(request, policy) {
-  if (!is.list(request) || is.data.frame(request) || is.object(request)) {
-    request_argument_error(
-      "`request` must be a list of `method`, `headers`, `body` and `carry`."
+# How a message names the plan, a field of it or an entry of a field: as
+# the R expression that reads it, rooted at `root`. `index` maps an entry's
+# position in the plan checked to its position in the plan named.
+plan_label <- function(root, index = function(field, i) i) {
+  function(field = NULL, i = NULL) {
+    if (!is.null(i)) {
+      i <- index(field, i)
+    }
+    paste0(
+      "`",
+      root,
+      if (!is.null(field)) paste0("$", field),
+      if (!is.null(i)) paste0("[", i, "]"),
+      "`"
     )
+  }
+}
+
+# Validates a plan and returns it sanitized: `method` (a string), `headers`
+# (a character vector named by field name, as given), `body` (a raw vector,
+# or NULL) and `carry` (the nominated field names, lowercase). `label` names
+# the plan in a message: the first hop's `request` by default.
+check_request <- function(request, policy, label = plan_label("request")) {
+  if (!is.list(request) || is.data.frame(request) || is.object(request)) {
+    request_argument_error(paste0(
+      label(),
+      " must be a list of `method`, `headers`, `body` and `carry`."
+    ))
   }
   given <- names(request)
   if (length(request) && (is.null(given) || !all(given %in% request_fields))) {
     request_argument_error(paste0(
-      "`request` may hold only `method`, `headers`, `body` and `carry`, each ",
-      "named."
+      label(),
+      " may hold only `method`, `headers`, `body` and `carry`, each named."
     ))
   }
   if (anyDuplicated(given)) {
-    request_argument_error("`request` names a field more than once.")
+    request_argument_error(paste0(label(), " names a field more than once."))
   }
-  method <- check_method(request$method %||% "GET")
-  headers <- check_headers(request$headers, policy)
-  body <- check_body(request$body, method)
-  carry <- check_carry(request$carry, headers)
+  method <- check_method(request$method %||% "GET", label)
+  headers <- check_headers(request$headers, policy, label)
+  body <- check_body(request$body, method, label)
+  carry <- check_carry(request$carry, headers, label)
   list(method = method, headers = headers, body = body, carry = carry)
 }
 
-check_method <- function(method) {
+check_method <- function(method, label) {
   if (!is_string(method)) {
-    request_argument_error("`request$method` must be a single string.")
+    request_argument_error(paste0(label("method"), " must be a single string."))
   }
   if (!grepl(http_token, method)) {
-    request_error("`request$method` is not a valid HTTP method token.")
+    request_error(paste0(
+      label("method"),
+      " is not a valid HTTP method token."
+    ))
   }
   method
 }
 
 # Header fields: a named character vector or a named list of single strings.
-check_headers <- function(headers, policy) {
+check_headers <- function(headers, policy, label) {
   if (is.null(headers) || !length(headers)) {
     return(stats::setNames(character(), character()))
   }
   if (is.list(headers)) {
     ok <- all(vapply(headers, is_string, logical(1L)))
     if (!ok) {
-      request_argument_error(
-        "Each entry of a list `request$headers` must be a single string."
-      )
+      request_argument_error(paste0(
+        "Each entry of a list ",
+        label("headers"),
+        " must be a single string."
+      ))
     }
     headers <- stats::setNames(
       unlist(headers, use.names = FALSE),
@@ -103,40 +130,45 @@ check_headers <- function(headers, policy) {
     )
   }
   if (!is.character(headers) || anyNA(headers)) {
-    request_argument_error(
-      "`request$headers` must be a named character vector with no NA."
-    )
+    request_argument_error(paste0(
+      label("headers"),
+      " must be a named character vector with no NA."
+    ))
   }
   fields <- names(headers)
   if (is.null(fields) || anyNA(fields) || !all(nzchar(fields))) {
-    request_argument_error("Every entry of `request$headers` must be named.")
+    request_argument_error(paste0(
+      "Every entry of ",
+      label("headers"),
+      " must be named."
+    ))
   }
   headers <- enc2utf8(headers)
   lower <- ascii_lower(fields)
   markers <- ascii_lower(domain_metadata_headers()$header)
-  label <- function(i) paste0("`request$headers[", i, "]`")
+  entry <- function(i) label("headers", i)
   for (i in seq_along(headers)) {
     if (!grepl(http_token, fields[[i]])) {
       request_error(paste0(
-        label(i),
+        entry(i),
         " has a field name that is not a valid token (RFC 9110 \u00a75.1)."
       ))
     }
     if (lower[[i]] %in% transport_owned_fields) {
       request_error(paste0(
-        label(i),
+        entry(i),
         " names a field the transport owns; it cannot be supplied."
       ))
     }
     if (grepl("[\r\n]", headers[[i]])) {
       request_error(paste0(
-        label(i),
+        entry(i),
         " has a value containing CR or LF; it is refused, never sanitized."
       ))
     }
     if (lower[[i]] %in% markers && !names_provider_endpoint(policy)) {
       request_error(paste0(
-        label(i),
+        entry(i),
         " is a metadata-service request marker; it is refused unless the ",
         "policy's `allow_ranges` names a provider endpoint exactly."
       ))
@@ -146,7 +178,7 @@ check_headers <- function(headers, policy) {
 }
 
 # A body: NULL, a raw vector, or a single string sent as its UTF-8 bytes.
-check_body <- function(body, method) {
+check_body <- function(body, method, label) {
   if (is.null(body)) {
     return(NULL)
   }
@@ -154,43 +186,47 @@ check_body <- function(body, method) {
     body <- charToRaw(enc2utf8(body))
   }
   if (!is.raw(body)) {
-    request_argument_error(
-      "`request$body` must be NULL, a raw vector or a single string."
-    )
+    request_argument_error(paste0(
+      label("body"),
+      " must be NULL, a raw vector or a single string."
+    ))
   }
   if (identical(method, "HEAD")) {
-    request_error(
-      "`request$body` must be NULL for HEAD, which libcurl sends without one."
-    )
+    request_error(paste0(
+      label("body"),
+      " must be NULL for HEAD, which libcurl sends without one."
+    ))
   }
   body
 }
 
 # Fields the plan nominates as safe to carry across an origin (§2.3): names of
 # fields the plan holds, never a permanently non-carryable one.
-check_carry <- function(carry, headers) {
+check_carry <- function(carry, headers, label) {
   if (is.null(carry) || !length(carry)) {
     return(character())
   }
   if (!is.character(carry) || anyNA(carry)) {
-    request_argument_error(
-      "`request$carry` must be a character vector of field names."
-    )
+    request_argument_error(paste0(
+      label("carry"),
+      " must be a character vector of field names."
+    ))
   }
   carry <- ascii_lower(carry)
   for (i in seq_along(carry)) {
-    label <- paste0("`request$carry[", i, "]`")
     if (carry[[i]] %in% never_carryable_fields) {
       request_error(paste0(
-        label,
+        label("carry", i),
         " nominates Authorization, Proxy-Authorization or Cookie, which never ",
         "cross an origin."
       ))
     }
     if (!carry[[i]] %in% ascii_lower(names(headers))) {
       request_error(paste0(
-        label,
-        " nominates a field `request$headers` does not hold."
+        label("carry", i),
+        " nominates a field ",
+        label("headers"),
+        " does not hold."
       ))
     }
   }

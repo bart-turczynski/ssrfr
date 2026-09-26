@@ -12,15 +12,18 @@
 followed_statuses <- c(301L, 302L, 303L, 307L, 308L)
 
 # Fields that describe a body, dropped whenever the body is (§2.3): RFC 9110
-# §15.4's content-specific fields; Content-Disposition, which names the body
-# as a file (RFC 6266); and Content-Digest and Repr-Digest, which RFC 9530
-# made of Digest. Content-Length is transport-owned and never in a plan.
+# §15.4's content-specific fields, a list it gives as "including (but not
+# limited to)"; Content-Range, which places the body within a whole (RFC
+# 9110 §14.4); Content-Disposition, which names the body as a file (RFC
+# 6266); and Content-Digest and Repr-Digest, which RFC 9530 made of Digest.
+# Content-Length is transport-owned and never in a plan.
 body_content_fields <- c(
   "content-type",
   "content-encoding",
   "content-language",
   "content-location",
   "content-length",
+  "content-range",
   "content-disposition",
   "digest",
   "content-digest",

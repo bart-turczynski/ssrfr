@@ -1188,14 +1188,16 @@ test_that("origin equality is scheme, normalized host and effective port", {
 })
 
 # §2.3: whenever the body is dropped, every field describing it goes too,
-# nominated or not: RFC 9110 §15.4's content fields, Content-Disposition
-# (RFC 6266), and Content-Digest and Repr-Digest (RFC 9530).
+# nominated or not: RFC 9110 §15.4's content fields, Content-Range (RFC 9110
+# §14.4), Content-Disposition (RFC 6266), and Content-Digest and Repr-Digest
+# (RFC 9530).
 test_that("a dropped body takes every field that describes it", {
   content <- c(
     `Content-Type` = "text/plain",
     `Content-Encoding` = "gzip",
     `Content-Language` = "en",
     `Content-Location` = "/doc",
+    `Content-Range` = "bytes 0-6/7",
     `Content-Disposition` = "attachment; filename=a.txt",
     Digest = "sha-256=x",
     `Content-Digest` = "sha-256=:x:",

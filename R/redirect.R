@@ -154,7 +154,9 @@ redirect_plan <- function(plan, status, cross_origin) {
   } else if (status == 303L && !identical(method, "HEAD")) {
     to <- "GET"
   }
-  body_dropped <- cross_origin ||
+  # The hop sends no body: the content fields go whether or not the plan
+  # had one, and the record says a body was dropped only when it had.
+  no_body <- cross_origin ||
     status == 303L ||
     (status %in% c(301L, 302L) && identical(method, "POST"))
   headers <- plan$headers
@@ -163,7 +165,7 @@ redirect_plan <- function(plan, status, cross_origin) {
   if (cross_origin) {
     keep <- lower %in% plan$carry & !lower %in% never_carryable_fields
   }
-  if (body_dropped) {
+  if (no_body) {
     keep <- keep & !lower %in% body_content_fields
   }
   kept <- headers[keep]
@@ -172,14 +174,14 @@ redirect_plan <- function(plan, status, cross_origin) {
     plan = list(
       method = to,
       headers = kept,
-      body = if (body_dropped) NULL else plan$body,
+      body = if (no_body) NULL else plan$body,
       carry = carry
     ),
     record = list(
       status = status,
       cross_origin = cross_origin,
       method = c(from = method, to = to),
-      body_dropped = body_dropped,
+      body_dropped = no_body && !is.null(plan$body),
       dropped = unique(lower[!keep])
     )
   )

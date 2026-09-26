@@ -612,7 +612,12 @@ test_that("the method and body transformation follows the status table", {
         expect_setequal(fields, want_fields)
         expect_identical(b2$redirect$status, status, label = label)
         expect_identical(b2$redirect$cross_origin, cross, label = label)
-        expect_identical(b2$redirect$body_dropped, body_dropped, label = label)
+        # A body was dropped only when the plan had one.
+        expect_identical(
+          b2$redirect$body_dropped,
+          body_dropped && method == "POST",
+          label = label
+        )
       }
     }
   }
@@ -705,6 +710,54 @@ test_that("a dropped body takes every field that describes it", {
   # A kept body keeps them.
   out <- ssrfr:::redirect_plan(plan, 307L, cross_origin = FALSE)
   expect_identical(out$plan$headers, plan$headers)
+})
+
+# The record says a body was dropped only when the plan had one; the
+# content fields go whenever the hop sends no body (§2.3).
+test_that("the record names a dropped body only when there was one", {
+  plan <- list(
+    method = "GET",
+    headers = c(`Content-Type` = "text/plain", `X-Trace` = "t1"),
+    body = NULL,
+    carry = c("content-type", "x-trace")
+  )
+  cases <- list(
+    list(status = 302L, cross = TRUE, method = "GET"),
+    list(status = 303L, cross = FALSE, method = "GET"),
+    list(status = 303L, cross = FALSE, method = "DELETE"),
+    list(status = 302L, cross = FALSE, method = "POST")
+  )
+  for (case in cases) {
+    label <- paste(case$status, case$method, case$cross)
+    plan$method <- case$method
+    out <- ssrfr:::redirect_plan(plan, case$status, case$cross)
+    expect_false(out$record$body_dropped, label = label)
+    expect_identical(out$record$dropped, "content-type", label = label)
+    plan$body <- charToRaw("payload")
+    out <- ssrfr:::redirect_plan(plan, case$status, case$cross)
+    expect_true(out$record$body_dropped, label = label)
+    expect_null(out$plan$body, label = label)
+    plan$body <- NULL
+  }
+
+  # On a binding: a cross-origin GET drops no body, and says none.
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  policy <- loopback_policy(port)
+  to <- pinned_url(port, "/echo", host = other_host)
+  b1 <- ssrf_prepare_hop(
+    pinned_url(port, paste0("/r/302?to=", URLencode(to, TRUE))),
+    policy,
+    request = list(headers = plan$headers, carry = plan$carry)
+  )
+  expect_identical(ssrf_fetch(b1)$status, 302L)
+  b2 <- ssrf_prepare_hop(b1$state$location, policy, from = b1)
+  expect_false(b2$redirect$body_dropped)
+  shown <- paste(format(b2), collapse = "\n")
+  expect_match(shown, "cross-origin; dropped content-type", fixed = TRUE)
+  expect_false(grepl("body dropped", shown, fixed = TRUE))
 })
 
 # --- the Location value -------------------------------------------------------

@@ -465,12 +465,13 @@ header_limit <- function(seen, policy) {
 
 # Records the size of `buffer`, libcurl's header buffer so far: every byte,
 # and as fields every line but an empty one and the status line that opens
-# a header block, and every trailer line. The lines are read as
-# header_segments() (R/transport.R) reads them for the parse, by the block
-# before each: a block cut short is still a header block, and every line
-# after a complete final block is a trailer line, so a count taken while the
-# buffer arrives and one taken once it is whole agree. The buffer only
-# grows, so a buffer of the length last measured is not scanned again.
+# a header block: every other header line, and every trailer line that is
+# not empty. The lines are read as header_segments() (R/transport.R) reads
+# them for the parse, by the block before each: a block cut short is still a
+# header block, and every line after a complete final block is a trailer
+# line, so a count taken while the buffer arrives and one taken once it is
+# whole agree. The buffer only grows, so a buffer of the length last
+# measured is not scanned again.
 measure_header <- function(seen, buffer) {
   if (!is.raw(buffer) || identical(seen$measured, length(buffer))) {
     return(invisible())
@@ -478,10 +479,8 @@ measure_header <- function(seen, buffer) {
   seen$measured <- length(buffer)
   seen$header_bytes <- length(buffer)
   segments <- header_segments(buffer)
-  empty <- !nzchar(segments$lines)
-  seen$header_fields <- sum(!empty) -
-    length(segments$blocks$start) +
-    sum(empty[segments$trailers])
+  seen$header_fields <- sum(nzchar(segments$lines)) -
+    length(segments$blocks$start)
   invisible()
 }
 

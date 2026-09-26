@@ -370,10 +370,14 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     step <- if (cause == "tls-failed") 10L else 12L
     return(ended(cause, step, "transport", limit))
   }
-  headers <- parse_response_headers(transfer$headers)
-  if (is.null(headers)) {
+  # The status libcurl reports and the header block ssrfr reads must be the
+  # same response's: the status is transport-observed (§2.3), and a
+  # disagreement records neither.
+  parsed <- parse_response_headers(transfer$headers)
+  if (is.null(parsed) || parsed$status != transfer$status) {
     return(ended("protocol-error", 12L, "header"))
   }
+  headers <- parsed$headers
   locations <- unname(headers[names(headers) == "location"])
   set_state(
     binding,

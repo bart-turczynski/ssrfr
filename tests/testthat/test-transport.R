@@ -281,7 +281,9 @@ test_that("response headers are read from the final block only", {
     "X-Folded: one\r\n two\r\n",
     "Set-Cookie: a=1\r\nSet-Cookie: b=2\r\n\r\n"
   ))
-  h <- ssrfr:::parse_response_headers(raw)
+  parsed <- ssrfr:::parse_response_headers(raw)
+  expect_identical(parsed$status, 302L)
+  h <- parsed$headers
   expect_named(
     h,
     c("location", "content-type", "x-folded", "set-cookie", "set-cookie")
@@ -294,7 +296,7 @@ test_that("response headers are read from the final block only", {
     "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
     "Location: /trailer\r\nHTTP/1.1 302 Found\r\n\r\n"
   )))
-  expect_identical(trailed, c(`transfer-encoding` = "chunked"))
+  expect_identical(trailed$headers, c(`transfer-encoding` = "chunked"))
   expect_null(ssrfr:::parse_response_headers(charToRaw("garbage\r\n")))
   expect_null(
     ssrfr:::parse_response_headers(charToRaw("HTTP/1.1 200 OK\r\nno colon\r\n"))
@@ -342,7 +344,7 @@ test_that("a header value with obs-text is kept byte for byte", {
     wire("\r\nSet-Cookie: secret=1\r\n\r\n")
   )
   h <- NULL
-  expect_no_warning(h <- ssrfr:::parse_response_headers(raw))
+  expect_no_warning(h <- ssrfr:::parse_response_headers(raw)$headers)
   expect_named(
     h,
     c("content-disposition", "x-utf8", "content-type", "set-cookie")

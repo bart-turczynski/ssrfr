@@ -231,10 +231,11 @@ pin_check <- function(lines, address, port) {
 
 # --- response headers --------------------------------------------------------
 
-# The header fields of the final response in `raw` (every header block
-# libcurl received, interim 1xx responses included): a character vector of
-# values named by the lowercase field name, in order. NULL when the bytes do
-# not read as HTTP header lines, which is a `protocol-error` (§6.6).
+# The final response in `raw` (every header block libcurl received,
+# interim 1xx responses included): a list of `status` (an integer) and
+# `headers` (a character vector of values named by the lowercase field
+# name, in order). NULL when the bytes do not read as HTTP header lines,
+# which is a `protocol-error` (§6.6).
 #
 # The block is read as bytes, never translated: a field value may carry
 # obs-text (RFC 9110 §5.5), such as a Latin-1 filename, and a translation
@@ -247,26 +248,38 @@ parse_response_headers <- function(raw) {
     return(NULL)
   }
   lines <- strsplit(text, "\r?\n", useBytes = TRUE)[[1L]]
-  # The final response is the first status line that is not 1xx, and its
-  # header section ends at the first empty line after it. libcurl appends a
-  # chunked body's trailer section to the same buffer; trailer fields are
-  # not header fields (RFC 9110 §6.5), so a trailer `Location` never reaches
-  # the binding.
-  starts <- grep("^HTTP/", lines, useBytes = TRUE)
-  interim <- grepl(
-    "^HTTP/[^ ]* +1[0-9][0-9]( |$)",
+  # A header block is a status line at the start of the buffer or after an
+  # empty line, and it ends at the next empty line. libcurl reports the
+  # status of the last response it received, so the final response is the
+  # last block that is not 1xx. libcurl appends a chunked body's trailer
+  # section after the final block's empty line, with no empty line of its
+  # own: trailer fields are not header fields (RFC 9110 §6.5), and a trailer
+  # line shaped like a status line starts no block, so neither a trailer
+  # `Location` nor a forged status reaches the binding.
+  empty <- !nzchar(lines)
+  opens <- c(TRUE, empty[-length(empty)]) &
+    grepl("^HTTP/[^ ]* +[0-9]{3}( |$)", lines, useBytes = TRUE)
+  ends <- vapply(
+    which(opens),
+    function(i) i + match(TRUE, empty[-seq_len(i)]),
+    integer(1L)
+  )
+  starts <- which(opens)[!is.na(ends)]
+  ends <- ends[!is.na(ends)]
+  status <- as.integer(sub(
+    "^HTTP/[^ ]* +([0-9]{3}).*$",
+    "\\1",
     lines[starts],
     useBytes = TRUE
-  )
-  final <- starts[!interim][1L]
-  if (is.na(final)) {
+  ))
+  finals <- which(status >= 200L)
+  if (!length(finals)) {
     return(NULL)
   }
-  lines <- lines[-seq_len(final)]
-  end <- match(TRUE, !nzchar(lines))
-  if (!is.na(end)) {
-    lines <- lines[seq_len(end - 1L)]
-  }
+  final <- finals[[length(finals)]]
+  status <- status[[final]]
+  first <- starts[[final]] + 1L
+  lines <- lines[seq_len(ends[[final]] - first) + first - 1L]
   field_line <- paste0("^", http_tchars, ":")
   fields <- character()
   values <- character()
@@ -285,7 +298,7 @@ parse_response_headers <- function(raw) {
   valid <- validUTF8(values)
   Encoding(values[valid]) <- "UTF-8"
   Encoding(values[!valid]) <- "bytes"
-  stats::setNames(values, fields)
+  list(status = status, headers = stats::setNames(values, fields))
 }
 
 # A field value without its leading and trailing whitespace (RFC 9110 §5.5,

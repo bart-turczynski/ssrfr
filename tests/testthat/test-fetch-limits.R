@@ -745,3 +745,17 @@ test_that("the header measure classifies a line by the block before it", {
     )
   }
 })
+
+# §5.3: an empty line is never a field, after the final block included. A
+# trailer section's closing empty line does not count against
+# `max_header_fields`; only the trailer lines that carry a field do.
+test_that("an empty line after the final block is no field", {
+  seen <- new.env(parent = emptyenv())
+  buffer <- wire(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX: 1\r\n\r\n",
+    "X-T: 1\r\n\r\n"
+  )
+  ssrfr:::measure_header(seen, buffer)
+  expect_identical(seen$header_bytes, length(buffer))
+  expect_identical(seen$header_fields, 2L + 1L)
+})

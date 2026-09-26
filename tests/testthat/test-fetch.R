@@ -676,8 +676,10 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
 
 # §6.6: a genuine pin-mismatch names no callback. A failed write or progress
 # callback does not touch the trace, so a trace naming another address, or
-# none, is the pin's own finding; only a failed trace callback, which leaves
-# the evidence unreliable, is named.
+# one that cannot be read, is the pin's own finding; only a failed trace
+# callback, which leaves the evidence unreliable, is named. A trace with no
+# `Trying` line at all, beside a failed callback, is the one that failure cut
+# short, and names it.
 test_that("a genuine pin-mismatch names no failed callback", {
   mock_answers("127.0.0.1")
   cases <- list(
@@ -686,7 +688,11 @@ test_that("a genuine pin-mismatch names no failed callback", {
       failed = "data",
       callback = NULL
     ),
-    absent = list(trace = "Dialing\n", failed = "progress", callback = NULL),
+    absent = list(
+      trace = "Dialing\n",
+      failed = "progress",
+      callback = "progress"
+    ),
     garbled = list(trace = "Trying ???\n", failed = "data", callback = NULL),
     debug = list(trace = "Dialing\n", failed = "debug", callback = "debug")
   )
@@ -716,6 +722,79 @@ test_that("a genuine pin-mismatch names no failed callback", {
       expect_identical(r$detail$callback, case$callback, label = name)
     })
   }
+})
+
+# §6.6: a write or progress callback that fails before libcurl traces
+# `Trying` stops the transfer with the trace empty. The pin is unconfirmed,
+# so the fetch is pin-mismatch, check absent, and the failure names the
+# callback that cut the evidence short.
+test_that("a callback that fails before the trace is named", {
+  mock_answers("127.0.0.1")
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      # As the wrapper does: progress runs first and throws, the error is
+      # caught under its name, and the transfer stops before any trace.
+      failing <- function(down, up, received) stop("a defect")
+      failed <- tryCatch(
+        {
+          failing(0, 0, function() raw())
+          NULL
+        },
+        error = function(e) "progress"
+      )
+      list(
+        aborted = TRUE,
+        failed = failed,
+        error = NULL,
+        status = 0L,
+        headers = raw(),
+        connect = 0
+      )
+    }
+  )
+  b <- ssrf_prepare_hop(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(),
+    request = list()
+  )
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "pin-mismatch")
+  expect_identical(r$detail$check, "absent")
+  expect_identical(r$detail$callback, "progress")
+  expect_null(b$state$status)
+})
+
+# INV-11: a transfer the wrapper reports as stopped by a callback, with
+# neither a limit record nor a callback failure to say why, fails closed. Its
+# header block is complete and its status agrees, yet it is never a response.
+test_that("a stopped transfer with no record fails closed", {
+  mock_answers("127.0.0.1")
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      list(
+        aborted = TRUE,
+        failed = NULL,
+        error = NULL,
+        status = 200L,
+        headers = wire("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"),
+        connect = 0.01
+      )
+    }
+  )
+  b <- ssrf_prepare_hop(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(),
+    request = list()
+  )
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "aborted")
+  expect_null(r$detail$callback)
+  expect_null(b$state$status)
+  expect_false(b$state$fetched)
 })
 
 # --- single use (§2.5) -------------------------------------------------------

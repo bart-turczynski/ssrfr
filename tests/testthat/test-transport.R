@@ -339,6 +339,20 @@ test_that("the header buffer is segmented by the block before each line", {
   expect_identical(s$blocks, blocks(1, 3, 200, TRUE))
 })
 
+# The header measure runs the segmenter on every growth of the header
+# buffer, inside callbacks that run with interrupts suspended, so one pass
+# costs time linear in the buffer: 512 KiB of interim blocks, a run of 1xx
+# responses, segments well within a second.
+test_that("the header buffer is segmented in linear time", {
+  block <- "HTTP/1.1 100 X\r\n\r\n"
+  count <- (512 * 1024) %/% nchar(block)
+  buffer <- wire(strrep(block, count))
+  s <- NULL
+  elapsed <- system.time(s <- ssrfr:::header_segments(buffer))[["elapsed"]]
+  expect_length(s$blocks$start, count)
+  expect_lt(elapsed, 0.5)
+})
+
 test_that("response headers are read from the final block only", {
   raw <- charToRaw(paste0(
     "HTTP/1.1 100 Continue\r\n\r\n",

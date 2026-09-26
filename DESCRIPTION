@@ -12,8 +12,8 @@ Description: Protects R applications that fetch URLs an attacker can
     rebound between check and connect. Refusals carry stable reason codes.
     Under development: the policy, the result model, structural inspection
     of a URL without network access, resolved inspection of every address a
-    name resolves to, and the guarded fetch of a single hop are
-    implemented; following a redirect through the guard is not yet.
+    name resolves to, and the guarded fetch of each hop of a redirect
+    chain are implemented.
 License: MIT + file LICENSE
 URL: https://ssrfr-290b3f.gitlab.io, https://gitlab.com/bart-turczynski/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items

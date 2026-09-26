@@ -1,6 +1,8 @@
-# Post-stop reads probe behind r-binding.md §5 (`buffersize`) and the §7
-# residual row (fp SSRF-rgcijatt): how much a transfer reads and decodes after
-# a write callback records a limit stop without raising an R error.
+# Post-stop reads probe behind r-binding.md §7's accepted residual row,
+# decoding after a stop (fp SSRF-rgcijatt, SSRF-qqfvoxch): how much a
+# transfer reads and decodes after a write callback records a limit stop
+# without raising an R error. ssrfr sets no `buffersize`; the probe varies it
+# to show that it scales the remainder on every build and bounds it on none.
 #
 # ssrfr's transport (R/dependencies.R, dep_curl_transfer()) raises no R error
 # inside a curl callback, because curl evaluates each callback as a top-level

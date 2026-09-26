@@ -350,7 +350,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     return(list(ending = "pin-mismatch", check = "no-transfer"))
   }
   # The callbacks that raised an error, which the wrapper caught (a defect,
-  # never a limit): `failed[[1L]]` is named in the failure's detail.
+  # never a limit), in the order they first failed.
   failed <- transfer$failed
   # INV-5: the detector runs on every attempt, whatever its outcome. Absent or
   # unreadable evidence is a mismatch (§6.6), and so is a trace whose

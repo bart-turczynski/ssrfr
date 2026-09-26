@@ -4,8 +4,10 @@
 # the files' shape and vocabulary are checked, and the rows the implemented
 # layers decide are evaluated: every L0 and L1 verdict vector through
 # ssrf_inspect_url(), at L1 with the row's `answers` fed through the mocked
-# resolver wrapper, and every parse vector through the parse boundary.
-# The readers live in helper-corpus.R.
+# resolver wrapper; every L2 row and every redirect row through the guarded
+# hop, a redirect row's previous hop served for real; and every parse vector
+# through the parse boundary. The readers and the L2 harness live in
+# helper-corpus.R.
 #
 # A pending row is never skipped (§7.2): its marker is asserted, and so is the
 # fact that its expectation still does not hold, so the day the upstream fix
@@ -301,6 +303,51 @@ test_that("L1 redirect rows resolve the new hop once, against their base", {
     )$host
     expect_identical(got$queries, paste0(host, "."), label = label)
   }
+})
+
+# At L2 a row is decided by the guarded hop (decide_row_l2(),
+# helper-corpus.R): a redirect row by ssrf_prepare_hop(from =) after its
+# previous hop was served and fetched, or, under max_redirects = 0, by that
+# fetch, whose first 3xx refuses.
+test_that("every active L2 verdict vector is decided at L2 with its code", {
+  skip_if_no_webfakes()
+  ports <- local_corpus_servers()
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$layer == "L2" & v$status == "active", ]
+  expect_identical(rows$id, c("V0420", "V0422", "V0425", "V0433"))
+  for (i in seq_len(nrow(rows))) {
+    label <- paste(rows$id[i], rows$input[i], rows$policy[i], rows$hop[i])
+    got <- decide_row_l2(rows[i, ], ports)
+    expect_identical(got$verdict, rows$verdict[i], label = label)
+    expect_identical(got$outcome, rows$code[i], label = label)
+    zero <- grepl("max_redirects=0", rows$policy[i], fixed = TRUE)
+    expect_identical(got$via, if (zero) "fetch" else "from", label = label)
+    expect_identical(got$hop, if (zero) 1L else 2L, label = label)
+    expect_identical(got$queries, character(), label = label)
+  }
+})
+
+test_that("every redirect verdict vector is decided through the guarded hop", {
+  skip_if_no_webfakes()
+  ports <- local_corpus_servers()
+  v <- read_corpus("verdict-vectors.tsv")
+  rows <- v[v$group == "redirect" & v$status == "active", ]
+  expect_identical(nrow(rows), 31L)
+  via <- character()
+  for (i in seq_len(nrow(rows))) {
+    label <- paste(rows$id[i], rows$input[i], rows$policy[i], rows$hop[i])
+    got <- decide_row_l2(rows[i, ], ports)
+    via <- c(via, got$via)
+    expect_identical(got$verdict, rows$verdict[i], label = label)
+    expect_identical(got$outcome, rows$code[i], label = label)
+    # A hop that reached step 7 resolved its own name once (INV-5, INV-7).
+    decided_early <- got$via == "fetch" ||
+      rows$verdict[i] == "refuse" && inspect_row(rows[i, ]) != "-"
+    expect_length(got$queries, if (decided_early) 0L else 1L)
+  }
+  expect_identical(sum(via == "from"), 28L)
+  expect_identical(sum(via == "fetch"), 2L)
+  expect_identical(sum(via == "first"), 1L)
 })
 
 test_that("every active parse vector meets its expectation, host by value", {

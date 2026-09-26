@@ -1,10 +1,13 @@
 #!/bin/sh
 # Regenerates the TLS test fixtures in this directory (r-binding.md §7,
-# "Proving SNI"): a throwaway CA and two server certificates, for
-# alpha.example.invalid and beta.example.invalid, each carrying a DNS SAN and
+# "Proving SNI"): a throwaway CA and three server certificates, for
+# alpha.example.invalid, for beta.example.invalid, and `corpus` for the
+# https hosts of the conformance corpus's redirect rows (legit.example and
+# secure.example, tests/testthat/test-corpus.R), each carrying DNS SANs and
 # no IP SAN, valid for 100 years. The CA's private key is discarded, so these
 # files can sign nothing new. The keys are test-only: they name RFC 2606
-# `.invalid` hosts that never resolve, and only tests trust the CA.
+# `.invalid` and `.example` hosts that never resolve, and only tests trust
+# the CA.
 #
 # Run from this directory with an OpenSSL 3 command-line tool:
 #   sh make-certs.sh
@@ -28,12 +31,17 @@ EOF
 openssl req -x509 -new -newkey rsa:2048 -nodes -sha256 -days "$days" \
   -config "$work/ca.cnf" -keyout "$work/ca.key" -out ca.crt
 
-for h in alpha beta; do
-  host="$h.example.invalid"
+# name, certificate common name, subject alternative names
+for leaf in \
+  "alpha alpha.example.invalid DNS:alpha.example.invalid" \
+  "beta beta.example.invalid DNS:beta.example.invalid" \
+  "corpus legit.example DNS:legit.example,DNS:secure.example"; do
+  set -- $leaf
+  h=$1
   printf '[req]\ndistinguished_name = dn\nprompt = no\n[dn]\nCN = %s\n' \
-    "$host" > "$work/$h.cnf"
-  printf 'subjectAltName = DNS:%s\nbasicConstraints = CA:FALSE\n' \
-    "$host" > "$work/$h.ext"
+    "$2" > "$work/$h.cnf"
+  printf 'subjectAltName = %s\nbasicConstraints = CA:FALSE\n' \
+    "$3" > "$work/$h.ext"
   openssl req -new -newkey rsa:2048 -nodes -config "$work/$h.cnf" \
     -keyout "$h.key" -out "$work/$h.csr"
   openssl x509 -req -sha256 -days "$days" -in "$work/$h.csr" \

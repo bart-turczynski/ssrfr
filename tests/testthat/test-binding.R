@@ -16,12 +16,12 @@ test_that("prepare takes exactly one of request and from", {
     ssrf_prepare_hop(url, p, request = list(), from = b),
     class = "ssrfr_error_invalid_argument"
   )
-  # Redirect hops belong to a later release: `from` is refused, not ignored.
-  err <- expect_error(
+  # `from` alone is a redirect hop; an unspent binding is not a valid one
+  # (test-redirect.R has the rest).
+  expect_error(
     ssrf_prepare_hop("/next", p, from = b),
-    class = "ssrfr_error_invalid_argument"
+    class = "ssrfr_error_invalid_from"
   )
-  expect_match(conditionMessage(err), "not yet supported")
   expect_error(
     ssrf_prepare_hop(c(url, url), p, request = list()),
     class = "ssrfr_error_invalid_argument"

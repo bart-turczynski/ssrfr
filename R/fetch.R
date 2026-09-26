@@ -338,7 +338,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       return(FALSE)
     }
     if (!seen$body_since_progress) {
-      measure_header(seen, received(), arriving = !seen$body_started)
+      measure_header(seen, received())
       over <- header_limit(seen, policy)
       if (!is.null(over)) {
         return(abort("response-too-large", "header", over))
@@ -466,39 +466,24 @@ header_limit <- function(seen, policy) {
 }
 
 # Records the size of `buffer`, libcurl's header buffer so far: every byte,
-# and as fields every complete line but an empty one and the status line
-# that opens a block. The buffer holds every header block, interim ones
-# included, each ended by an empty line, and then a chunked body's trailer
-# lines, which no empty line ends. So a status-shaped line at the start or
-# after an empty line opens a block only when an empty line ends that block,
-# or when it is the last block and still `arriving`, before any body byte;
-# otherwise it is a trailer line, and a field like any other, on a libcurl
-# that accepts one there. The buffer only grows, so a buffer of the length
-# last measured, in the same state, is not scanned again. Read as bytes: a
-# line may carry obs-text or a NUL.
-measure_header <- function(seen, buffer, arriving = FALSE) {
-  if (!is.raw(buffer)) {
+# and as fields every line but an empty one and the status line that opens
+# a header block, and every trailer line. The lines are read as
+# header_segments() (R/transport.R) reads them for the parse, by the block
+# before each: a block cut short is still a header block, and every line
+# after a complete final block is a trailer line, so a count taken while the
+# buffer arrives and one taken once it is whole agree. The buffer only
+# grows, so a buffer of the length last measured is not scanned again.
+measure_header <- function(seen, buffer) {
+  if (!is.raw(buffer) || identical(seen$measured, length(buffer))) {
     return(invisible())
   }
-  key <- paste(length(buffer), arriving)
-  if (identical(seen$measured, key)) {
-    return(invisible())
-  }
-  seen$measured <- key
+  seen$measured <- length(buffer)
   seen$header_bytes <- length(buffer)
-  ends <- which(buffer == as.raw(0x0aL))
-  starts <- c(1L, ends[-length(ends)] + 1L)[seq_along(ends)]
-  size <- ends - starts
-  empty <- size == 0L | (size == 1L & buffer[starts] == as.raw(0x0dL))
-  status <- size >= 5L
-  prefix <- charToRaw("HTTP/")
-  for (k in seq_along(prefix)) {
-    at <- pmin(starts + k - 1L, length(buffer))
-    status <- status & buffer[at] == prefix[[k]]
-  }
-  ended <- seq_along(ends) < max(which(empty), 0L)
-  opens <- status & c(TRUE, empty[-length(empty)]) & (ended | arriving)
-  seen$header_fields <- sum(!empty & !opens)
+  segments <- header_segments(buffer)
+  empty <- !nzchar(segments$lines)
+  seen$header_fields <- sum(!empty) -
+    nrow(segments$blocks) +
+    sum(empty[segments$trailers])
   invisible()
 }
 

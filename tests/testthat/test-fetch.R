@@ -310,29 +310,43 @@ test_that("a trailer field never joins the header", {
 # (§2.3: the status is transport-observed).
 test_that("a status that disagrees with the header block is a protocol error", {
   mock_answers("127.0.0.1")
-  local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
-      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
-      list(
-        aborted = FALSE,
-        error = NULL,
-        status = 200L,
-        headers = wire("HTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n"),
-        connect = 0.01
+  # The second buffer holds two final blocks: the first is the one read,
+  # and the second, trailer lines (R/transport.R, header_segments()).
+  buffers <- list(
+    one = wire("HTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n"),
+    two = wire(
+      "HTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n",
+      "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+    )
+  )
+  for (name in names(buffers)) {
+    local({
+      buffer <- buffers[[name]]
+      local_mocked_bindings(
+        dep_curl_transfer = function(opts, data, debug, progress) {
+          debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+          list(
+            aborted = FALSE,
+            error = NULL,
+            status = 200L,
+            headers = buffer,
+            connect = 0.01
+          )
+        }
       )
-    }
-  )
-  b <- ssrf_prepare_hop(
-    paste0("http://", pinned_host, "/"),
-    loopback_policy(),
-    request = list()
-  )
-  r <- ssrf_fetch(b)
-  expect_s3_class(r, "ssrfr_failure")
-  expect_identical(r$cause, "protocol-error")
-  expect_identical(r$detail$check, "header")
-  expect_null(b$state$status)
-  expect_null(b$state$location)
+      b <- ssrf_prepare_hop(
+        paste0("http://", pinned_host, "/"),
+        loopback_policy(),
+        request = list()
+      )
+      r <- ssrf_fetch(b)
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, "protocol-error", label = name)
+      expect_identical(r$detail$check, "header", label = name)
+      expect_null(b$state$status)
+      expect_null(b$state$location)
+    })
+  }
 })
 
 # RFC 9112 §4: a status line is HTTP-version SP status-code SP

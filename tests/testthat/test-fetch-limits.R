@@ -264,8 +264,9 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
 
 # §6.6: a header cut short before its empty line, with exactly
 # max_header_fields fields, is within the limits. Its status line opens its
-# block, so it is no field, and the transfer ends with the transport's own
-# cause: `timeout` when the server stalls, `protocol-error` when it closes.
+# block, so it is no field, and the transfer ends with the cause of how it
+# ended: `timeout` when the server stalls, and when it closes, the
+# `protocol-error` of a header that never ended.
 test_that("a truncated header at the field limit ends with the transport cause", {
   mock_answers("127.0.0.1")
   head <- wire("HTTP/1.1 200 OK\r\n", strrep("X-F: 1\r\n", 20))
@@ -277,7 +278,7 @@ test_that("a truncated header at the field limit ends with the transport cause",
   body(stall) <- do.call(substitute, list(body(stall), list(HEAD = head)))
   cases <- list(
     stall = list(bytes = stall, want = "timeout transport total_timeout"),
-    close = list(bytes = head, want = "protocol-error transport none")
+    close = list(bytes = head, want = "protocol-error header none")
   )
   for (name in names(cases)) {
     case <- cases[[name]]
@@ -762,15 +763,6 @@ test_that("a trailer line shaped like a status line is a field", {
   ssrfr:::measure_header(seen, buffer)
   expect_identical(seen$header_bytes, length(buffer))
   expect_identical(seen$header_fields, 2L + 2L)
-  # Before any body byte, the last block may still be arriving: its status
-  # line opens it. Once the transfer ends, a block no empty line ended is
-  # read as trailers, so its status line is a field.
-  arriving <- wire("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nX: 1\r\n")
-  seen <- new.env(parent = emptyenv())
-  ssrfr:::measure_header(seen, arriving, arriving = TRUE)
-  expect_identical(seen$header_fields, 1L)
-  ssrfr:::measure_header(seen, arriving)
-  expect_identical(seen$header_fields, 2L)
 })
 
 # §5.3: a block the buffer holds before any complete final block is a

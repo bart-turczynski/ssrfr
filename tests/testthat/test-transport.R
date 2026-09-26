@@ -373,19 +373,23 @@ test_that("response headers are read from the final block only", {
   expect_null(ssrfr:::parse_response_headers(as.raw(c(0x48, 0x00, 0x49))))
 })
 
-# libcurl reports the status of the last response it received, so the
-# status and the fields both come from the last final block. Two final
-# blocks in one buffer: the first one's Location must not leak.
-test_that("status and fields come from the last final block", {
+# libcurl reads no header after a complete final block, so the status and
+# the fields come from the one complete final block, and every line after
+# it is a trailer line. A buffer with a second final block reads as the
+# first one and trailers; libcurl reports the last status, which then
+# disagrees, and the fetch fails before the first one's Location reaches the
+# binding (test-fetch.R, "a status that disagrees with the header block").
+test_that("status and fields come from the complete final block", {
   parsed <- ssrfr:::parse_response_headers(wire(
+    "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 401 Unauthorized\r\n",
     "Location: /a\r\nWWW-Authenticate: Basic realm=\"x\"\r\n\r\n",
     "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
   ))
-  expect_identical(parsed$status, 200L)
-  expect_identical(parsed$headers, c(`content-type` = "text/plain"))
-  expect_false("location" %in% names(parsed$headers))
+  expect_identical(parsed$status, 401L)
+  expect_named(parsed$headers, c("location", "www-authenticate"))
+  expect_false("content-type" %in% names(parsed$headers))
   # A trailer section follows the final block with no empty line of its
   # own, so a trailer line shaped like a status line never starts a block.
   forged <- ssrfr:::parse_response_headers(wire(

@@ -391,6 +391,10 @@ local_counting_server <- function(response, env = parent.frame()) {
           if (n >= 4L && identical(head[(n - 3L):n], end)) {
             break
           }
+          if (n > 16384L) {
+            # Not a request head: body bytes after an early answer.
+            return(FALSE)
+          }
         }
         text <- rawToChar(head)
         line <- sub("\r\n.*$", "", text)

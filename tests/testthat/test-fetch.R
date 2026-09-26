@@ -583,6 +583,58 @@ test_that("an auth challenge never makes the request a second time", {
   expect_identical(body_text(r), "hits=1 auth=Basic dXNlcjpwYXNz")
 })
 
+# §2.5: no retries. Each response here is one libcurl could answer by
+# sending the request again within one fetch: a 417 to a body sent with
+# 100-continue, a redirect it follows, or interim responses. The server
+# answers every request on every connection it accepts and keeps them open,
+# so a request sent again, on either, is counted. (A 401 challenge is the
+# test above.)
+test_that("a request reaches the server once, whatever the response", {
+  mock_answers("127.0.0.1")
+  body <- as.raw(rep(0x61, 1.5 * 2^20))
+  cases <- list(
+    expectation = list(
+      response = wire(
+        "HTTP/1.1 417 Expectation Failed\r\nContent-Length: 0\r\n\r\n"
+      ),
+      request = list(method = "POST", body = body),
+      status = 417L
+    ),
+    redirect = list(
+      response = wire(
+        "HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n"
+      ),
+      request = list(),
+      status = 302L
+    ),
+    interim = list(
+      response = wire(
+        "HTTP/1.1 100 Continue\r\n\r\n",
+        "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+      ),
+      request = list(),
+      status = 200L
+    )
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      server <- local_counting_server(case$response)
+      r <- guarded_get(
+        pinned_url(server$port, "/once"),
+        loopback_policy(server$port, total_timeout = 10),
+        request = case$request
+      )
+      expect_s3_class(r, "ssrfr_response")
+      expect_identical(r$status, case$status, label = name)
+      seen <- server$stop()
+      expect_identical(nrow(seen), 1L, label = name)
+      expect_match(seen$line, " /once HTTP/1[.]1$", label = name)
+    })
+  }
+})
+
 test_that("a failing transport wrapper fails closed, never an R error", {
   modes <- list(
     stop = function(...) stop("dependency failed"),

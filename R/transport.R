@@ -25,6 +25,11 @@ fixed_transport_options <- list(
   # the server refuses its stream (RST_STREAM REFUSED_STREAM), a second
   # request within one fetch (§2.5); one request gains nothing from HTTP/2.
   http_version = 2L,
+  # No callback raises (R/dependencies.R), so after a limit stop libcurl
+  # finishes its round: up to its per-round read count of `buffersize` wire
+  # bytes, decoded and dropped. 4096 bytes, not the default 16 KiB, bounds
+  # that residual (§14; r-binding.md §5, §7).
+  buffersize = 4096L,
   netrc = 0L,
   cookiefile = NULL,
   path_as_is = 1L,

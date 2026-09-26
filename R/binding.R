@@ -239,9 +239,14 @@ ssrf_prepare_hop <- function(url, policy, request = NULL, from = NULL) {
       fn = "ssrf_prepare_hop"
     )
   }
+  # The hop is prepared from the value `from` recorded, never from `url`:
+  # the same bytes marked in another encoding would re-encode into another
+  # URL. enc2utf8() leaves a recorded value as it is, UTF-8, ASCII or
+  # "bytes", so an exact copy is prepared as it always was.
+  location <- enc2utf8(from$state$location)
   # §2.3: the inherited plan is never re-supplied; prepare_hop() transforms
   # it for the redirect and checks what the new hop sends.
-  prepare_hop(enc2utf8(url), policy, from$request, started, from = from)
+  prepare_hop(location, policy, from$request, started, from = from)
 }
 
 # Steps 1-8 for a hop: a first hop, whose request plan is valid, or, with

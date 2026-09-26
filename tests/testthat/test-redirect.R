@@ -287,11 +287,8 @@ test_that("a redirect hop's url must be the recorded Location, byte for byte", {
     # Raised before anything is resolved.
     expect_length(seen$queries, 0L)
   }
-  # The same bytes in another declared encoding are still the same bytes.
-  latin <- "/Echo"
-  Encoding(latin) <- "latin1"
-  expect_s3_class(ssrf_prepare_hop(latin, policy, from = b), "ssrfr_binding")
-  # The exact value proceeds.
+  # The exact value proceeds. The same bytes in another declared encoding
+  # are the tests below: marking ASCII is a no-op, so it tests nothing here.
   b2 <- ssrf_prepare_hop(b$state$location, policy, from = b)
   expect_s3_class(b2, "ssrfr_binding")
   expect_identical(b2$url, pinned_url(port, "/Echo"))
@@ -322,6 +319,59 @@ test_that("the Location is compared as bytes, not as strings", {
     ssrf_prepare_hop(location, policy, from = b),
     "ssrfr_binding"
   )
+})
+
+# The same bytes marked in another encoding pass the byte comparison, so the
+# hop must be prepared from the recorded value: `url` re-encoded to UTF-8
+# would be another URL. A copy marked latin1 proceeds to exactly the
+# recorded target, or raises invalid_from; it never reaches another one.
+test_that("a Location marked in another encoding keeps the recorded target", {
+  mock_answers("127.0.0.1")
+  # What an outcome points at: a binding's URL, or a refusal's code and URL.
+  target <- function(out) {
+    if (inherits(out, "ssrfr_binding")) {
+      list("binding", out$url)
+    } else {
+      list(class(out)[[1L]], out$code, out$url)
+    }
+  }
+  location_bytes <- list(
+    "valid UTF-8" = as.raw(c(0xc3, 0xa9)),
+    "not valid UTF-8" = as.raw(0xe9)
+  )
+  kinds <- c("valid UTF-8" = "binding", "not valid UTF-8" = "ssrfr_refusal")
+  for (label in names(location_bytes)) {
+    local({
+      web <- local_raw_server(c(
+        wire("HTTP/1.1 302 Found\r\nLocation: /caf"),
+        location_bytes[[label]],
+        wire("\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+      ))
+      policy <- loopback_policy(web$port)
+      b <- ssrf_prepare_hop(pinned_url(web$port), policy, request = list())
+      expect_identical(ssrf_fetch(b)$status, 302L, label = label)
+      location <- b$state$location
+      marked <- location
+      Encoding(marked) <- "latin1"
+      # The mark really differs, and the bytes do not.
+      expect_false(
+        identical(Encoding(marked), Encoding(location)),
+        label = label
+      )
+      expect_identical(charToRaw(marked), charToRaw(location), label = label)
+      want <- target(ssrf_prepare_hop(location, policy, from = b))
+      # The recorded target: the URL for valid UTF-8, a parse refusal for
+      # bytes that are not (test below).
+      expect_identical(want[[1L]], kinds[[label]], label = label)
+      got <- tryCatch(
+        target(ssrf_prepare_hop(marked, policy, from = b)),
+        ssrfr_error_invalid_from = function(e) "invalid_from"
+      )
+      if (!identical(got, "invalid_from")) {
+        expect_identical(got, want, label = label)
+      }
+    })
+  }
 })
 
 test_that("a changed chain budget raises budget_change", {

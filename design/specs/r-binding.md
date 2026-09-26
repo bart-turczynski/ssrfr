@@ -352,6 +352,7 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `redir_protocols_str` | `"http,https"` | removes `ftp`/`ftps` from redirect hops |
 | `followlocation` | `0L` | INV-7 |
 | `forbid_reuse` | `1L` | reuse must not outlive the pin |
+| `http_version` | `2L` (`CURL_HTTP_VERSION_1_1`) | spec §2.5, the request sent at most once — see below |
 | `dns_cache_timeout` | `0L` | libcurl caches DNS 60 s by default |
 | `proxy` | `""` | INV-10 |
 | `noproxy` | `"*"` | INV-10 — see the warning below |
@@ -368,12 +369,8 @@ for a `::1` client, so the dialed address comes from the `debugfunction` trace
 | `dns_shuffle_addresses` | `0L` | ordering stays ours |
 | `accept_encoding` | set explicitly, never `NULL` | fixes the request; the package default is build-dependent — see below |
 
-Left at their defaults on purpose: `http_version` — libcurl 8.14.1 reuses a
-connection only for the same host name and port, so HTTP/2 coalesces nothing
-**[sourced]**, and HTTP/3 is neither in the evidence build (`http_version =
-30L` fails at `setopt` **[verified]**) nor reachable without asking or
-`Alt-Svc`; `ipresolve` — a literal `connect_to` target overrides it
-**[verified]**; `maxage_conn` — under `forbid_reuse` nothing idles in the pool;
+Left at their defaults on purpose: `ipresolve` — a literal `connect_to`
+target overrides it **[verified]**; `maxage_conn` — under `forbid_reuse` nothing idles in the pool;
 `low_speed_limit`/`low_speed_time` — the package's 1 byte/s over 600 s is
 inside the finite `timeout` anyway.
 
@@ -434,7 +431,27 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   connection outlives its hop (spec §14; **[verified]**, §4.1). The other
   direction needs no option: libcurl never gives a `connect_to` transfer a
   connection opened without a connect-to host, or with a different one
-  **[sourced]**.
+  **[sourced]**. Nor can a pooled connection carry a transfer's first
+  request, because `dep_curl_transfer()` runs each transfer in a pool of its
+  own (`curl::new_pool()`), so its initial connection is always fresh and
+  libcurl's retry of a request that a reused connection answered with
+  nothing (`Curl_retry_request()`, `lib/transfer.c` at `curl-8_14_1`) never
+  applies **[sourced]**; a regression test pins the fresh connection
+  (`tests/testthat/test-fetch-limits.R`, "every fetch opens a fresh
+  connection"; `SSRF-rgcijatt`), with no probe under `../evidence/` yet.
+- **`http_version` is pinned to HTTP/1.1.** Over HTTP/2, a stream the server
+  resets with `REFUSED_STREAM` makes libcurl close the connection and send
+  the request again on a new one within the same transfer, up to five times
+  (`lib/http2.c` sets `refused_stream`, which `Curl_retry_request()` in
+  `lib/transfer.c` retries, at `curl-8_14_1`) **[sourced]**, against spec
+  §2.5's at-most-once. One request per transfer gains nothing from HTTP/2,
+  and libcurl 8.14.1 reuses a connection only for the same host name and
+  port, so HTTP/2 would coalesce nothing anyway **[sourced]**. HTTP/3 is
+  not in the evidence build (`http_version = 30L` fails at `setopt`
+  **[verified]**). The pin also takes `h2` out of the TLS ALPN offer; a
+  regression test pins that (`tests/testthat/test-fetch.R`, "HTTP/2 is never
+  offered, even over TLS"; `SSRF-rgcijatt`), with no probe under
+  `../evidence/` yet.
 - **netrc is on whenever `getOption("netrc")` is set.** R 4.6.0 added the
   option for `download.file()`, and `curl` 7.0.0 applies it to every new handle
   as `CURL_NETRC_OPTIONAL` **[sourced]**; libcurl's own default ignores netrc.

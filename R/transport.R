@@ -21,6 +21,10 @@ fixed_transport_options <- list(
   # without them and answers a 401 challenge by sending it again, a second
   # request within one fetch (§2.5).
   httpauth = 1L,
+  # CURL_HTTP_VERSION_1_1: over HTTP/2 libcurl sends the request again when
+  # the server refuses its stream (RST_STREAM REFUSED_STREAM), a second
+  # request within one fetch (§2.5); one request gains nothing from HTTP/2.
+  http_version = 2L,
   netrc = 0L,
   cookiefile = NULL,
   path_as_is = 1L,

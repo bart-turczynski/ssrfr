@@ -672,6 +672,41 @@ test_that("origin equality is scheme, normalized host and effective port", {
   expect_true("authorization" %in% echo_of(ssrf_fetch(b2))$fields)
 })
 
+# §2.3: whenever the body is dropped, every field describing it goes too,
+# nominated or not: RFC 9110 §15.4's content fields, Content-Disposition
+# (RFC 6266), and Content-Digest and Repr-Digest (RFC 9530).
+test_that("a dropped body takes every field that describes it", {
+  content <- c(
+    `Content-Type` = "text/plain",
+    `Content-Encoding` = "gzip",
+    `Content-Language` = "en",
+    `Content-Location` = "/doc",
+    `Content-Disposition` = "attachment; filename=a.txt",
+    Digest = "sha-256=x",
+    `Content-Digest` = "sha-256=:x:",
+    `Repr-Digest` = "sha-256=:x:",
+    `Last-Modified` = "Mon, 01 Jan 2026 00:00:00 GMT"
+  )
+  plan <- list(
+    method = "POST",
+    headers = c(content, `X-Trace` = "t1"),
+    body = charToRaw("payload"),
+    carry = tolower(c(names(content), "X-Trace"))
+  )
+  for (status in c(301L, 303L)) {
+    out <- ssrfr:::redirect_plan(plan, status, cross_origin = FALSE)
+    expect_identical(names(out$plan$headers), "X-Trace", label = status)
+    expect_setequal(out$record$dropped, tolower(names(content)))
+  }
+  # Across origins, nomination does not keep them either.
+  plan$method <- "PUT"
+  out <- ssrfr:::redirect_plan(plan, 307L, cross_origin = TRUE)
+  expect_identical(names(out$plan$headers), "X-Trace")
+  # A kept body keeps them.
+  out <- ssrfr:::redirect_plan(plan, 307L, cross_origin = FALSE)
+  expect_identical(out$plan$headers, plan$headers)
+})
+
 # --- the Location value -------------------------------------------------------
 
 # A Location that is not valid UTF-8 is kept byte for byte, marked "bytes";

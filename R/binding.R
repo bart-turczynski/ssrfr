@@ -83,6 +83,10 @@ now <- function() {
 #' `Proxy-Authorization` and `Cookie` never cross. Whenever the body is
 #' dropped, so are the fields that describe it, such as `Content-Type`, even
 #' when nominated. The binding's `redirect` field records what was dropped.
+#' The plan the redirect hop sends is checked under that hop's policy before
+#' the new name is resolved, so a field it keeps and that policy refuses,
+#' such as a metadata-service marker, is an error of class
+#' `ssrfr_error_invalid_request`; a field the redirect dropped is not.
 #' An `https` hop that redirects to `http` is refused as `"downgrade"`.
 #'
 #' The chain's budgets are its first hop's: `max_redirects` and
@@ -207,22 +211,36 @@ ssrf_prepare_hop <- function(url, policy, request = NULL, from = NULL) {
     return(prepare_hop(enc2utf8(url), policy, plan, started))
   }
   check_from(from, policy)
-  # §2.3: the inherited plan is not re-supplied, but it is re-checked under
-  # this hop's policy (§2.5), which may no longer admit a field it carries.
-  plan <- check_request(from$request, policy)
-  prepare_hop(enc2utf8(url), policy, plan, started, from = from)
+  # §2.3: the inherited plan is never re-supplied; prepare_hop() transforms
+  # it for the redirect and checks what the new hop sends.
+  prepare_hop(enc2utf8(url), policy, from$request, started, from = from)
 }
 
-# Steps 1-8 for a hop whose request plan is valid: a first hop, or, with
+# Steps 1-8 for a hop: a first hop, whose request plan is valid, or, with
 # `from`, a redirect hop, whose URL is resolved against the previous hop's
-# (§3.2) and whose plan is transformed for the previous response (§2.3).
-# Returns a refusal, a failure or a binding.
+# (§3.2) and whose plan is `from`'s, transformed for the previous response
+# (§2.3) once the new origin is known. Returns a refusal, a failure or a
+# binding.
 prepare_hop <- function(url, policy, plan, started, from = NULL) {
   hop_index <- if (is.null(from)) 1L else from$hop + 1L
   # §2.5: the time the chain consumed before this call counts against
   # total_timeout.
   before <- if (is.null(from)) 0 else from$state$elapsed
   hop <- parse_hop(url, policy, base = from$url)
+  redirect <- NULL
+  if (!is.null(from) && is.null(hop$finding)) {
+    origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
+    inherited <- redirect_plan(
+      plan,
+      from$state$status,
+      cross_origin = !same_origin(from$origin, origin)
+    )
+    # §2.3, §2.5: the plan this hop sends, once the redirect has dropped
+    # what it drops, is checked under this hop's policy, which may not admit
+    # a field the previous hop's did. A dropped field is not checked.
+    plan <- check_request(inherited$plan, policy)
+    redirect <- c(list(from_hop = from$hop), inherited$record)
+  }
   if (is.null(hop$finding)) {
     hop$finding <- host_policy(hop, policy)
   }
@@ -265,17 +283,6 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
       url = url,
       detail = list(step = 7L, check = "total", limit = "total_timeout")
     ))
-  }
-  redirect <- NULL
-  if (!is.null(from)) {
-    origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
-    inherited <- redirect_plan(
-      plan,
-      from$state$status,
-      cross_origin = !same_origin(from$origin, origin)
-    )
-    plan <- inherited$plan
-    redirect <- c(list(from_hop = from$hop), inherited$record)
   }
   new_binding(hop, policy, plan, validated, hop_index, spent, redirect)
 }

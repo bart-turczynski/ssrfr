@@ -106,6 +106,10 @@ body and every header field but those \code{carry} nominated; \code{Authorizatio
 \code{Proxy-Authorization} and \code{Cookie} never cross. Whenever the body is
 dropped, so are the fields that describe it, such as \code{Content-Type}, even
 when nominated. The binding's \code{redirect} field records what was dropped.
+The plan the redirect hop sends is checked under that hop's policy before
+the new name is resolved, so a field it keeps and that policy refuses,
+such as a metadata-service marker, is an error of class
+\code{ssrfr_error_invalid_request}; a field the redirect dropped is not.
 An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"}.
 
 The chain's budgets are its first hop's: \code{max_redirects} and

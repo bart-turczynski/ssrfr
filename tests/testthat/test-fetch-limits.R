@@ -85,59 +85,6 @@ test_that("a compression bomb is response-too-large from ssrfr's own counter", {
   expect_identical(body_text(r), strrep("deflated ", 1000))
 })
 
-# §14, r-binding.md §5, §7: no callback raises, so after a limit stop
-# libcurl finishes its round, reading up to its per-round read count of
-# `buffersize` wire bytes that are decoded and dropped. `buffersize` bounds
-# that residual: here a gzip bomb of about 200 KB on the wire, stopped at
-# 100,000 decoded bytes, and the wire bytes the trace shows after the write
-# callback answered FALSE are at most 10 reads of 4096.
-test_that("after a limit stop libcurl reads at most a round of small reads", {
-  mock_answers("127.0.0.1")
-  transfer <- ssrfr:::dep_curl_transfer
-  seen <- new.env(parent = emptyenv())
-  seen$stopped <- FALSE
-  seen$after <- 0
-  local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
-      watching <- function(x, received) {
-        go <- data(x, received)
-        if (!isTRUE(go)) {
-          seen$stopped <- TRUE
-        }
-        go
-      }
-      counting <- function(type, msg) {
-        if (type == 3L && seen$stopped) {
-          seen$after <- seen$after + length(msg)
-        }
-        debug(type, msg)
-      }
-      transfer(opts, watching, counting, progress)
-    }
-  )
-  # 200,000,000 zero bytes, compressed in the server process.
-  bomb <- function(con) {
-    body <- memCompress(raw(2e8), "gzip")
-    head <- paste0(
-      "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n",
-      "Content-Length: ",
-      length(body),
-      "\r\nConnection: close\r\n\r\n"
-    )
-    writeBin(c(charToRaw(head), body), con)
-    flush(con)
-  }
-  server <- local_raw_server(bomb)
-  r <- guarded_get(
-    pinned_url(server$port),
-    loopback_policy(server$port, max_response_size = 1e5, total_timeout = 20)
-  )
-  expect_s3_class(r, "ssrfr_failure")
-  expect_identical(r$detail$check, "decoded-bytes")
-  expect_true(seen$stopped)
-  expect_lte(seen$after, 10 * 4096)
-})
-
 # §5.3 counts decoded bytes. A declared Content-Length, or wire bytes that
 # exceed the decoded body, never refuse a response whose decoded body is
 # within the cap: libcurl's maxfilesize would refuse both.

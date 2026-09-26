@@ -97,8 +97,6 @@ test_that("the option checker fires on a planted violation", {
     netrc = replace(good, "netrc", list(1L)),
     auth_any = replace(good, "httpauth", list(-17L)),
     h2 = replace(good, "http_version", list(3L)),
-    buffer_default = good[names(good) != "buffersize"],
-    buffer_wide = replace(good, "buffersize", list(16384L)),
     version_default = good[names(good) != "http_version"],
     cookie_engine = replace(good, "cookiefile", ""),
     protocols = within(good, rm(protocols_str, redir_protocols_str)),

@@ -373,8 +373,8 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   }
   connected <- transfer$connect > 0 ||
     any(startsWith(seen$trace, "Connected to "))
-  # A transfer a callback stopped always left a record, read below: the
-  # limit reached (`seen$abort`) or the callback's failure (`failed`).
+  # A transfer a callback stopped leaves a record, read below: the limit
+  # reached (`seen$abort`) or the callback's failure (`failed`).
   stopped <- transfer$aborted
   if (!stopped && !is.null(transfer$error) && !connected) {
     timed_out <- transfer$error == "curl_error_operation_timedout"
@@ -409,6 +409,11 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       "callback-error",
       callback = failed[[1L]]
     ))
+  }
+  # INV-11: a transfer the wrapper reports stopped, with neither record, is
+  # never a response, however whole its header looks.
+  if (stopped) {
+    return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
   # so a header limit it passed was the first limit reached (§6.6). The

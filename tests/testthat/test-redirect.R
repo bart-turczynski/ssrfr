@@ -51,6 +51,33 @@ test_that("a redirect hop resolves Location against the previous hop", {
   expect_match(shown, "redirect: 308 from hop 2, same origin", fixed = TRUE)
 })
 
+# The previous hop's URL is its binding's wire URL, parsed when that binding
+# was prepared: a redirect hop reads the scheme from `from` and parses only
+# its own URL, and the downgrade rule still sees https (test below).
+test_that("a redirect hop parses its own URL, not the previous one again", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  policy <- loopback_policy(port)
+  b1 <- ssrf_prepare_hop(
+    pinned_url(port, "/r/302?to=/echo"),
+    policy,
+    request = list()
+  )
+  expect_identical(ssrf_fetch(b1)$status, 302L)
+  parsed <- new.env(parent = emptyenv())
+  parsed$urls <- character()
+  boundary <- ssrfr:::parse_boundary
+  local_mocked_bindings(parse_boundary = function(url) {
+    parsed$urls <- c(parsed$urls, url)
+    boundary(url)
+  })
+  b2 <- ssrf_prepare_hop(b1$state$location, policy, from = b1)
+  expect_s3_class(b2, "ssrfr_binding")
+  expect_identical(parsed$urls, pinned_url(port, "/echo"))
+})
+
 # §3.2, §6.4: an outcome on a redirect hop records the URL the hop resolved
 # to, never a relative Location, which could only display as withheld.
 test_that("outcomes on a redirect hop record the resolved URL", {

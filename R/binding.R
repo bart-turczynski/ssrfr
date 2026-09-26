@@ -254,7 +254,12 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
   # §2.5: the time the chain consumed before this call counts against
   # total_timeout.
   before <- if (is.null(from)) 0 else from$state$elapsed
-  hop <- parse_hop(url, policy, base = from$url)
+  hop <- parse_hop(
+    url,
+    policy,
+    base = from$url,
+    base_scheme = from$origin$scheme
+  )
   # An outcome records the URL the hop resolved to (§3.2): on a redirect hop,
   # not a Location that may be relative, which would display as withheld.
   # Only a hop whose Location did not resolve records the Location.

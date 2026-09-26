@@ -769,7 +769,8 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
   }
 })
 
-# §6.6: a progress callback that fails before libcurl traces `Trying` stops the transfer with the trace empty. The pin is unconfirmed,
+# §6.6: a progress callback that fails before libcurl traces `Trying` stops
+# the transfer with the trace empty. The pin is unconfirmed,
 # so the fetch is pin-mismatch, check absent, and the failure names the
 # callback that cut the evidence short.
 test_that("a callback that fails before the trace is named", {

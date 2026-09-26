@@ -362,9 +362,12 @@ non-carryable, case-insensitively, and nomination MUST NOT override that rule. A
 body is also non-carryable across origins in v1. Transport-controlled routing and
 framing fields MUST NOT be accepted as caller-supplied headers at all, matched
 case-insensitively: `Host`, `Connection`, `Proxy-Connection`, `Keep-Alive`,
-`Transfer-Encoding`, `TE`, `Trailer`, `Upgrade`, `Content-Length` and
-`Accept-Encoding` (the transport sets it, §5.3, and decodes accordingly), plus any
-name beginning with `:` (HTTP/2 and HTTP/3 pseudo-headers). A caller-supplied
+`Transfer-Encoding`, `TE`, `Trailer`, `Upgrade`, `Content-Length`,
+`Accept-Encoding` (the transport sets it, §5.3, and decodes accordingly) and
+`Expect` (the transport suppresses it: under `100-continue` a `417` makes libcurl
+send the request a second time, against §2.5), plus any name beginning with `:`
+(HTTP/2 and HTTP/3 pseudo-headers). *Amended 2026-09-26* (`Expect` added;
+`SSRF-rgcijatt`). A caller-supplied
 field whose name is not a valid RFC 9110 token, or whose value contains CR, LF, or
 NUL, is refused rather than sanitized. Violations are operational errors raised at
 `prepare`. These fixed rules cover protocol-defined credentials and routing
@@ -1003,6 +1006,10 @@ max_url_length    default: 8000 octets of the URL string, per hop
 user_agent        default: "ssrfr/<version> (+https://gitlab.com/bart-turczynski/ssrfr)"
 ```
 
+`max_header_bytes` and `max_header_fields` also count a chunked body's trailer
+fields, which the response header does not otherwise include. *Amended
+2026-09-26* (`SSRF-rgcijatt`).
+
 There is no proxy field: v1 has no proxy mode (INV-10). The default `user_agent`
 is assembled at runtime from the package's `DESCRIPTION`, so no version or URL is
 hard-coded; it is transport-owned and non-secret, so it carries across origins
@@ -1380,7 +1387,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 3 | Limits: defaults, floors, decoding, per-hop header limits | **closed — ratified** (§5.3): finite and raisable, with no ceiling and no "unlimited" sentinel; `total_timeout` is chain-scoped and covers decoding. `curl::nslookup()` has no timeout of its own **[assumption]**, a documented residual — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution | **closed — ratified** (§5.0): names resolve as absolute, with no opt-out in v1 — `SSRF-ighscodn` |
 | 5 | Default User-Agent | **closed — ratified** (§5.3) — `SSRF-uitcvnif` |
-| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker. **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own. Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code), HTTP/2 coalescing. Windows outstanding — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo` |
+| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker. **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own. Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code). HTTP/2 coalescing no longer applies: the transport speaks HTTP/1.1 only (`r-binding.md` §5; *amended 2026-09-26*, `SSRF-rgcijatt`). Windows outstanding — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo` |
 | 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | **closed — verified** 2026-09-25 on macOS (8.14.1), Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1): `"HOST::[::1]:"` dials `::1` and reaches an `httpuv` server there with `Host` intact; a `resolve` pin is bypassed by a pooled connection on the same or a fresh handle, a changed `connect_to` pin is not, and `forbid_reuse` closes the gap (`r-binding.md` §4.1, §4.4; `design/evidence/2026-09-25-linux-transport-results.txt`). Windows under item 6 — `SSRF-rcwugkqo` |
 | 8 | Chain-scoped redirect budget under per-hop policy (§2.5) | **closed — ratified**, and extended to `total_timeout` — `SSRF-pipbsrtr` |
 | 9 | Hostname rule normalization and suffix syntax (§5.0) | **closed — ratified** — `SSRF-pipbsrtr` |

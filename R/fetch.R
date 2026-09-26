@@ -480,7 +480,7 @@ measure_header <- function(seen, buffer) {
   segments <- header_segments(buffer)
   empty <- !nzchar(segments$lines)
   seen$header_fields <- sum(!empty) -
-    nrow(segments$blocks) +
+    length(segments$blocks$start) +
     sum(empty[segments$trailers])
   invisible()
 }

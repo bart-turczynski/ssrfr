@@ -251,56 +251,68 @@ status_line <- "^HTTP/[^ ]* +([0-9]{3})( |$)"
 # like a status line included.
 #
 # Returns a list: `lines` (the buffer's lines, without their line endings,
-# a NUL byte read as 0x7f), `blocks` (a data frame with a row per header
-# block: its `start` and `end` line, its `status`, and `complete`, whether
-# an empty line ended it) and `trailers` (the numbers of the lines after the
-# complete final block). A line in neither is a stray, which libcurl does not
-# write. Read as bytes: a line may carry obs-text.
+# a NUL byte read as 0x7f), `blocks` (a list of four equal-length vectors,
+# one element per header block: its `start` and `end` line, its `status`,
+# and `complete`, whether an empty line ended it) and `trailers` (the
+# numbers of the lines after the complete final block). A line in neither is
+# a stray, which libcurl does not write. Read as bytes: a line may carry
+# obs-text.
+#
+# The header measure (R/fetch.R) runs this on every growth of the buffer,
+# inside callbacks, so it costs time linear in the buffer: each block's end
+# is looked up, never searched for, and each vector is allocated once.
 header_segments <- function(buffer) {
   buffer[buffer == as.raw(0L)] <- as.raw(0x7fL)
   lines <- strsplit(rawToChar(buffer), "\n", fixed = TRUE, useBytes = TRUE)
   lines <- sub("\r$", "", lines[[1L]], useBytes = TRUE)
   n <- length(lines)
   empties <- which(!nzchar(lines))
+  # The first empty line at or after line i, for i in 1..n+1, or NA.
+  next_empty <- empties[findInterval(seq_len(n + 1L) - 1L, empties) + 1L]
   opens <- grepl(status_line, lines, useBytes = TRUE)
-  start <- end <- status <- integer()
-  complete <- logical()
+  codes <- rep(NA_integer_, n)
+  codes[opens] <- as.integer(sub(
+    paste0(status_line, ".*$"),
+    "\\1",
+    lines[opens],
+    useBytes = TRUE
+  ))
+  most <- sum(opens)
+  start <- end <- status <- integer(most)
+  complete <- logical(most)
+  count <- 0L
   trailers <- integer()
   # `at` is always the start of the buffer or the line after an empty one.
   at <- 1L
   while (at <= n) {
-    ended <- empties[empties >= at + opens[[at]]][1L]
+    ended <- next_empty[[at + opens[[at]]]]
     if (!opens[[at]]) {
       # A stray line, and any up to the next empty line.
       at <- if (is.na(ended)) n + 1L else ended + 1L
       next
     }
-    code <- as.integer(sub(
-      paste0(status_line, ".*$"),
-      "\\1",
-      lines[[at]],
-      useBytes = TRUE
-    ))
-    start <- c(start, at)
-    end <- c(end, if (is.na(ended)) n else ended)
-    status <- c(status, code)
-    complete <- c(complete, !is.na(ended))
+    count <- count + 1L
+    start[[count]] <- at
+    end[[count]] <- if (is.na(ended)) n else ended
+    status[[count]] <- codes[[at]]
+    complete[[count]] <- !is.na(ended)
     if (is.na(ended)) {
       break
     }
-    if (code >= 200L) {
+    if (codes[[at]] >= 200L) {
       trailers <- seq_len(n - ended) + ended
       break
     }
     at <- ended + 1L
   }
+  kept <- seq_len(count)
   list(
     lines = lines,
-    blocks = data.frame(
-      start = start,
-      end = end,
-      status = status,
-      complete = complete
+    blocks = list(
+      start = start[kept],
+      end = end[kept],
+      status = status[kept],
+      complete = complete[kept]
     ),
     trailers = trailers
   )

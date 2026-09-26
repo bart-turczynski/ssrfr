@@ -281,7 +281,7 @@ test_that("the trace matcher fails safe", {
 test_that("the header buffer is segmented by the block before each line", {
   segments <- function(...) ssrfr:::header_segments(wire(...))
   blocks <- function(start, end, status, complete) {
-    data.frame(
+    list(
       start = as.integer(start),
       end = as.integer(end),
       status = as.integer(status),
@@ -330,7 +330,7 @@ test_that("the header buffer is segmented by the block before each line", {
   # One status-line test, RFC 9112 §4: a tab for the space is no status
   # line, and a NUL byte never breaks the reading.
   s <- segments("HTTP/1.1 200\tOK\r\nX: 1\r\n\r\n")
-  expect_identical(nrow(s$blocks), 0L)
+  expect_length(s$blocks$start, 0L)
   s <- ssrfr:::header_segments(c(
     wire("HTTP/1.1 200 OK\r\nX: a"),
     as.raw(0L),

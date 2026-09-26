@@ -97,6 +97,8 @@ test_that("the option checker fires on a planted violation", {
     netrc = replace(good, "netrc", list(1L)),
     auth_any = replace(good, "httpauth", list(-17L)),
     h2 = replace(good, "http_version", list(3L)),
+    buffer_default = good[names(good) != "buffersize"],
+    buffer_wide = replace(good, "buffersize", list(16384L)),
     version_default = good[names(good) != "http_version"],
     cookie_engine = replace(good, "cookiefile", ""),
     protocols = within(good, rm(protocols_str, redir_protocols_str)),
@@ -272,6 +274,71 @@ test_that("the trace matcher fails safe", {
   # A raddr failure is never a match (INV-11).
   local_mocked_bindings(dep_raddr_pton = function(...) stop("raddr"))
   expect_identical(check("Trying 127.0.0.1:80...", "127.0.0.1", 80L), "garbled")
+})
+
+# The one segmenter of libcurl's header buffer, which the header measure
+# and the header parse share. A status line at the start or after an empty
+# line opens a block unless a complete final block precedes it; after a
+# complete final block, every line is a trailer line.
+test_that("the header buffer is segmented by the block before each line", {
+  segments <- function(...) ssrfr:::header_segments(wire(...))
+  blocks <- function(start, end, status, complete) {
+    data.frame(
+      start = as.integer(start),
+      end = as.integer(end),
+      status = as.integer(status),
+      complete = complete
+    )
+  }
+  # An interim block, then the final one.
+  s <- segments(
+    "HTTP/1.1 100 Continue\r\n\r\n",
+    "HTTP/1.1 200 OK\r\nA: 1\r\n\r\n"
+  )
+  expect_identical(
+    s$blocks,
+    blocks(c(1, 3), c(2, 5), c(100, 200), c(TRUE, TRUE))
+  )
+  expect_identical(s$trailers, integer())
+  # A final block, then trailer lines, the first one status-shaped.
+  s <- segments(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+    "HTTP/1.1 302 Found\r\nLocation: /t\r\n"
+  )
+  expect_identical(s$blocks, blocks(1, 3, 200, TRUE))
+  expect_identical(s$trailers, 4:5)
+  # After a complete final block, even an ended status-shaped block is
+  # trailer lines.
+  s <- segments(
+    "HTTP/1.1 401 Unauthorized\r\n\r\n",
+    "HTTP/1.1 200 OK\r\nX: 1\r\n\r\n"
+  )
+  expect_identical(s$blocks, blocks(1, 2, 401, TRUE))
+  expect_identical(s$trailers, 3:5)
+  # A block cut short before its empty line, after an interim block.
+  s <- segments(
+    "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n",
+    "HTTP/1.1 200 OK\r\nX: 1\r\n"
+  )
+  expect_identical(
+    s$blocks,
+    blocks(c(1, 4), c(3, 5), c(103, 200), c(TRUE, FALSE))
+  )
+  expect_identical(s$trailers, integer())
+  # An empty buffer has no block and no trailer.
+  s <- ssrfr:::header_segments(raw())
+  expect_identical(s$blocks, blocks(integer(), integer(), integer(), logical()))
+  expect_identical(s$trailers, integer())
+  # One status-line test, RFC 9112 §4: a tab for the space is no status
+  # line, and a NUL byte never breaks the reading.
+  s <- segments("HTTP/1.1 200\tOK\r\nX: 1\r\n\r\n")
+  expect_identical(nrow(s$blocks), 0L)
+  s <- ssrfr:::header_segments(c(
+    wire("HTTP/1.1 200 OK\r\nX: a"),
+    as.raw(0L),
+    wire("b\r\n\r\n")
+  ))
+  expect_identical(s$blocks, blocks(1, 3, 200, TRUE))
 })
 
 test_that("response headers are read from the final block only", {

@@ -663,6 +663,50 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   expect_identical(hook$runs, 0L)
 })
 
+# §6.6: a genuine pin-mismatch names no callback. A failed write or progress
+# callback does not touch the trace, so a trace naming another address, or
+# none, is the pin's own finding; only a failed trace callback, which leaves
+# the evidence unreliable, is named.
+test_that("a genuine pin-mismatch names no failed callback", {
+  mock_answers("127.0.0.1")
+  cases <- list(
+    `other-address` = list(
+      trace = "Trying 10.0.0.7:80...\n",
+      failed = "data",
+      callback = NULL
+    ),
+    absent = list(trace = "Dialing\n", failed = "progress", callback = NULL),
+    garbled = list(trace = "Trying ???\n", failed = "data", callback = NULL),
+    debug = list(trace = "Dialing\n", failed = "debug", callback = "debug")
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      local_mocked_bindings(
+        dep_curl_transfer = function(opts, data, debug, progress) {
+          debug(0L, charToRaw(case$trace))
+          list(
+            aborted = TRUE,
+            failed = case$failed,
+            error = NULL,
+            status = 0L,
+            headers = raw(),
+            connect = 0.01
+          )
+        }
+      )
+      b <- ssrf_prepare_hop(
+        paste0("http://", pinned_host, "/"),
+        loopback_policy(),
+        request = list()
+      )
+      r <- ssrf_fetch(b)
+      expect_identical(r$cause, "pin-mismatch", label = name)
+      expect_identical(r$detail$callback, case$callback, label = name)
+    })
+  }
+})
+
 # --- single use (§2.5) -------------------------------------------------------
 
 test_that("a binding is spent on entry, even when the fetch fails", {

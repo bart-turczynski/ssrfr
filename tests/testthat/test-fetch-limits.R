@@ -85,6 +85,59 @@ test_that("a compression bomb is response-too-large from ssrfr's own counter", {
   expect_identical(body_text(r), strrep("deflated ", 1000))
 })
 
+# §14, r-binding.md §5, §7: no callback raises, so after a limit stop
+# libcurl finishes its round, reading up to its per-round read count of
+# `buffersize` wire bytes that are decoded and dropped. `buffersize` bounds
+# that residual: here a gzip bomb of about 200 KB on the wire, stopped at
+# 100,000 decoded bytes, and the wire bytes the trace shows after the write
+# callback answered FALSE are at most 10 reads of 4096.
+test_that("after a limit stop libcurl reads at most a round of small reads", {
+  mock_answers("127.0.0.1")
+  transfer <- ssrfr:::dep_curl_transfer
+  seen <- new.env(parent = emptyenv())
+  seen$stopped <- FALSE
+  seen$after <- 0
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      watching <- function(x, received) {
+        go <- data(x, received)
+        if (!isTRUE(go)) {
+          seen$stopped <- TRUE
+        }
+        go
+      }
+      counting <- function(type, msg) {
+        if (type == 3L && seen$stopped) {
+          seen$after <- seen$after + length(msg)
+        }
+        debug(type, msg)
+      }
+      transfer(opts, watching, counting, progress)
+    }
+  )
+  # 200,000,000 zero bytes, compressed in the server process.
+  bomb <- function(con) {
+    body <- memCompress(raw(2e8), "gzip")
+    head <- paste0(
+      "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n",
+      "Content-Length: ",
+      length(body),
+      "\r\nConnection: close\r\n\r\n"
+    )
+    writeBin(c(charToRaw(head), body), con)
+    flush(con)
+  }
+  server <- local_raw_server(bomb)
+  r <- guarded_get(
+    pinned_url(server$port),
+    loopback_policy(server$port, max_response_size = 1e5, total_timeout = 20)
+  )
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$detail$check, "decoded-bytes")
+  expect_true(seen$stopped)
+  expect_lte(seen$after, 10 * 4096)
+})
+
 # §5.3 counts decoded bytes. A declared Content-Length, or wire bytes that
 # exceed the decoded body, never refuse a response whose decoded body is
 # within the cap: libcurl's maxfilesize would refuse both.
@@ -205,6 +258,100 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
       expect_identical(r$detail$check, "header", label = name)
       expect_identical(r$detail$limit, case$limit, label = name)
       expect_lt(elapsed, 4, label = name)
+    })
+  }
+})
+
+# §6.6: a header cut short before its empty line, with exactly
+# max_header_fields fields, is within the limits. Its status line opens its
+# block, so it is no field, and the transfer ends with the transport's own
+# cause: `timeout` when the server stalls, `protocol-error` when it closes.
+test_that("a truncated header at the field limit ends with the transport cause", {
+  mock_answers("127.0.0.1")
+  head <- wire("HTTP/1.1 200 OK\r\n", strrep("X-F: 1\r\n", 20))
+  stall <- function(con) {
+    writeBin(HEAD, con)
+    flush(con)
+    Sys.sleep(10)
+  }
+  body(stall) <- do.call(substitute, list(body(stall), list(HEAD = head)))
+  cases <- list(
+    stall = list(bytes = stall, want = "timeout transport total_timeout"),
+    close = list(bytes = head, want = "protocol-error transport none")
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      server <- local_raw_server(case$bytes)
+      policy <- loopback_policy(
+        server$port,
+        max_header_fields = 20,
+        total_timeout = 2
+      )
+      r <- guarded_get(pinned_url(server$port), policy)
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(
+        paste(
+          r$cause,
+          r$detail$check,
+          if (is.null(r$detail$limit)) "none" else r$detail$limit
+        ),
+        case$want,
+        label = name
+      )
+    })
+  }
+})
+
+# §5.3, §14: trailer lines count as they arrive even when no body byte has
+# been delivered: a chunked body that is empty, or a gzip body not yet
+# decoded. A status-shaped first trailer line follows a complete final
+# block, so it is a trailer field, and the progress call that sees it over
+# the limit stops the transfer. libcurl 8.5 and later refuse such a line,
+# so the transfer is scripted: one progress call over the header buffer.
+test_that("a status-shaped first trailer counts before any body byte", {
+  mock_answers("127.0.0.1")
+  buffers <- list(
+    empty = wire(
+      "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX: 1\r\n\r\n",
+      "HTTP/1.1 200 OK\r\n"
+    ),
+    gzip = wire(
+      "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n",
+      "Content-Encoding: gzip\r\n\r\n",
+      "HTTP/1.1 302 Found\r\n"
+    )
+  )
+  for (name in names(buffers)) {
+    local({
+      buffer <- buffers[[name]]
+      seen <- new.env(parent = emptyenv())
+      local_mocked_bindings(
+        dep_curl_transfer = function(opts, data, debug, progress) {
+          debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+          seen$go <- progress(0, 0, function() buffer)
+          list(
+            aborted = !isTRUE(seen$go),
+            failed = NULL,
+            error = NULL,
+            status = 200L,
+            headers = buffer,
+            connect = 0.01
+          )
+        }
+      )
+      b <- ssrf_prepare_hop(
+        paste0("http://", pinned_host, "/"),
+        loopback_policy(max_header_fields = 2),
+        request = list()
+      )
+      r <- ssrf_fetch(b)
+      expect_false(seen$go, label = name)
+      expect_identical(
+        paste(r$cause, r$detail$check, r$detail$limit),
+        "response-too-large header max_header_fields",
+        label = name
+      )
     })
   }
 })
@@ -624,4 +771,37 @@ test_that("a trailer line shaped like a status line is a field", {
   expect_identical(seen$header_fields, 1L)
   ssrfr:::measure_header(seen, arriving)
   expect_identical(seen$header_fields, 2L)
+})
+
+# §5.3: a block the buffer holds before any complete final block is a
+# header block, ended or not, so its status line is no field; everything
+# after a complete final block is a trailer line, and a field.
+test_that("the header measure classifies a line by the block before it", {
+  cases <- list(
+    truncated = list(
+      buffer = wire("HTTP/1.1 200 OK\r\nX: 1\r\nY: 2\r\n"),
+      fields = 2L
+    ),
+    truncated_after_interim = list(
+      buffer = wire("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nX: 1\r\n"),
+      fields = 1L
+    ),
+    trailer_status_first = list(
+      buffer = wire(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "HTTP/1.1 302 Found\r\nLocation: /t\r\n"
+      ),
+      fields = 3L
+    )
+  )
+  for (name in names(cases)) {
+    seen <- new.env(parent = emptyenv())
+    ssrfr:::measure_header(seen, cases[[name]]$buffer)
+    expect_identical(seen$header_fields, cases[[name]]$fields, label = name)
+    expect_identical(
+      seen$header_bytes,
+      length(cases[[name]]$buffer),
+      label = name
+    )
+  }
 })

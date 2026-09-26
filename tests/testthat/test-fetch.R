@@ -624,8 +624,14 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   hook$runs <- 0L
   withr::local_options(error = function() hook$runs <- hook$runs + 1L)
   transfer <- ssrfr:::dep_curl_transfer
+  delivered <- new.env(parent = emptyenv())
+  delivered$bytes <- 0L
   local_mocked_bindings(
     dep_curl_transfer = function(opts, data, debug, progress) {
+      counting <- function(x, ...) {
+        delivered$bytes <- delivered$bytes + length(x)
+        data(x, ...)
+      }
       traced <- new.env(parent = emptyenv())
       traced$trying <- FALSE
       failing <- function(type, msg) {
@@ -637,7 +643,7 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
           grepl("Trying ", rawToChar(msg), fixed = TRUE)
         out
       }
-      transfer(opts, data, failing, progress)
+      transfer(opts, counting, failing, progress)
     }
   )
   server <- local_raw_server(wire(
@@ -652,6 +658,8 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   expect_identical(r$detail$check, "trace-error")
   expect_identical(r$detail$callback, "debug")
   expect_null(attr(r, "binding")$state$status)
+  # The transfer ends at the failed trace: no body byte is read after it.
+  expect_identical(delivered$bytes, 0L)
   expect_identical(hook$runs, 0L)
 })
 

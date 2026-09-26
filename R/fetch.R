@@ -34,8 +34,8 @@ connected_cause <- function(error) {
 #' again: the connection is pinned to the validated address while TLS, the
 #' `Host` header and certificate verification stay bound to the hostname.
 #' Certificate verification is never weakened, no proxy is used whatever the
-#' environment says, redirects are not followed, and the connection is closed
-#' when the fetch returns.
+#' environment says, redirects are not followed, and the request goes over
+#' HTTP/1.1 on a new connection that is closed when the fetch returns.
 #'
 #' A binding is single-use. `ssrf_fetch()` spends it on entry, so a second
 #' call with the same binding is an error of class
@@ -55,7 +55,8 @@ connected_cause <- function(error) {
 #' policy's limits: `max_response_size` counts the body's bytes after any
 #' `gzip` or `deflate` decoding, as they arrive, so a compressed body cannot
 #' exceed it; `max_header_bytes` and `max_header_fields` bound the header,
-#' including any interim `1xx` responses, as it arrives;
+#' including any interim `1xx` responses and the trailer fields of a chunked
+#' body, as it arrives;
 #' `connect_timeout` bounds each connection attempt and `total_timeout` the
 #' time spent in `ssrfr` for the chain, decoding included.
 #'

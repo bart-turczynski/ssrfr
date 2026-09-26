@@ -35,8 +35,8 @@ only to an address that binding validated. The name is never resolved
 again: the connection is pinned to the validated address while TLS, the
 \code{Host} header and certificate verification stay bound to the hostname.
 Certificate verification is never weakened, no proxy is used whatever the
-environment says, redirects are not followed, and the connection is closed
-when the fetch returns.
+environment says, redirects are not followed, and the request goes over
+HTTP/1.1 on a new connection that is closed when the fetch returns.
 }
 \details{
 A binding is single-use. \code{ssrf_fetch()} spends it on entry, so a second
@@ -57,7 +57,8 @@ The whole response is read before \code{ssrf_fetch()} returns, within the
 policy's limits: \code{max_response_size} counts the body's bytes after any
 \code{gzip} or \code{deflate} decoding, as they arrive, so a compressed body cannot
 exceed it; \code{max_header_bytes} and \code{max_header_fields} bound the header,
-including any interim \verb{1xx} responses, as it arrives;
+including any interim \verb{1xx} responses and the trailer fields of a chunked
+body, as it arrives;
 \code{connect_timeout} bounds each connection attempt and \code{total_timeout} the
 time spent in \code{ssrfr} for the chain, decoding included.
 

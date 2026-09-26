@@ -136,7 +136,7 @@ test_that("HTTP/2 is never offered, even over TLS", {
     loopback_policy(port)
   )
   expect_identical(r$status, 200L)
-  offers <- grep("ALPN", trace$lines, value = TRUE)
+  offers <- grep("ALPN", trace$lines, value = TRUE, fixed = TRUE)
   expect_gt(length(offers), 0L)
   expect_false(any(grepl("h2", offers, fixed = TRUE)))
 })

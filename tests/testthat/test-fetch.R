@@ -398,16 +398,13 @@ scripted_transfer <- function(outcomes, env = parent.frame()) {
           list(error = "curl_error_peer_failed_verification", connect = 0.01)
         ),
         ok = {
-          data(charToRaw("hello"))
+          headers <- charToRaw(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
+          )
+          data(charToRaw("hello"), function() headers)
           modifyList(
             base,
-            list(
-              status = 200L,
-              connect = 0.01,
-              headers = charToRaw(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
-              )
-            )
+            list(status = 200L, connect = 0.01, headers = headers)
           )
         }
       )
@@ -642,7 +639,7 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   delivered$bytes <- 0L
   local_mocked_bindings(
     dep_curl_transfer = function(opts, data, debug, progress) {
-      counting <- function(x, received = NULL) {
+      counting <- function(x, received) {
         delivered$bytes <- delivered$bytes + length(x)
         data(x, received)
       }

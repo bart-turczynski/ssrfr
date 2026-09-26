@@ -214,7 +214,7 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
 # block, so it is no field, and the transfer ends with the cause of how it
 # ended: `timeout` when the server stalls, and when it closes, the
 # `protocol-error` of a header that never ended.
-test_that("a truncated header at the field limit ends with the transport cause", {
+test_that("a truncated header at the field limit ends as the transfer did", {
   mock_answers("127.0.0.1")
   head <- wire("HTTP/1.1 200 OK\r\n", strrep("X-F: 1\r\n", 20))
   stall <- function(con) {

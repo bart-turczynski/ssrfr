@@ -291,21 +291,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # Answers TRUE to go on. The header is complete when the first body byte
   # arrives, so a header over its limits ends the transfer there, before any
   # body byte is counted (§6.6). `received` is the transport wrapper's
-  # header buffer reader; without it, the buffer is measured once the
-  # transfer ends.
-  data <- function(x, received = NULL) {
+  # header buffer reader.
+  data <- function(x, received) {
     if (!length(x)) {
       return(TRUE)
     }
     seen$body_since_progress <- TRUE
     if (!seen$body_started) {
       seen$body_started <- TRUE
-      if (is.function(received)) {
-        measure_header(seen, received())
-        over <- header_limit(seen, policy)
-        if (!is.null(over)) {
-          return(abort("response-too-large", "header", over))
-        }
+      measure_header(seen, received())
+      over <- header_limit(seen, policy)
+      if (!is.null(over)) {
+        return(abort("response-too-large", "header", over))
       }
     }
     if (remaining() <= 0) {
@@ -357,21 +354,25 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   failed <- transfer$failed
   # INV-5: the detector runs on every attempt, whatever its outcome. Absent or
   # unreadable evidence is a mismatch (§6.6), and so is a trace whose
-  # callback failed: evidence it may have missed cannot confirm the pin.
+  # callback failed: evidence it may have missed cannot confirm the pin. Only
+  # that failure bears on the trace, so a mismatch names no other callback.
   pin <- pin_check(seen$trace, address, binding$origin$port)
-  if (pin == "match" && "debug" %in% failed) {
+  traced <- !"debug" %in% failed
+  if (pin == "match" && !traced) {
     pin <- "trace-error"
   }
   if (pin != "match") {
     return(list(
       ending = "pin-mismatch",
       check = pin,
-      callback = if (pin == "trace-error") "debug" else failed[1L]
+      callback = if (!traced) "debug"
     ))
   }
   connected <- transfer$connect > 0 ||
     any(startsWith(seen$trace, "Connected to "))
-  stopped <- !is.null(seen$abort) || length(failed)
+  # A transfer a callback stopped always left a record, read below: the
+  # limit reached (`seen$abort`) or the callback's failure (`failed`).
+  stopped <- transfer$aborted
   if (!stopped && !is.null(transfer$error) && !connected) {
     timed_out <- transfer$error == "curl_error_operation_timedout"
     return(list(
@@ -405,9 +406,6 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       "callback-error",
       callback = failed[[1L]]
     ))
-  }
-  if (transfer$aborted) {
-    return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
   # so a header limit it passed was the first limit reached (§6.6). The

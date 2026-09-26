@@ -298,9 +298,14 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   }
   # Measures the header buffer and answers FALSE, through the same record,
   # when what it holds ends the transfer: a header limit, or a 3xx past the
-  # chain's redirect budget (header_stop()). Answers TRUE to go on.
+  # chain's redirect budget (header_stop()). Answers TRUE to go on. The
+  # decision reads only what measure_header() records, so a buffer that has
+  # not grown since the last one, which went on, is not decided again; every
+  # buffer that has grown is.
   header_check <- function(buffer) {
-    measure_header(seen, buffer)
+    if (!measure_header(seen, buffer)) {
+      return(TRUE)
+    }
     stop <- header_stop(seen, policy, binding)
     if (is.null(stop)) {
       return(TRUE)
@@ -583,10 +588,10 @@ header_limit <- function(seen, policy) {
 # header block, and every line after a complete final block is a trailer
 # line, so a count taken while the buffer arrives and one taken once it is
 # whole agree. The buffer only grows, so a buffer of the length last
-# measured is not scanned again.
+# measured is not scanned again. Returns, invisibly, whether it measured.
 measure_header <- function(seen, buffer) {
   if (!is.raw(buffer) || identical(seen$measured, length(buffer))) {
-    return(invisible())
+    return(invisible(FALSE))
   }
   seen$measured <- length(buffer)
   seen$header_bytes <- length(buffer)
@@ -596,7 +601,7 @@ measure_header <- function(seen, buffer) {
   # Kept for the parse of a completed transfer, with the bytes they read.
   seen$segmented <- buffer
   seen$segments <- segments
-  invisible()
+  invisible(TRUE)
 }
 
 new_ssrf_response <- function(status, headers, body) {

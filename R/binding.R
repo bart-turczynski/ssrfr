@@ -245,6 +245,10 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
   # total_timeout.
   before <- if (is.null(from)) 0 else from$state$elapsed
   hop <- parse_hop(url, policy, base = from$url)
+  # An outcome records the URL the hop resolved to (§3.2): on a redirect hop,
+  # not a Location that may be relative, which would display as withheld.
+  # Only a hop whose Location did not resolve records the Location.
+  shown <- hop$url %||% url
   redirect <- NULL
   if (!is.null(from) && is.null(hop$finding)) {
     origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
@@ -289,7 +293,7 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
     validated <- resolution$validated
   }
   if (!is.null(hop$finding)) {
-    return(outcome_of(hop$finding, hop_index, url))
+    return(outcome_of(hop$finding, hop_index, shown))
   }
   # §5.3: elapsed time is re-checked after resolution.
   spent <- before + elapsed_since(started)
@@ -298,7 +302,7 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
       "timeout",
       hop_index,
       host = hop$host,
-      url = url,
+      url = shown,
       detail = list(step = 7L, check = "total", limit = "total_timeout")
     ))
   }

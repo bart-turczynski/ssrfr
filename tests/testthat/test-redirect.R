@@ -51,6 +51,73 @@ test_that("a redirect hop resolves Location against the previous hop", {
   expect_match(shown, "redirect: 308 from hop 2, same origin", fixed = TRUE)
 })
 
+# §3.2, §6.4: an outcome on a redirect hop records the URL the hop resolved
+# to, never a relative Location, which could only display as withheld.
+test_that("outcomes on a redirect hop record the resolved URL", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers(function(q) {
+    if (identical(q, "gone.example.invalid.")) character() else "127.0.0.1"
+  })
+  policy <- loopback_policy(
+    c(port, 1),
+    deny_hosts = "denied.example.invalid",
+    max_redirects = 1
+  )
+  from_location <- function(location) {
+    b <- ssrf_prepare_hop(
+      pinned_url(port, "/start"),
+      policy,
+      request = list(headers = c(`X-Corpus-Location` = location))
+    )
+    expect_identical(ssrf_fetch(b)$status, 302L)
+    expect_identical(b$state$location, location)
+    b
+  }
+  withheld <- ssrfr:::redact_url("//denied.example.invalid/x")
+  expect_match(withheld, "withheld", fixed = TRUE)
+  check_url <- function(out, want, label) {
+    expect_identical(out$url, ssrfr:::redact_url(want), label = label)
+    expect_false(grepl("withheld", out$url, fixed = TRUE), label = label)
+    shown <- paste(format(out), collapse = "\n")
+    expect_match(shown, paste0("url: ", out$url), fixed = TRUE, label = label)
+  }
+  # A refusal ssrf_prepare_hop() returns.
+  b <- from_location("//denied.example.invalid/x")
+  r <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  expect_identical(r$code, "host-denied")
+  check_url(r, "http://denied.example.invalid/x", "refusal")
+  # A failure it returns: resolution.
+  b <- from_location("//gone.example.invalid/y")
+  f <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  expect_identical(f$cause, "unresolvable")
+  check_url(f, "http://gone.example.invalid/y", "unresolvable")
+  # And the time budget, spent after resolution.
+  b <- from_location("../echo")
+  local({
+    local_mocked_bindings(elapsed_since = function(start) 60)
+    f <- ssrf_prepare_hop(b$state$location, policy, from = b)
+    expect_identical(f$cause, "timeout")
+    check_url(f, pinned_url(port, "/echo"), "timeout")
+  })
+  # A failure ssrf_fetch() returns on a redirect hop.
+  b <- from_location("//other.example.invalid:1/z")
+  b2 <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  f <- ssrf_fetch(b2)
+  expect_identical(f$cause, "connect-failed")
+  expect_identical(f$hop, 2L)
+  check_url(f, "http://other.example.invalid:1/z", "fetch failure")
+  # The redirect-limit refusal, past the budget on the second hop.
+  b <- from_location("/r/302?to=/echo")
+  b2 <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  r <- ssrf_fetch(b2)
+  expect_identical(r$code, "redirect-limit")
+  check_url(r, pinned_url(port, "/r/302?to=/echo"), "redirect-limit")
+  # The binding holds the resolved URL, which the next hop resolves against.
+  expect_identical(b2$url, pinned_url(port, "/r/302?to=/echo"))
+})
+
 # --- misuse (§2.3, §6.6) ------------------------------------------------------
 
 test_that("a from that is not a spent, followed redirect is invalid_from", {

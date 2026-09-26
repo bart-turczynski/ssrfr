@@ -462,6 +462,19 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # lines that arrived after the last progress call.
   measure_header(seen, transfer$headers)
   stop <- header_stop(seen, policy, binding)
+  # §2.3: the status step 13 records is transport-observed. When libcurl
+  # reports one (0: no response) that is not the status line's, step 13
+  # decided nothing, and the transfer ends as any other whose two statuses
+  # disagree, below: `protocol-error`, recording no status. In flight,
+  # libcurl's status is not yet known and the status line decides.
+  if (
+    !is.null(stop$redirect_limit) &&
+      transfer$status != 0 &&
+      transfer$status != stop$redirect_limit
+  ) {
+    over <- header_limit(seen, policy)
+    stop <- if (!is.null(over)) header_limit_stop(over)
+  }
   if (!is.null(stop)) {
     return(stopped_by(stop))
   }

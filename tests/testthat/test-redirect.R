@@ -738,6 +738,49 @@ test_that("a pin failure wins over redirect-limit", {
   expect_identical(r$cause, "pin-mismatch")
 })
 
+# §2.3: the status step 13 records is transport-observed. On a completed
+# transfer whose libcurl status is not the status line's, protocol-error
+# wins over redirect-limit and no status is recorded; a status libcurl does
+# not report (0) leaves the status line to decide.
+test_that("a completed transfer's statuses must agree before redirect-limit", {
+  mock_answers("127.0.0.1")
+  reported <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      list(
+        aborted = FALSE,
+        error = NULL,
+        status = reported$status,
+        headers = wire(
+          "HTTP/1.1 302 Found\r\nLocation: /a\r\nContent-Length: 0\r\n\r\n"
+        ),
+        connect = 0.01
+      )
+    }
+  )
+  fetch <- function(status) {
+    reported$status <- status
+    guarded_get(
+      paste0("http://", pinned_host, "/"),
+      loopback_policy(max_redirects = 0)
+    )
+  }
+  for (status in c(200L, 307L)) {
+    r <- fetch(status)
+    expect_s3_class(r, "ssrfr_failure")
+    expect_identical(r$cause, "protocol-error", label = status)
+    expect_identical(r$detail$check, "header", label = status)
+    expect_null(attr(r, "binding")$state$status, label = status)
+  }
+  for (status in c(302L, 0L)) {
+    r <- fetch(status)
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "redirect-limit", label = status)
+    expect_identical(attr(r, "binding")$state$status, 302L, label = status)
+  }
+})
+
 # The decision at the status line, on scripted header buffers: a header
 # limit the interim 1xx blocks passed was reached first; nothing after the
 # final status line counts against it.

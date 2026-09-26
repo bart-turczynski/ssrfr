@@ -1644,8 +1644,10 @@ a divergence there shows as drift (§7) rather than as a runtime refusal.
   changes the outcome: not its header fields, a second `Location`, a body over
   step 12's limits, nor one that stalls past `total_timeout`. A step 12 limit
   reached before the line was complete, by interim `1xx` blocks or by the status
-  line itself, was reached first and wins (§6.6). *Amended 2026-09-27*
-  (`SSRF-fvtqbanc`).
+  line itself, was reached first and wins (§6.6). The status is
+  transport-observed (§2.3): when a completed transfer's transport reports a
+  status other than that line's, step 13 decided nothing, and the fetch ends as
+  `protocol-error`. *Amended 2026-09-27* (`SSRF-fvtqbanc`).
 
 ---
 

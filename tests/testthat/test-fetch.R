@@ -695,3 +695,43 @@ test_that("an interrupt leaves the binding spent and no handle open", {
   server$wait(25000)
   expect_identical(server$get_result(), "closed")
 })
+
+# §2.5: a user's interrupt propagates even when it lands while ssrfr is
+# ending the transfer itself. ssrfr stops this transfer at its header
+# limit; curl raises that abort as an interrupt right after the transfer's
+# final delivery, and the user's interrupt arrives during that delivery.
+test_that("a user interrupt during ssrfr's own abort still propagates", {
+  skip_on_os("windows")
+  mock_answers("127.0.0.1")
+  server <- local_raw_server(stream_forever(
+    wire("HTTP/1.1 200 OK\r\n"),
+    wire("X-Field: ", strrep("v", 50), "\r\n")
+  ))
+  transfer <- ssrfr:::dep_curl_transfer
+  delivered <- new.env(parent = emptyenv())
+  delivered$final <- FALSE
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      interrupting <- function(x, final = FALSE) {
+        if (final) {
+          delivered$final <- TRUE
+          tools::pskill(Sys.getpid(), tools::SIGINT)
+          Sys.sleep(5)
+        }
+        data(x, final)
+      }
+      transfer(opts, interrupting, debug, progress)
+    }
+  )
+  b <- ssrf_prepare_hop(
+    pinned_url(server$port),
+    loopback_policy(server$port, max_header_bytes = 1000, total_timeout = 20),
+    request = list()
+  )
+  got <- tryCatch(ssrf_fetch(b), interrupt = function(c) "interrupted")
+  expect_true(delivered$final)
+  expect_identical(got, "interrupted")
+  expect_false(b$state$fetchable)
+  expect_null(b$state$status)
+  expect_error(ssrf_fetch(b), class = "ssrfr_error_spent_binding")
+})

@@ -8,7 +8,11 @@ ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
 }
 \arguments{
 \item{url}{The URL, a single string: an absolute URL on a first hop; on a
-redirect hop, the \code{Location} value, which may be a relative reference.}
+redirect hop, the \code{Location} value \code{from} recorded,
+\code{from$state$location}, byte for byte, which may be a relative
+reference. Any other value on a redirect hop, even the same URL spelled
+another way, is an error of class \code{ssrfr_error_invalid_from}: a redirect
+goes where the server pointed, and a different URL starts a new chain.}
 
 \item{policy}{The policy to decide under, from \code{\link[=ssrf_policy]{ssrf_policy()}}.}
 

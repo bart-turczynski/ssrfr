@@ -159,6 +159,77 @@ test_that("request with from, or a from that is no binding, is misuse", {
   }
 })
 
+# §2.6, amended 2026-09-27: a redirect hop's url is the Location `from`
+# recorded, byte for byte; the caller cannot re-aim the redirect.
+test_that("a redirect hop's url must be the recorded Location, byte for byte", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  seen <- mock_answers("127.0.0.1")
+  policy <- loopback_policy(port)
+  b <- ssrf_prepare_hop(
+    pinned_url(port, "/r/302?to=/Echo"),
+    policy,
+    request = list()
+  )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  expect_identical(b$state$location, "/Echo")
+  others <- list(
+    "a case change" = "/echo",
+    "the absolute form" = pinned_url(port, "/Echo"),
+    "a trailing space" = "/Echo ",
+    "a leading space" = " /Echo"
+  )
+  for (label in names(others)) {
+    seen$queries <- character()
+    err <- expect_error(
+      ssrf_prepare_hop(others[[label]], policy, from = b),
+      class = "ssrfr_error_invalid_from",
+      label = label
+    )
+    expect_identical(err$kind, "invalid_from")
+    # The message quotes neither value.
+    expect_false(grepl("echo", conditionMessage(err), ignore.case = TRUE))
+    # Raised before anything is resolved.
+    expect_length(seen$queries, 0L)
+  }
+  # The same bytes in another declared encoding are still the same bytes.
+  latin <- "/Echo"
+  Encoding(latin) <- "latin1"
+  expect_s3_class(ssrf_prepare_hop(latin, policy, from = b), "ssrfr_binding")
+  # The exact value proceeds.
+  b2 <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  expect_s3_class(b2, "ssrfr_binding")
+  expect_identical(b2$url, pinned_url(port, "/Echo"))
+  expect_s3_class(ssrf_prepare_hop("/Echo", policy, from = b), "ssrfr_binding")
+})
+
+# identical() calls a string equal to its re-encoding; the bytes differ, and
+# so does the URL a redirect hop is prepared for.
+test_that("the Location is compared as bytes, not as strings", {
+  web <- local_raw_server(c(
+    wire("HTTP/1.1 302 Found\r\nLocation: /caf"),
+    as.raw(c(0xc3, 0xa9)),
+    wire("\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+  ))
+  mock_answers("127.0.0.1")
+  policy <- loopback_policy(web$port)
+  b <- ssrf_prepare_hop(pinned_url(web$port), policy, request = list())
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  location <- b$state$location
+  expect_identical(Encoding(location), "UTF-8")
+  latin <- iconv(location, "UTF-8", "latin1")
+  expect_true(identical(latin, location))
+  expect_error(
+    ssrf_prepare_hop(latin, policy, from = b),
+    class = "ssrfr_error_invalid_from"
+  )
+  expect_s3_class(
+    ssrf_prepare_hop(location, policy, from = b),
+    "ssrfr_binding"
+  )
+})
+
 test_that("a changed chain budget raises budget_change", {
   skip_if_no_webfakes()
   web <- local_redirect_server()
@@ -475,12 +546,18 @@ test_that("every dimension is revalidated on every hop", {
   expect_identical(r$code, "downgrade")
   expect_identical(r$hop, 2L)
   expect_identical(r$detail$step, 3L)
-  # http to https is no downgrade.
-  up <- ssrf_prepare_hop(
-    paste0("https://legit.example:", tport, "/next"),
+  # https to https is no downgrade.
+  b <- ssrf_prepare_hop(
+    paste0("https://legit.example:", tport, "/"),
     tpolicy,
-    from = b
+    request = list(
+      headers = c(
+        `X-Corpus-Location` = paste0("https://legit.example:", tport, "/next")
+      )
+    )
   )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  up <- ssrf_prepare_hop(b$state$location, tpolicy, from = b)
   expect_s3_class(up, "ssrfr_binding")
 })
 

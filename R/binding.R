@@ -106,7 +106,11 @@ now <- function() {
 #' so a later change to the policy object does not reach it.
 #'
 #' @param url The URL, a single string: an absolute URL on a first hop; on a
-#'   redirect hop, the `Location` value, which may be a relative reference.
+#'   redirect hop, the `Location` value `from` recorded,
+#'   `from$state$location`, byte for byte, which may be a relative
+#'   reference. Any other value on a redirect hop, even the same URL spelled
+#'   another way, is an error of class `ssrfr_error_invalid_from`: a redirect
+#'   goes where the server pointed, and a different URL starts a new chain.
 #' @param policy The policy to decide under, from [ssrf_policy()].
 #' @param request The request plan for a first hop, a list as described
 #'   above; `list()` for a plain `GET`. Exactly one of `request` and `from`
@@ -211,6 +215,20 @@ ssrf_prepare_hop <- function(url, policy, request = NULL, from = NULL) {
     return(prepare_hop(enc2utf8(url), policy, plan, started))
   }
   check_from(from, policy)
+  # §2.6: a redirect goes where the server pointed. `url` is the Location
+  # `from` recorded, compared as bytes: identical() may call two strings in
+  # different encodings equal.
+  if (!identical(charToRaw(url), charToRaw(from$state$location))) {
+    abort_ssrfr(
+      "invalid_from",
+      paste0(
+        "`url` is not the `Location` value `from` recorded, byte for byte; a ",
+        "redirect hop goes where the previous response pointed. Start a new ",
+        "chain with `request` to fetch another URL."
+      ),
+      fn = "ssrf_prepare_hop"
+    )
+  }
   # §2.3: the inherited plan is never re-supplied; prepare_hop() transforms
   # it for the redirect and checks what the new hop sends.
   prepare_hop(enc2utf8(url), policy, from$request, started, from = from)

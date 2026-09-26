@@ -1346,8 +1346,8 @@ test_that("a Location that is not valid UTF-8 refuses as parse, silently", {
 
 # The loop ssrf_prepare_hop()'s example and the vignette show ends with
 # `result` holding the chain's final outcome, whichever call returned it,
-# and handles a response, a refusal and a failure. Each is run against
-# scripted stand-ins for the two primitives.
+# and handles a response, whatever its body holds, a refusal and a failure.
+# Each is run against scripted stand-ins for the two primitives.
 test_that("the documented redirect loops end on the chain's final outcome", {
   rd_file <- system.file("man", "ssrf_prepare_hop.Rd", package = "ssrfr")
   rd <- if (nzchar(rd_file)) {
@@ -1383,9 +1383,12 @@ test_that("the documented redirect loops end on the chain's final outcome", {
       class = "ssrfr_binding"
     )
   }
+  # A body with an embedded NUL, which no string can hold: the loops keep
+  # any body.
+  done <- as.raw(c(0x64, 0x00, 0x6e))
   response <- function(status) {
     structure(
-      list(status = status, headers = character(), body = charToRaw("done")),
+      list(status = status, headers = character(), body = done),
       class = "ssrfr_response"
     )
   }
@@ -1394,7 +1397,7 @@ test_that("the documented redirect loops end on the chain's final outcome", {
   scripts <- list(
     "a followed redirect, then 200" = list(
       calls = list(hop(), response(302L), hop(), response(200L)),
-      outcome = "done"
+      outcome = done
     ),
     "a refused redirect hop" = list(
       calls = list(hop(), response(302L), refusal("downgrade")),
@@ -1414,7 +1417,7 @@ test_that("the documented redirect loops end on the chain's final outcome", {
     ),
     "a 302 without Location" = list(
       calls = list(hop(count = 0L), response(302L)),
-      outcome = "done"
+      outcome = done
     )
   )
   for (code in list(example = example, vignette = vignette)) {

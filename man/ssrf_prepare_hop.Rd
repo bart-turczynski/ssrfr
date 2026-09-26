@@ -177,7 +177,7 @@ while (inherits(result, "ssrfr_binding")) {
 # `result` is the chain's final outcome. Log a code or cause for the
 # operator; show an untrusted party only ssrf_public_reason(result).
 outcome <- if (inherits(result, "ssrfr_response")) {
-  rawToChar(result$body)
+  result$body # the body's bytes, a raw vector, whatever they hold
 } else if (inherits(result, "ssrfr_refusal")) {
   result$code # "redirect-limit" once max_redirects redirects are followed
 } else {

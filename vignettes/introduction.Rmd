@@ -189,7 +189,7 @@ while (inherits(result, "ssrfr_binding")) {
   result <- ssrf_prepare_hop(hop$state$location, policy, from = hop)
 }
 outcome <- if (inherits(result, "ssrfr_response")) {
-  rawToChar(result$body)
+  result$body # the body's bytes, a raw vector, whatever they hold
 } else if (inherits(result, "ssrfr_refusal")) {
   result$code
 } else {

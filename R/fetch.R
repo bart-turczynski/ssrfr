@@ -424,8 +424,10 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   }
   # The status libcurl reports and the header block ssrfr reads must be the
   # same response's: the status is transport-observed (§2.3), and a
-  # disagreement records neither.
-  parsed <- parse_response_headers(transfer$headers)
+  # disagreement records neither. The parse reads the segments the measure
+  # above took of these same bytes, never segmenting them again.
+  segments <- if (identical(seen$segmented, transfer$headers)) seen$segments
+  parsed <- parse_response_headers(transfer$headers, segments)
   if (is.null(parsed) || parsed$status != transfer$status) {
     return(ended("protocol-error", 12L, "header"))
   }
@@ -481,6 +483,9 @@ measure_header <- function(seen, buffer) {
   segments <- header_segments(buffer)
   seen$header_fields <- sum(nzchar(segments$lines)) -
     length(segments$blocks$start)
+  # Kept for the parse of a completed transfer, with the bytes they read.
+  seen$segmented <- buffer
+  seen$segments <- segments
   invisible()
 }
 

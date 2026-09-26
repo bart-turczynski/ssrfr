@@ -349,6 +349,40 @@ test_that("a status that disagrees with the header block is a protocol error", {
   }
 })
 
+# The measure and the parse of a completed transfer read one segmentation
+# of the header buffer: the bytes are segmented once, not once for each.
+test_that("a completed transfer's header is segmented once", {
+  mock_answers("127.0.0.1")
+  segmenter <- ssrfr:::header_segments
+  calls <- new.env(parent = emptyenv())
+  calls$n <- 0L
+  local_mocked_bindings(
+    header_segments = function(buffer) {
+      calls$n <- calls$n + 1L
+      segmenter(buffer)
+    },
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      list(
+        aborted = FALSE,
+        error = NULL,
+        status = 200L,
+        headers = wire("HTTP/1.1 200 OK\r\nX-One: 1\r\n\r\n"),
+        connect = 0.01
+      )
+    }
+  )
+  b <- ssrf_prepare_hop(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(),
+    request = list()
+  )
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$headers, c(`x-one` = "1"))
+  expect_identical(calls$n, 1L)
+})
+
 # RFC 9112 §4: a status line is HTTP-version SP status-code SP
 # [reason-phrase]. A tab after the code is not SP, so the block does not read
 # as a status line and the response is a protocol error, although libcurl

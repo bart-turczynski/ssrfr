@@ -332,11 +332,17 @@ header_segments <- function(buffer) {
 # quoting every header, Set-Cookie included (INV-12, §2.3). A value is kept
 # byte for byte, marked UTF-8 when it is valid UTF-8 and "bytes" when it is
 # not, so R never re-encodes it. A NUL byte reads as no header.
-parse_response_headers <- function(raw) {
+#
+# `segments` is header_segments(raw) when the caller already has it, so a
+# completed transfer's buffer is segmented once for the measure and the
+# parse (R/fetch.R); NULL segments `raw` here.
+parse_response_headers <- function(raw, segments = NULL) {
   if (!is.raw(raw) || any(raw == as.raw(0L))) {
     return(NULL)
   }
-  segments <- header_segments(raw)
+  if (is.null(segments)) {
+    segments <- header_segments(raw)
+  }
   blocks <- segments$blocks
   final <- which(blocks$complete & blocks$status >= 200L)
   if (!length(final)) {

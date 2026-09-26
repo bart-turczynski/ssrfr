@@ -212,8 +212,9 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
 # §6.6: a header cut short before its empty line, with exactly
 # max_header_fields fields, is within the limits. Its status line opens its
 # block, so it is no field, and the transfer ends with the cause of how it
-# ended: `timeout` when the server stalls, and when it closes, the
-# `protocol-error` of a header that never ended.
+# ended: `timeout` when the server stalls, and when it closes,
+# `protocol-error`, whether libcurl reports the close (check `transport`)
+# or ssrfr finds the header never ended (check `header`).
 test_that("a truncated header at the field limit ends as the transfer did", {
   mock_answers("127.0.0.1")
   head <- wire("HTTP/1.1 200 OK\r\n", strrep("X-F: 1\r\n", 20))
@@ -225,7 +226,7 @@ test_that("a truncated header at the field limit ends as the transfer did", {
   body(stall) <- do.call(substitute, list(body(stall), list(HEAD = head)))
   cases <- list(
     stall = list(bytes = stall, want = "timeout transport total_timeout"),
-    close = list(bytes = head, want = "protocol-error header none")
+    close = list(bytes = head, want = "protocol-error (header|transport) none")
   )
   for (name in names(cases)) {
     case <- cases[[name]]
@@ -238,13 +239,13 @@ test_that("a truncated header at the field limit ends as the transfer did", {
       )
       r <- guarded_get(pinned_url(server$port), policy)
       expect_s3_class(r, "ssrfr_failure")
-      expect_identical(
+      expect_match(
         paste(
           r$cause,
           r$detail$check,
           if (is.null(r$detail$limit)) "none" else r$detail$limit
         ),
-        case$want,
+        paste0("^", case$want, "$"),
         label = name
       )
     })

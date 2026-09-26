@@ -628,9 +628,9 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   delivered$bytes <- 0L
   local_mocked_bindings(
     dep_curl_transfer = function(opts, data, debug, progress) {
-      counting <- function(x, ...) {
+      counting <- function(x, received = NULL) {
         delivered$bytes <- delivered$bytes + length(x)
-        data(x, ...)
+        data(x, received)
       }
       traced <- new.env(parent = emptyenv())
       traced$trying <- FALSE

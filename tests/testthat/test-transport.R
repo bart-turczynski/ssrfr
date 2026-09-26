@@ -341,16 +341,31 @@ test_that("the header buffer is segmented by the block before each line", {
 
 # The header measure runs the segmenter on every growth of the header
 # buffer, inside callbacks that run with interrupts suspended, so one pass
-# costs time linear in the buffer: 512 KiB of interim blocks, a run of 1xx
-# responses, segments well within a second.
+# costs time linear in the buffer. Eight times the interim blocks, a run of
+# 1xx responses, take about eight times as long, where a quadratic pass
+# takes sixty-four; the ratio, unlike a wall-clock bound, holds under
+# coverage instrumentation and on a slow runner.
 test_that("the header buffer is segmented in linear time", {
+  skip_on_cran()
   block <- "HTTP/1.1 100 X\r\n\r\n"
-  count <- (512 * 1024) %/% nchar(block)
-  buffer <- wire(strrep(block, count))
-  s <- NULL
-  elapsed <- system.time(s <- ssrfr:::header_segments(buffer))[["elapsed"]]
-  expect_length(s$blocks$start, count)
-  expect_lt(elapsed, 0.5)
+  timed <- function(kib) {
+    count <- (kib * 1024) %/% nchar(block)
+    buffer <- wire(strrep(block, count))
+    runs <- vapply(
+      1:3,
+      function(i) {
+        s <- NULL
+        t <- system.time(s <- ssrfr:::header_segments(buffer))[["elapsed"]]
+        expect_length(s$blocks$start, count)
+        t
+      },
+      numeric(1L)
+    )
+    max(stats::median(runs), 0.001)
+  }
+  small <- timed(128)
+  large <- timed(1024)
+  expect_lt(large / small, 24)
 })
 
 test_that("response headers are read from the final block only", {

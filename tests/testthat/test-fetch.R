@@ -708,13 +708,14 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   expect_identical(hook$runs, 0L)
 })
 
-# §6.6: a genuine pin-mismatch names no callback. A failed write or progress
-# callback does not touch the trace, so a trace naming another address, or
-# one that cannot be read, is the pin's own finding; only a failed trace
-# callback, which leaves the evidence unreliable, is named. A trace with no
-# `Trying` line at all, beside a failed callback, is the one that failure cut
-# short, and names it.
-test_that("a genuine pin-mismatch names no failed callback", {
+# §6.6: a pin-mismatch names only the callback that bears on the trace. A
+# trace naming another address, or one that cannot be read, is the pin's own
+# finding and names no callback. A failed trace callback leaves the evidence
+# unreliable and is named. A trace with no `Trying` line beside a failed
+# progress callback, the one callback that runs before libcurl dials, is the
+# one that failure cut short, and names progress even when the trace callback
+# failed after it; the write callback cannot run before the dial.
+test_that("a pin-mismatch names only the callback that bears on the trace", {
   mock_answers("127.0.0.1")
   cases <- list(
     `other-address` = list(
@@ -725,6 +726,16 @@ test_that("a genuine pin-mismatch names no failed callback", {
     absent = list(
       trace = "Dialing\n",
       failed = "progress",
+      callback = "progress"
+    ),
+    `absent after data` = list(
+      trace = "Dialing\n",
+      failed = "data",
+      callback = NULL
+    ),
+    `absent, progress then debug` = list(
+      trace = "Dialing\n",
+      failed = c("progress", "debug"),
       callback = "progress"
     ),
     garbled = list(trace = "Trying ???\n", failed = "data", callback = NULL),
@@ -758,27 +769,18 @@ test_that("a genuine pin-mismatch names no failed callback", {
   }
 })
 
-# §6.6: a write or progress callback that fails before libcurl traces
-# `Trying` stops the transfer with the trace empty. The pin is unconfirmed,
+# §6.6: a progress callback that fails before libcurl traces `Trying` stops the transfer with the trace empty. The pin is unconfirmed,
 # so the fetch is pin-mismatch, check absent, and the failure names the
 # callback that cut the evidence short.
 test_that("a callback that fails before the trace is named", {
   mock_answers("127.0.0.1")
   local_mocked_bindings(
     dep_curl_transfer = function(opts, data, debug, progress) {
-      # As the wrapper does: progress runs first and throws, the error is
-      # caught under its name, and the transfer stops before any trace.
-      failing <- function(down, up, received) stop("a defect")
-      failed <- tryCatch(
-        {
-          failing(0, 0, function() raw())
-          NULL
-        },
-        error = function(e) "progress"
-      )
+      # What the wrapper reports when progress throws on its first call,
+      # before libcurl traces anything.
       list(
         aborted = TRUE,
-        failed = failed,
+        failed = "progress",
         error = NULL,
         status = 0L,
         headers = raw(),

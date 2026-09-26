@@ -209,6 +209,67 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
   }
 })
 
+# §5.3, §6.6: a chunked body's trailer fields count against the header
+# limits, with the cause a header over them has. libcurl hands trailer lines
+# to the header buffer but not to the trace's header lines, so they pass
+# no header count unless ssrfr counts them itself. Trailers that never end
+# stop at the limit, not at total_timeout.
+test_that("trailer fields count against the header limits", {
+  mock_answers("127.0.0.1")
+  head <- wire(
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n",
+    "Connection: close\r\n\r\n",
+    "5\r\nhello\r\n0\r\n"
+  )
+  many <- strrep("X-T: 1\r\n", 40)
+  wide <- strrep(paste0("X-W: ", strrep("v", 95), "\r\n"), 20)
+  cases <- list(
+    fields = list(
+      bytes = c(head, wire(many, "\r\n")),
+      limits = list(max_header_fields = 20),
+      limit = "max_header_fields"
+    ),
+    bytes = list(
+      bytes = c(head, wire(wide, "\r\n")),
+      limits = list(max_header_bytes = 1000),
+      limit = "max_header_bytes"
+    ),
+    endless = list(
+      bytes = stream_forever(head, wire("X-T: vvvv\r\n")),
+      limits = list(max_header_fields = 20),
+      limit = "max_header_fields"
+    )
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    local({
+      server <- local_raw_server(case$bytes)
+      policy <- do.call(
+        loopback_policy,
+        c(list(server$port, total_timeout = 10), case$limits)
+      )
+      t0 <- Sys.time()
+      r <- guarded_get(pinned_url(server$port), policy)
+      elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, "response-too-large", label = name)
+      expect_identical(r$detail$check, "header", label = name)
+      expect_identical(r$detail$limit, case$limit, label = name)
+      expect_lt(elapsed, 4, label = name)
+      b <- attr(r, "binding")
+      expect_null(b$state$status)
+      expect_false(b$state$fetched)
+    })
+  }
+  # Within the limits, the same trailers are a response, and none of them
+  # is a header field.
+  server <- local_raw_server(c(head, wire(many, "\r\n")))
+  r <- guarded_get(pinned_url(server$port), loopback_policy(server$port))
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(body_text(r), "hello")
+  expect_named(r$headers, c("transfer-encoding", "connection"))
+})
+
 test_that("a redirect is returned with Location; two are a protocol error", {
   skip_if_no_webfakes()
   web <- local_test_server()

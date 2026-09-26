@@ -1150,6 +1150,104 @@ test_that("a Location that is not valid UTF-8 refuses as parse, silently", {
   expect_identical(seen$queries, paste0(pinned_host, "."))
 })
 
+# --- the documented loop ------------------------------------------------------
+
+# The loop ssrf_prepare_hop()'s example and the vignette show ends with
+# `result` holding the chain's final outcome, whichever call returned it,
+# and handles a response, a refusal and a failure. Each is run against
+# scripted stand-ins for the two primitives.
+test_that("the documented redirect loops end on the chain's final outcome", {
+  rd_file <- system.file("man", "ssrf_prepare_hop.Rd", package = "ssrfr")
+  rd <- if (nzchar(rd_file)) {
+    tools::parse_Rd(rd_file)
+  } else {
+    tools::Rd_db("ssrfr")[["ssrf_prepare_hop.Rd"]]
+  }
+  tagged <- function(x, tag) {
+    Filter(function(node) identical(attr(node, "Rd_tag"), tag), x)[[1L]]
+  }
+  example <- paste(
+    unlist(tagged(tagged(rd, "\\examples"), "\\dontrun")),
+    collapse = ""
+  )
+  source_rmd <- test_path("..", "..", "vignettes", "introduction.Rmd")
+  rmd <- readLines(
+    if (file.exists(source_rmd)) {
+      source_rmd
+    } else {
+      system.file("doc", "introduction.Rmd", package = "ssrfr")
+    },
+    encoding = "UTF-8"
+  )
+  section <- rmd[seq(which(rmd == "## Following redirects"), length(rmd))]
+  opens <- which(startsWith(section, "```{r"))[[1L]]
+  closes <- which(section == "```")
+  closes <- closes[closes > opens][[1L]]
+  vignette <- paste(section[seq(opens + 1L, closes - 1L)], collapse = "\n")
+
+  hop <- function(count = 1L) {
+    structure(
+      list(state = list(location = "/next", location_count = count)),
+      class = "ssrfr_binding"
+    )
+  }
+  response <- function(status) {
+    structure(
+      list(status = status, headers = character(), body = charToRaw("done")),
+      class = "ssrfr_response"
+    )
+  }
+  refusal <- function(code) ssrfr:::new_ssrf_refusal(code, 1L)
+  failure <- function(cause) ssrfr:::new_ssrf_failure(cause, 1L)
+  scripts <- list(
+    "a followed redirect, then 200" = list(
+      calls = list(hop(), response(302L), hop(), response(200L)),
+      outcome = "done"
+    ),
+    "a refused redirect hop" = list(
+      calls = list(hop(), response(302L), refusal("downgrade")),
+      outcome = "downgrade"
+    ),
+    "a fetch that fails" = list(
+      calls = list(hop(), failure("connect-failed")),
+      outcome = "connect-failed"
+    ),
+    "a refused first hop" = list(
+      calls = list(refusal("private")),
+      outcome = "private"
+    ),
+    "the budget spent" = list(
+      calls = list(hop(), response(302L), hop(), refusal("redirect-limit")),
+      outcome = "redirect-limit"
+    ),
+    "a 302 without Location" = list(
+      calls = list(hop(count = 0L), response(302L)),
+      outcome = "done"
+    )
+  )
+  for (code in list(example = example, vignette = vignette)) {
+    for (label in names(scripts)) {
+      script <- scripts[[label]]
+      queue <- new.env(parent = emptyenv())
+      queue$left <- script$calls
+      answer <- function(...) {
+        out <- queue$left[[1L]]
+        queue$left <- queue$left[-1L]
+        out
+      }
+      env <- new.env()
+      env$policy <- ssrf_policy()
+      env$ssrf_prepare_hop <- answer
+      env$ssrf_fetch <- answer
+      eval(parse(text = code, keep.source = FALSE), env)
+      expect_length(queue$left, 0L)
+      final <- script$calls[[length(script$calls)]]
+      expect_identical(env$result, final, label = label)
+      expect_identical(env$outcome, script$outcome, label = label)
+    }
+  }
+})
+
 # --- a real app ---------------------------------------------------------------
 
 # r-binding.md §7: ordinary HTTP still works through the guard, a redirect

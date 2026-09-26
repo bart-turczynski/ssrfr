@@ -169,23 +169,33 @@ now <- function() {
 #' ))
 #'
 #' \dontrun{
-#' # Following a redirect: prepare each hop from the previous binding.
-#' binding <- ssrf_prepare_hop(
+#' # Following a redirect chain: prepare each hop from the previous binding.
+#' result <- ssrf_prepare_hop(
 #'   "https://example.com/old",
 #'   policy,
 #'   request = list(headers = c(Authorization = "Bearer secret"))
 #' )
-#' response <- ssrf_fetch(binding)
-#' followed <- response$status %in% c(301, 302, 303, 307, 308) &&
-#'   !is.null(binding$state$location)
-#' if (followed) {
+#' while (inherits(result, "ssrfr_binding")) {
+#'   binding <- result
+#'   result <- ssrf_fetch(binding)
+#'   followed <- inherits(result, "ssrfr_response") &&
+#'     result$status %in% c(301, 302, 303, 307, 308) &&
+#'     identical(binding$state$location_count, 1L)
+#'   if (!followed) {
+#'     break
+#'   }
 #'   # A relative Location is resolved against the previous hop's URL, and
 #'   # Authorization is dropped if the redirect leaves the origin.
-#'   next_hop <- ssrf_prepare_hop(
-#'     binding$state$location,
-#'     policy,
-#'     from = binding
-#'   )
+#'   result <- ssrf_prepare_hop(binding$state$location, policy, from = binding)
+#' }
+#' # `result` is the chain's final outcome. Log a code or cause for the
+#' # operator; show an untrusted party only ssrf_public_reason(result).
+#' outcome <- if (inherits(result, "ssrfr_response")) {
+#'   rawToChar(result$body)
+#' } else if (inherits(result, "ssrfr_refusal")) {
+#'   result$code # "redirect-limit" once max_redirects redirects are followed
+#' } else {
+#'   result$cause # an operational failure
 #' }
 #' }
 #'

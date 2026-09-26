@@ -172,25 +172,38 @@ and `Authorization`, `Proxy-Authorization` and `Cookie` never cross.
 
 ```{r, eval = FALSE}
 policy <- ssrf_policy(max_redirects = 5)
-hop <- ssrf_prepare_hop(
+result <- ssrf_prepare_hop(
   "https://example.com/start",
   policy,
   request = list(headers = c(Authorization = "Bearer not-shown"))
 )
-repeat {
-  if (!inherits(hop, "ssrfr_binding")) break # a refusal or a failure
+while (inherits(result, "ssrfr_binding")) {
+  hop <- result
   result <- ssrf_fetch(hop)
   followed <- inherits(result, "ssrfr_response") &&
     result$status %in% c(301, 302, 303, 307, 308) &&
-    !is.null(hop$state$location)
-  if (!followed) break
-  hop <- ssrf_prepare_hop(hop$state$location, policy, from = hop)
+    identical(hop$state$location_count, 1L)
+  if (!followed) {
+    break
+  }
+  result <- ssrf_prepare_hop(hop$state$location, policy, from = hop)
+}
+outcome <- if (inherits(result, "ssrfr_response")) {
+  rawToChar(result$body)
+} else if (inherits(result, "ssrfr_refusal")) {
+  result$code
+} else {
+  result$cause
 }
 ```
 
-The loop ends with a response, a refusal or a failure, and a redirect hop
-can be refused like any other: `"downgrade"` for `https` to `http`, or any
-code a first hop can get. The chain's `max_redirects` and `total_timeout`
+The loop ends with `result` holding the chain's final outcome: a response,
+a refusal or a failure, whichever call returned it. A redirect hop can be
+refused like any other: `"downgrade"` for `https` to `http`, or any code a
+first hop can get. Log a refusal's `code` or a failure's `cause` for the
+operator, and show an untrusted party only `ssrf_public_reason(result)`. The
+`url` of a redirect hop is the `Location` exactly as `binding$state$location`
+holds it; a different URL is an error, and starts a new chain instead. The chain's `max_redirects` and `total_timeout`
 are fixed by its first hop: once `max_redirects` redirects have been
 followed, `ssrf_fetch()` refuses the next `3xx` as `"redirect-limit"`, and a
 policy that restates either budget differently mid-chain is an error.

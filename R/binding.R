@@ -47,8 +47,8 @@ now <- function() {
 #'     named list of strings. Names must be HTTP tokens and values carry no
 #'     CR or LF. Fields the transport owns (`Host`, `Connection`,
 #'     `Proxy-Connection`, `Keep-Alive`, `Transfer-Encoding`, `TE`,
-#'     `Trailer`, `Upgrade`, `Content-Length`, `Accept-Encoding` and
-#'     `User-Agent`, which the policy sets) are refused, and so are the
+#'     `Trailer`, `Upgrade`, `Content-Length`, `Accept-Encoding`, `Expect`
+#'     and `User-Agent`, which the policy sets) are refused, and so are the
 #'     metadata-service request markers of `ssrf_vocabulary("metadata_headers")`
 #'     unless the policy's `allow_ranges` names a provider endpoint exactly.}
 #'   \item{`body`}{The request body: a raw vector or a single string, sent as

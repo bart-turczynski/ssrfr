@@ -63,8 +63,8 @@ may choose.}
 named list of strings. Names must be HTTP tokens and values carry no
 CR or LF. Fields the transport owns (\code{Host}, \code{Connection},
 \code{Proxy-Connection}, \code{Keep-Alive}, \code{Transfer-Encoding}, \code{TE},
-\code{Trailer}, \code{Upgrade}, \code{Content-Length}, \code{Accept-Encoding} and
-\code{User-Agent}, which the policy sets) are refused, and so are the
+\code{Trailer}, \code{Upgrade}, \code{Content-Length}, \code{Accept-Encoding}, \code{Expect}
+and \code{User-Agent}, which the policy sets) are refused, and so are the
 metadata-service request markers of \code{ssrf_vocabulary("metadata_headers")}
 unless the policy's \code{allow_ranges} names a provider endpoint exactly.}
 \item{\code{body}}{The request body: a raw vector or a single string, sent as

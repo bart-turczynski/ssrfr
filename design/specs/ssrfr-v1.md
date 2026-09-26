@@ -202,8 +202,14 @@ discouraged. This is the same design move as `connect_to = "HOST::IP:"`
 L0 / L1 inspection            → facts, no security verdict
 ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
                               → refusal  OR  opaque binding
-ssrf_fetch(binding)           → response
+ssrf_fetch(binding)           → response  OR  operational failure
+                                OR  refusal, `redirect-limit` only (§12 step 13)
 ```
+
+A redirect past the chain's budget is a policy decision, not a transport fault, so
+`ssrf_fetch()` returns it as a refusal with code `redirect-limit` (§6.5, §8 item
+33) rather than as a response. *Amended 2026-09-27* (was "→ response";
+`SSRF-fvtqbanc`).
 
 `ssrf_fetch()` takes **one** argument. There is no URL parameter and no header,
 method, or body parameter, so there is no substitution surface.
@@ -476,6 +482,12 @@ and carries no ability to open a connection.
 4. the transport-observed response status that determines method transformation.
 
 The first hop is the call with `from = NULL`, which requires an absolute URL.
+
+On a redirect hop, `url` MUST be the `Location` value the previous response
+carried, byte for byte, as `from` recorded it; any other value raises
+`ssrfr_error_invalid_from`. A redirect goes where the server pointed, and the
+caller cannot re-aim it: an application that wants a different URL starts a new
+chain with `from = NULL`. *Amended 2026-09-27* (`SSRF-fvtqbanc`).
 
 ---
 

@@ -45,7 +45,8 @@ test_that("ssrf_fetch_chain() reads nothing but the primitives and base R", {
 
   fn <- ssrf_fetch_chain
   expect_named(formals(fn), c("url", "policy", "request"))
-  expect_identical(formals(fn)$request, quote(list()))
+  # §2.2: `request` has no default, as a first hop's plan has none.
+  expect_identical(formals(fn)$request, quote(expr = ))
   expect_identical(environment(fn), asNamespace("ssrfr"))
 
   reads <- read_symbols(body(fn))
@@ -143,13 +144,19 @@ test_that("each hop is prepared from the recorded Location, as a loop would", {
     expect_identical(call$policy, policy)
   }
 
-  # `request` defaults to list(), a plain GET, as a first hop's documented
-  # form; a refused first hop is returned without a fetch.
+  # `request` has no default, as a first hop's plan has none (§2.2): a call
+  # without it prepares nothing. A refused first hop is returned without a
+  # fetch.
   log$prepare <- list()
   log$fetch <- list()
+  expect_error(ssrf_fetch_chain("http://10.0.0.1/", policy), "request")
+  expect_length(log$prepare, 0L)
   refused <- ssrfr:::new_ssrf_refusal("private", 1L)
   outcomes$prepare <- list(refused)
-  expect_identical(ssrf_fetch_chain("http://10.0.0.1/", policy), refused)
+  expect_identical(
+    ssrf_fetch_chain("http://10.0.0.1/", policy, request = list()),
+    refused
+  )
   expect_identical(log$prepare[[1L]]$request, list())
   expect_length(log$fetch, 0L)
 
@@ -161,7 +168,10 @@ test_that("each hop is prepared from the recorded Location, as a loop would", {
   late <- ssrfr:::new_ssrf_failure("timeout", 1L)
   outcomes$prepare <- list(hop("/next"))
   outcomes$fetch <- list(late)
-  expect_identical(ssrf_fetch_chain("https://example.com/", policy), late)
+  expect_identical(
+    ssrf_fetch_chain("https://example.com/", policy, request = list()),
+    late
+  )
   expect_length(log$prepare, 1L)
   expect_length(log$fetch, 1L)
 })
@@ -202,6 +212,47 @@ test_that("misuse errors propagate from ssrf_prepare_hop() unchanged", {
   )
 })
 
+# The vignette's ssrf_fetch_chain() chunk is not evaluated (eval = FALSE):
+# each call in it is matched against the helper's arguments, so a renamed or
+# dropped argument cannot leave it stale.
+test_that("the vignette's ssrf_fetch_chain() calls match the helper", {
+  source_rmd <- test_path("..", "..", "vignettes", "introduction.Rmd")
+  rmd_file <- if (file.exists(source_rmd)) {
+    source_rmd
+  } else {
+    system.file("doc", "introduction.Rmd", package = "ssrfr")
+  }
+  skip_if_not(file.exists(rmd_file), "the vignette is not installed")
+  rmd <- readLines(rmd_file, encoding = "UTF-8")
+  ends <- which(rmd == "```")
+  code <- unlist(lapply(which(startsWith(rmd, "```{r")), function(opens) {
+    rmd[seq(opens + 1L, ends[ends > opens][[1L]] - 1L)]
+  }))
+  found <- new.env(parent = emptyenv())
+  found$calls <- list()
+  walk <- function(e) {
+    if (is.call(e)) {
+      if (identical(e[[1L]], as.name("ssrf_fetch_chain"))) {
+        found$calls <- c(found$calls, list(e))
+      }
+      for (x in as.list(e)) {
+        if (!missing(x)) walk(x)
+      }
+    }
+  }
+  for (e in parse(text = code, keep.source = FALSE)) {
+    walk(e)
+  }
+  expect_gt(length(found$calls), 0L)
+  for (call in found$calls) {
+    matched <- match.call(ssrf_fetch_chain, call)
+    expect_true(
+      all(c("url", "policy", "request") %in% names(matched)),
+      label = deparse1(call)
+    )
+  }
+})
+
 # --- chains through a real server ---------------------------------------------
 
 test_that("a redirect chain returns the final response", {
@@ -212,7 +263,8 @@ test_that("a redirect chain returns the final response", {
   policy <- loopback_policy(port)
   r <- ssrf_fetch_chain(
     pinned_url(port, "/r/301?to=/r/308%3Fto%3D/echo"),
-    policy
+    policy,
+    request = list()
   )
   expect_s3_class(r, "ssrfr_response")
   expect_identical(r$status, 200L)
@@ -250,7 +302,8 @@ test_that("the redirect budget ends a self-redirect as redirect-limit", {
       port <- web$get_port()
       r <- ssrf_fetch_chain(
         pinned_url(port, "/loop"),
-        loopback_policy(port, max_redirects = budget)
+        loopback_policy(port, max_redirects = budget),
+        request = list()
       )
       label <- paste("max_redirects =", budget)
       expect_s3_class(r, "ssrfr_refusal")
@@ -304,7 +357,8 @@ test_that("every dimension is revalidated on every hop of the chain", {
     )
     r <- ssrf_fetch_chain(
       pinned_url(port, paste0("/r/302?to=", second)),
-      policy
+      policy,
+      request = list()
     )
     expect_s3_class(r, "ssrfr_refusal")
     expect_identical(r$code, targets[[target]], label = target)
@@ -347,7 +401,8 @@ test_that("a failure on a later hop ends the chain", {
   to <- utils::URLencode(pinned_url(dead, "/gone"), reserved = TRUE)
   r <- ssrf_fetch_chain(
     pinned_url(port, paste0("/r/302?to=", to)),
-    loopback_policy(c(port, dead))
+    loopback_policy(c(port, dead)),
+    request = list()
   )
   expect_s3_class(r, "ssrfr_failure")
   expect_identical(r$cause, "connect-failed")
@@ -371,7 +426,7 @@ test_that("a 3xx that is not a followed redirect is returned as is", {
     "/r/399?to=/echo"
   )
   for (path in finals) {
-    r <- ssrf_fetch_chain(pinned_url(port, path), policy)
+    r <- ssrf_fetch_chain(pinned_url(port, path), policy, request = list())
     direct <- guarded_get(pinned_url(port, path), policy)
     expect_s3_class(r, "ssrfr_response")
     expect_identical(r$status, as.integer(substr(path, 4L, 6L)), label = path)
@@ -388,7 +443,8 @@ test_that("a 3xx that is not a followed redirect is returned as is", {
   ))
   r <- ssrf_fetch_chain(
     pinned_url(two$port),
-    loopback_policy(two$port, max_redirects = 5)
+    loopback_policy(two$port, max_redirects = 5),
+    request = list()
   )
   expect_s3_class(r, "ssrfr_failure")
   expect_identical(r$cause, "protocol-error")

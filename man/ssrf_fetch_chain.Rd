@@ -4,7 +4,7 @@
 \alias{ssrf_fetch_chain}
 \title{Follow a redirect chain through the guard}
 \usage{
-ssrf_fetch_chain(url, policy, request = list())
+ssrf_fetch_chain(url, policy, request)
 }
 \arguments{
 \item{url}{The URL of the chain's first hop, a single absolute URL
@@ -15,8 +15,9 @@ string.}
 whole chain.}
 
 \item{request}{The request plan for the first hop, a list as described
-under \code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}}; \code{list()}, the default, is a plain \code{GET}.
-Later hops inherit it, transformed for each redirect.}
+under \code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}}; \code{list()} is a plain \code{GET}. It has no
+default, as a first hop's plan has none. Later hops inherit it,
+transformed for each redirect.}
 }
 \value{
 What the chain's last call returned, told apart by class: the
@@ -24,9 +25,9 @@ final response, class \code{ssrfr_response}, as \code{\link[=ssrf_fetch]{ssrf_fe
 it; the refusal that ended the chain, class \code{ssrfr_refusal}, such as
 \code{"redirect-limit"}, \code{"downgrade"} or an address refusal on any hop; or
 the operational failure that ended it, class \code{ssrfr_failure}. A
-refusal and a failure name the host, address and hop for the operator;
-project them with \code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees
-them. A misuse, such as a request plan that breaks a header rule, is
+refusal and a failure name the hop, and the host and address where
+they are known, for the operator; project them with
+\code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees them. A misuse, such as a request plan that breaks a header rule, is
 the error \code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}} raises.
 }
 \description{
@@ -59,7 +60,11 @@ itself.
 policy <- ssrf_policy()
 
 # Refused before any network I/O: the chain ends at its first hop.
-refused <- ssrf_fetch_chain("http://169.254.169.254/latest/", policy)
+refused <- ssrf_fetch_chain(
+  "http://169.254.169.254/latest/",
+  policy,
+  request = list()
+)
 refused$code
 ssrf_public_reason(refused)
 

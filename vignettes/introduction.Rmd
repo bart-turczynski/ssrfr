@@ -187,7 +187,7 @@ and `Authorization`, `Proxy-Authorization` and `Cookie` never cross. This is
 the loop `ssrf_fetch_chain()` runs. It keeps only the last outcome, so an
 application that must log every hop, as OWASP's "log all accepted and
 blocked network flows" asks, runs the loop itself and logs each hop's
-binding and outcome:
+binding and outcome where the comment marks:
 
 ```{r, eval = FALSE}
 policy <- ssrf_policy(max_redirects = 5)
@@ -199,6 +199,7 @@ result <- ssrf_prepare_hop(
 while (inherits(result, "ssrfr_binding")) {
   hop <- result
   result <- ssrf_fetch(hop)
+  # Log this hop here: `hop` is its spent binding, `result` its outcome.
   followed <- inherits(result, "ssrfr_response") &&
     result$status %in% c(301, 302, 303, 307, 308) &&
     identical(hop$state$location_count, 1L)

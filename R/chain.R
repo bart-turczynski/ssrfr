@@ -37,17 +37,18 @@
 #'   [ssrf_policy()]. Its `max_redirects` and `total_timeout` bound the
 #'   whole chain.
 #' @param request The request plan for the first hop, a list as described
-#'   under [ssrf_prepare_hop()]; `list()`, the default, is a plain `GET`.
-#'   Later hops inherit it, transformed for each redirect.
+#'   under [ssrf_prepare_hop()]; `list()` is a plain `GET`. It has no
+#'   default, as a first hop's plan has none. Later hops inherit it,
+#'   transformed for each redirect.
 #'
 #' @return What the chain's last call returned, told apart by class: the
 #'   final response, class `ssrfr_response`, as [ssrf_fetch()] describes
 #'   it; the refusal that ended the chain, class `ssrfr_refusal`, such as
 #'   `"redirect-limit"`, `"downgrade"` or an address refusal on any hop; or
 #'   the operational failure that ended it, class `ssrfr_failure`. A
-#'   refusal and a failure name the host, address and hop for the operator;
-#'   project them with [ssrf_public_reason()] before an untrusted party sees
-#'   them. A misuse, such as a request plan that breaks a header rule, is
+#'   refusal and a failure name the hop, and the host and address where
+#'   they are known, for the operator; project them with
+#'   [ssrf_public_reason()] before an untrusted party sees them. A misuse, such as a request plan that breaks a header rule, is
 #'   the error [ssrf_prepare_hop()] raises.
 #'
 #' @seealso [ssrf_prepare_hop()] and [ssrf_fetch()], the per-hop primitives
@@ -58,7 +59,11 @@
 #' policy <- ssrf_policy()
 #'
 #' # Refused before any network I/O: the chain ends at its first hop.
-#' refused <- ssrf_fetch_chain("http://169.254.169.254/latest/", policy)
+#' refused <- ssrf_fetch_chain(
+#'   "http://169.254.169.254/latest/",
+#'   policy,
+#'   request = list()
+#' )
 #' refused$code
 #' ssrf_public_reason(refused)
 #'
@@ -78,7 +83,7 @@
 #' }
 #'
 #' @export
-ssrf_fetch_chain <- function(url, policy, request = list()) {
+ssrf_fetch_chain <- function(url, policy, request) {
   result <- ssrf_prepare_hop(url, policy, request = request)
   while (inherits(result, "ssrfr_binding")) {
     binding <- result

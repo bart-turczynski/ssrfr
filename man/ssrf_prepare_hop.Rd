@@ -45,9 +45,9 @@ code from \code{ssrf_vocabulary("reason_codes")}.}
 \code{cause} is \code{"unresolvable"} when resolution failed, or \code{"timeout"}
 when resolution used up the policy's \code{total_timeout}.}
 }
-A refusal and a failure name the host, address and hop for the
-operator; project them with \code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted
-party sees them.
+A refusal and a failure name the hop, and the host and address where
+they are known, for the operator; project them with
+\code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees them.
 }
 \description{
 Decides whether a URL may be fetched under a policy and, when it may,

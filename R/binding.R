@@ -143,9 +143,9 @@ now <- function() {
 #'       `cause` is `"unresolvable"` when resolution failed, or `"timeout"`
 #'       when resolution used up the policy's `total_timeout`.}
 #'   }
-#'   A refusal and a failure name the host, address and hop for the
-#'   operator; project them with [ssrf_public_reason()] before an untrusted
-#'   party sees them.
+#'   A refusal and a failure name the hop, and the host and address where
+#'   they are known, for the operator; project them with
+#'   [ssrf_public_reason()] before an untrusted party sees them.
 #'
 #' @seealso [ssrf_fetch()] to fetch through a binding; [ssrf_fetch_chain()]
 #'   to follow a whole redirect chain; [ssrf_policy()] for the rules;

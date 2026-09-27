@@ -251,9 +251,11 @@ status_line <- "^HTTP/[^ ]* +([0-9]{3})( |$)"
 # like a status line included.
 #
 # Returns a list: `lines` (the buffer's lines, without their line endings,
-# a NUL byte read as 0x7f), `blocks` (a list of four equal-length vectors,
-# one element per header block: its `start` and `end` line, its `status`,
-# and `complete`, whether an empty line ended it) and `trailers` (the
+# a NUL byte read as 0x7f), `ends` (the byte at which each line ends, its
+# line ending included: the buffer's length for a last line with no LF),
+# `blocks` (a list of four equal-length vectors, one element per header
+# block: its `start` and `end` line, its `status`, and `complete`, whether
+# an empty line ended it) and `trailers` (the
 # numbers of the lines after the complete final block). A line in neither is
 # a stray, which libcurl does not write. Read as bytes: a line may carry
 # obs-text.
@@ -264,7 +266,9 @@ status_line <- "^HTTP/[^ ]* +([0-9]{3})( |$)"
 header_segments <- function(buffer) {
   buffer[buffer == as.raw(0L)] <- as.raw(0x7fL)
   lines <- strsplit(rawToChar(buffer), "\n", fixed = TRUE, useBytes = TRUE)
-  lines <- sub("\r$", "", lines[[1L]], useBytes = TRUE)
+  lines <- lines[[1L]]
+  ends <- pmin(cumsum(nchar(lines, type = "bytes") + 1L), length(buffer))
+  lines <- sub("\r$", "", lines, useBytes = TRUE)
   n <- length(lines)
   empties <- which(!nzchar(lines))
   # The first empty line at or after line i, for i in 1..n+1, or NA.
@@ -308,6 +312,7 @@ header_segments <- function(buffer) {
   kept <- seq_len(count)
   list(
     lines = lines,
+    ends = ends,
     blocks = list(
       start = start[kept],
       end = end[kept],

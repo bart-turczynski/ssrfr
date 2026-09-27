@@ -10,7 +10,8 @@
 # with locked bindings: opacity is ergonomic, not enforceable (§2.4). Its
 # `state` records what fetching it did: fetchability, spent on entry to
 # ssrf_fetch() (§2.5), and the transport-observed facts (status, Location,
-# the pin used, each attempt).
+# the pin used, each attempt). A redirect hop (R/redirect.R) is prepared
+# from the previous, spent binding, which stays referenceable (§2.5, §2.6).
 
 # Seconds elapsed since `start`, a value of proc.time()[["elapsed"]].
 elapsed_since <- function(start) {
@@ -63,20 +64,61 @@ now <- function() {
 #' error of class `ssrfr_error_invalid_request`, raised before anything is
 #' parsed or resolved.
 #'
-#' Only the first hop of a redirect chain is supported so far: `from` must be
-#' `NULL`.
+#' A redirect is followed hop by hop: the caller fetches a binding, and when
+#' its response is a followed redirect (a `301`, `302`, `303`, `307` or `308`
+#' with exactly one `Location` field) prepares the next hop with
+#' `from = binding` and the `Location` value as `url`. A relative `Location`
+#' is resolved against the previous hop's URL, and the new URL is checked
+#' from the start, as a first hop is. The request plan is inherited, never
+#' restated, and changes with the redirect:
+#' \itemize{
+#'   \item a `301` or `302` turns `POST` into `GET` without its body, and
+#'     keeps any other method;
+#'   \item a `303` keeps `HEAD` and turns every other method into `GET`,
+#'     without a body;
+#'   \item a `307` or `308` keeps the method and the body.
+#' }
+#' A redirect to another origin (another scheme, host or port) drops the
+#' body and every header field but those `carry` nominated; `Authorization`,
+#' `Proxy-Authorization` and `Cookie` never cross. Whenever the body is
+#' dropped, so are the fields that describe it, such as `Content-Type`, even
+#' when nominated. The binding's `redirect` field records what was dropped.
+#' The plan the redirect hop sends is checked under that hop's policy before
+#' the new name is resolved, so a field it keeps and that policy refuses,
+#' such as a metadata-service marker, is an error of class
+#' `ssrfr_error_invalid_request`, whose message names the field by its
+#' place in `from$request`; a field the redirect dropped is not.
+#' An `https` hop that redirects to `http` is refused as `"downgrade"`.
+#'
+#' The chain's budgets are its first hop's: `max_redirects` and
+#' `total_timeout` travel through `from`, with the time the chain has used,
+#' and a redirect hop's policy that states other values is an error of class
+#' `ssrfr_error_budget_change`. Every other policy field applies to the hop
+#' it is passed to. Once the chain has followed `max_redirects` redirects,
+#' [ssrf_fetch()] refuses the next `3xx` response as `"redirect-limit"`,
+#' whether or not it carries `Location`; under `max_redirects = 0` that is
+#' the first. A `from` that is not yet fetched, whose fetch failed or whose
+#' response is not a followed redirect is an error of class
+#' `ssrfr_error_invalid_from`. A spent binding stays usable as `from`, so a
+#' hop that failed can be prepared again from the same binding.
 #'
 #' The binding is single-use: [ssrf_fetch()] spends it on entry. It prints
 #' without userinfo, header values or the body, and holds the policy by value,
 #' so a later change to the policy object does not reach it.
 #'
-#' @param url The URL, a single absolute URL string.
+#' @param url The URL, a single string: an absolute URL on a first hop; on a
+#'   redirect hop, the `Location` value `from` recorded,
+#'   `from$state$location`, byte for byte, which may be a relative
+#'   reference. Any other value on a redirect hop, even the same URL spelled
+#'   another way, is an error of class `ssrfr_error_invalid_from`: a redirect
+#'   goes where the server pointed, and a different URL starts a new chain.
 #' @param policy The policy to decide under, from [ssrf_policy()].
 #' @param request The request plan for a first hop, a list as described
 #'   above; `list()` for a plain `GET`. Exactly one of `request` and `from`
 #'   is required.
-#' @param from The binding of the previous hop, for a redirect. Not yet
-#'   supported: it must be `NULL`.
+#' @param from The binding of the previous hop, for a redirect hop: fetched,
+#'   and holding a followed redirect. Its plan, origin, status and chain
+#'   budgets decide the new hop's plan.
 #'
 #' @return One of three values, told apart by class:
 #'   \describe{
@@ -85,7 +127,13 @@ now <- function() {
 #'       requests, without fragment), `origin` (`scheme`, `host`, `port`),
 #'       `validated` (the addresses a connection may use, in resolver
 #'       order), `pin` (the first of them), `request` (the sanitized plan),
-#'       `policy`, `tls` and `state`, the facts [ssrf_fetch()] records.}
+#'       `policy`, `budget` (the chain's `max_redirects` and
+#'       `total_timeout`, and the seconds it had used), `redirect`, `tls`
+#'       and `state`, the facts [ssrf_fetch()] records. On a redirect hop,
+#'       `redirect` records the previous hop and status, whether the hop
+#'       crossed an origin, the method before and after, whether the body
+#'       was dropped and which fields were (by lowercase name); it is `NULL`
+#'       on a first hop.}
 #'     \item{`ssrfr_refusal`}{The policy refuses the hop; `code` is a reason
 #'       code from `ssrf_vocabulary("reason_codes")`.}
 #'     \item{`ssrfr_failure`}{The hop failed on the wire before a connection:
@@ -121,6 +169,37 @@ now <- function() {
 #'   request = list(headers = c(Host = "internal.example"))
 #' ))
 #'
+#' \dontrun{
+#' # Following a redirect chain: prepare each hop from the previous binding.
+#' result <- ssrf_prepare_hop(
+#'   "https://example.com/old",
+#'   policy,
+#'   request = list(headers = c(Authorization = "Bearer secret"))
+#' )
+#' while (inherits(result, "ssrfr_binding")) {
+#'   binding <- result
+#'   result <- ssrf_fetch(binding)
+#'   followed <- inherits(result, "ssrfr_response") &&
+#'     result$status %in% c(301, 302, 303, 307, 308) &&
+#'     identical(binding$state$location_count, 1L)
+#'   if (!followed) {
+#'     break
+#'   }
+#'   # A relative Location is resolved against the previous hop's URL, and
+#'   # Authorization is dropped if the redirect leaves the origin.
+#'   result <- ssrf_prepare_hop(binding$state$location, policy, from = binding)
+#' }
+#' # `result` is the chain's final outcome. Log a code or cause for the
+#' # operator; show an untrusted party only ssrf_public_reason(result).
+#' outcome <- if (inherits(result, "ssrfr_response")) {
+#'   result$body # the body's bytes, a raw vector, whatever they hold
+#' } else if (inherits(result, "ssrfr_refusal")) {
+#'   result$code # "redirect-limit" once max_redirects redirects are followed
+#' } else {
+#'   result$cause # an operational failure
+#' }
+#' }
+#'
 #' @export
 ssrf_prepare_hop <- function(url, policy, request = NULL, from = NULL) {
   started <- now()
@@ -136,27 +215,86 @@ ssrf_prepare_hop <- function(url, policy, request = NULL, from = NULL) {
   if (!is.null(request) && !is.null(from)) {
     bad("Pass `request` on a first hop or `from` on a redirect hop, not both.")
   }
-  if (!is.null(from)) {
+  if (is.null(request) && is.null(from)) {
     bad(paste0(
-      "Redirect hops are not yet supported: `from` must be NULL, and the ",
-      "first hop passes `request`."
+      "A first hop needs `request`, its request plan (`list()` is a plain ",
+      "GET); a redirect hop needs `from`, the previous hop's binding."
     ))
   }
-  if (is.null(request)) {
-    bad(paste0(
-      "A first hop needs `request`, its request plan; `list()` is a plain ",
-      "GET."
-    ))
+  if (is.null(from)) {
+    plan <- check_request(request, policy)
+    return(prepare_hop(enc2utf8(url), policy, plan, started))
   }
-  plan <- check_request(request, policy)
-  prepare_first_hop(enc2utf8(url), policy, plan, started)
+  check_from(from, policy)
+  # §2.6: a redirect goes where the server pointed. `url` is the Location
+  # `from` recorded, compared as bytes: identical() may call two strings in
+  # different encodings equal.
+  if (!identical(charToRaw(url), charToRaw(from$state$location))) {
+    abort_ssrfr(
+      "invalid_from",
+      paste0(
+        "`url` is not the `Location` value `from` recorded, byte for byte; a ",
+        "redirect hop goes where the previous response pointed. Start a new ",
+        "chain with `request` to fetch another URL."
+      ),
+      fn = "ssrf_prepare_hop"
+    )
+  }
+  # The hop is prepared from the value `from` recorded, never from `url`:
+  # the same bytes marked in another encoding would re-encode into another
+  # URL. enc2utf8() leaves a recorded value as it is, UTF-8, ASCII or
+  # "bytes", so an exact copy is prepared as it always was.
+  location <- enc2utf8(from$state$location)
+  # §2.3: the inherited plan is never re-supplied; prepare_hop() transforms
+  # it for the redirect and checks what the new hop sends.
+  prepare_hop(location, policy, from$request, started, from = from)
 }
 
-# Steps 1-8 for a first hop whose request plan is valid. Returns a refusal, a
-# failure or a binding.
-prepare_first_hop <- function(url, policy, plan, started) {
-  hop_index <- 1L
-  hop <- parse_hop(url, policy)
+# Steps 1-8 for a hop: a first hop, whose request plan is valid, or, with
+# `from`, a redirect hop, whose URL is resolved against the previous hop's
+# (§3.2) and whose plan is `from`'s, transformed for the previous response
+# (§2.3) once the new origin is known. Returns a refusal, a failure or a
+# binding.
+prepare_hop <- function(url, policy, plan, started, from = NULL) {
+  hop_index <- if (is.null(from)) 1L else from$hop + 1L
+  # §2.5: the time the chain consumed before this call counts against
+  # total_timeout.
+  before <- if (is.null(from)) 0 else from$state$elapsed
+  hop <- parse_hop(
+    url,
+    policy,
+    base = from$url,
+    base_scheme = from$origin$scheme
+  )
+  # An outcome records the URL the hop resolved to (§3.2): on a redirect hop,
+  # not a Location that may be relative, which would display as withheld.
+  # Only a hop whose Location did not resolve records the Location.
+  shown <- hop$url %||% url
+  redirect <- NULL
+  if (!is.null(from) && is.null(hop$finding)) {
+    origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
+    inherited <- redirect_plan(
+      plan,
+      from$state$status,
+      cross_origin = !same_origin(from$origin, origin)
+    )
+    # §2.3, §2.5: the plan this hop sends, once the redirect has dropped
+    # what it drops, is checked under this hop's policy, which may not admit
+    # a field the previous hop's did. A dropped field is not checked. The
+    # caller passed `from`, not `request`, so a message names an entry by
+    # its place in `from$request`, the plan inherited, not in the plan
+    # derived from it.
+    label <- plan_label("from$request", function(field, i) {
+      switch(
+        field,
+        headers = inherited$kept[[i]],
+        carry = match(inherited$plan$carry[[i]], from$request$carry),
+        i
+      )
+    })
+    plan <- check_request(inherited$plan, policy, label)
+    redirect <- c(list(from_hop = from$hop), inherited$record)
+  }
   if (is.null(hop$finding)) {
     hop$finding <- host_policy(hop, policy)
   }
@@ -187,20 +325,20 @@ prepare_first_hop <- function(url, policy, plan, started) {
     validated <- resolution$validated
   }
   if (!is.null(hop$finding)) {
-    return(outcome_of(hop$finding, hop_index, url))
+    return(outcome_of(hop$finding, hop_index, shown))
   }
   # §5.3: elapsed time is re-checked after resolution.
-  spent <- elapsed_since(started)
+  spent <- before + elapsed_since(started)
   if (spent >= policy$total_timeout) {
     return(new_ssrf_failure(
       "timeout",
       hop_index,
       host = hop$host,
-      url = url,
+      url = shown,
       detail = list(step = 7L, check = "total", limit = "total_timeout")
     ))
   }
-  new_binding(hop, policy, plan, validated, hop_index, spent)
+  new_binding(hop, policy, plan, validated, hop_index, spent, redirect)
 }
 
 # A finding of steps 1-8 as the outcome ssrf_prepare_hop() returns: a refusal
@@ -230,9 +368,18 @@ outcome_of <- function(finding, hop_index, url) {
   )
 }
 
-new_binding <- function(hop, policy, plan, validated, hop_index, spent) {
+new_binding <- function(
+  hop,
+  policy,
+  plan,
+  validated,
+  hop_index,
+  spent,
+  redirect = NULL
+) {
   b <- new.env(parent = emptyenv())
   b$hop <- hop_index
+  b$redirect <- redirect
   b$url <- hop$wire
   b$origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
   b$policy <- policy
@@ -297,6 +444,20 @@ format.ssrfr_binding <- function(x, ...) {
     "spent"
   }
   origin <- x$origin
+  redirect <- x$redirect
+  if (!is.null(redirect)) {
+    redirect <- paste0(
+      "  redirect: ",
+      redirect$status,
+      " from hop ",
+      redirect$from_hop,
+      if (redirect$cross_origin) ", cross-origin" else ", same origin",
+      if (length(redirect$dropped)) {
+        paste0("; dropped ", toString(redirect$dropped))
+      },
+      if (redirect$body_dropped) "; body dropped"
+    )
+  }
   c(
     paste0("<ssrfr_binding> (hop ", x$hop, ", ", status, ")"),
     paste0(
@@ -314,6 +475,7 @@ format.ssrfr_binding <- function(x, ...) {
     paste0("  headers: ", headers),
     paste0("  body: ", body),
     if (length(plan$carry)) paste0("  carry: ", toString(plan$carry)),
+    redirect,
     "  tls: certificate and hostname verified",
     if (!is.null(state$status)) paste0("  status: ", state$status),
     if (!is.null(state$outcome)) paste0("  outcome: ", state$outcome)

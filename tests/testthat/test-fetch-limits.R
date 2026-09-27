@@ -305,6 +305,59 @@ test_that("a status-shaped first trailer counts before any body byte", {
   }
 })
 
+# A progress call over a header buffer that has not grown since the last
+# one decides nothing again: the decision reads only what the measure
+# records. Every buffer that grew is decided, on the call that sees it, and
+# the completed transfer once more.
+test_that("a header buffer is decided once per growth", {
+  mock_answers("127.0.0.1")
+  first <- wire("HTTP/1.1 200 OK\r\nX-One: 1\r\n")
+  whole <- c(first, wire("X-Two: 2\r\n\r\n"))
+  run <- function(max_fields) {
+    calls <- new.env(parent = emptyenv())
+    calls$n <- 0L
+    stop_at <- ssrfr:::header_stop
+    local_mocked_bindings(
+      header_stop = function(seen, policy, binding, reported = NULL) {
+        calls$n <- calls$n + 1L
+        stop_at(seen, policy, binding, reported)
+      },
+      dep_curl_transfer = function(opts, data, debug, progress) {
+        debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+        calls$go <- logical()
+        for (buffer in list(first, first, first, whole, whole)) {
+          calls$go <- c(calls$go, progress(0, 0, function() buffer))
+        }
+        calls$in_flight <- calls$n
+        list(
+          aborted = !all(calls$go),
+          failed = NULL,
+          error = NULL,
+          status = 200L,
+          headers = whole,
+          connect = 0.01
+        )
+      }
+    )
+    r <- guarded_get(
+      paste0("http://", pinned_host, "/"),
+      loopback_policy(max_header_fields = max_fields)
+    )
+    list(result = r, calls = calls)
+  }
+  within <- run(2)
+  expect_s3_class(within$result, "ssrfr_response")
+  expect_identical(within$calls$go, rep(TRUE, 5L))
+  # Two growths decided in flight, and the completed transfer once.
+  expect_identical(within$calls$in_flight, 2L)
+  expect_identical(within$calls$n, 3L)
+  # The growth that passes a limit is decided on the call that sees it.
+  over <- run(1)
+  expect_identical(over$calls$go, c(TRUE, TRUE, TRUE, FALSE, FALSE))
+  expect_identical(over$result$cause, "response-too-large")
+  expect_identical(over$result$detail$limit, "max_header_fields")
+})
+
 # §5.3, §6.6: a chunked body's trailer fields count against the header
 # limits, with the cause a header over them has. libcurl hands trailer lines
 # to the header buffer but not to the trace's header lines, so they pass

@@ -26,8 +26,10 @@ numeric_literal_shapes <- c(
 default_ports <- c(http = 80L, https = 443L)
 
 # Steps 1-5 for one hop. `url` is the string the hop received; `base`, the
-# previous hop's URL, or NULL on the first hop. Returns a list whose `finding`
-# is NULL when steps 1-5 pass, with what the parse established:
+# previous hop's URL, or NULL on the first hop; `base_scheme`, the scheme
+# libcurl read from `base` when the caller already has it, as a redirect
+# hop's `from` does, so `base` is not parsed again. Returns a list whose
+# `finding` is NULL when steps 1-5 pass, with what the parse established:
 #   received  the string the hop received, as given
 #   url       the absolute URL parsed: `url`, or `url` resolved against `base`
 #   wire      the string libcurl is handed: rurl's serialization of `url`,
@@ -39,7 +41,7 @@ default_ports <- c(http = 80L, https = 443L)
 #   name      for a name, its matching form (§5.0)
 #   address   for an address literal, its text without brackets
 # Fields the hop did not reach are NULL.
-parse_hop <- function(url, policy, base = NULL) {
+parse_hop <- function(url, policy, base = NULL, base_scheme = NULL) {
   hop <- list(received = url, finding = NULL)
   refuse <- function(code, step, ...) {
     hop$finding <- new_finding(code, step, ...)
@@ -52,11 +54,13 @@ parse_hop <- function(url, policy, base = NULL) {
   if (is.na(octets) || octets > policy$max_url_length) {
     return(refuse("parse", 1L, check = "length", limit = "max_url_length"))
   }
-  prior <- NULL
   if (!is.null(base)) {
-    prior <- parse_boundary(base)
-    if (!is.null(prior$finding)) {
-      return(refuse("parse", 1L, check = "base"))
+    if (is.null(base_scheme)) {
+      prior <- parse_boundary(base)
+      if (!is.null(prior$finding)) {
+        return(refuse("parse", 1L, check = "base"))
+      }
+      base_scheme <- prior$scheme
     }
     url <- read_resolution(url, base)
     if (is.null(url)) {
@@ -77,7 +81,7 @@ parse_hop <- function(url, policy, base = NULL) {
   if (!hop$scheme %in% policy$allow_schemes) {
     return(refuse("scheme", 3L, host = hop$host))
   }
-  if (identical(prior$scheme, "https") && identical(hop$scheme, "http")) {
+  if (identical(base_scheme, "https") && identical(hop$scheme, "http")) {
     return(refuse("downgrade", 3L, host = hop$host))
   }
 

@@ -45,10 +45,11 @@ unescape_field <- function(s) {
 }
 
 # The `policy` column: `default`, or `;`-separated field overrides with `|`
-# between the values of one field.
-corpus_policy <- function(spec) {
+# between the values of one field. `allow_ports` adds ports to the ones the
+# column allows (the L2 harness's server port).
+corpus_policy <- function(spec, allow_ports = NULL) {
   if (identical(spec, "default")) {
-    return(ssrf_policy())
+    return(ssrf_policy(allow_ports = c(80, 443, allow_ports)))
   }
   numeric <- c(
     "allow_ports",
@@ -71,6 +72,10 @@ corpus_policy <- function(spec) {
     } else {
       values
     }
+  }
+  if (length(allow_ports)) {
+    given <- if (is.null(args$allow_ports)) c(80, 443) else args$allow_ports
+    args$allow_ports <- unique(c(given, allow_ports))
   }
   do.call(ssrf_policy, args)
 }
@@ -208,5 +213,104 @@ inspect_row_l1 <- function(row) {
     outcome = switch(verdict, fail = res$cause, admit = "-", res$code),
     verdict = verdict,
     queries = resolver$seen$queries
+  )
+}
+
+# --- L2 -----------------------------------------------------------------------
+
+# The servers the L2 harness serves a redirect row's previous hop from: the
+# redirect app (helper-redirect.R) over http, and over TLS with the corpus
+# certificate. Returns their ports by scheme.
+local_corpus_servers <- function(env = parent.frame()) {
+  http <- local_redirect_server(env = env)
+  https <- local_redirect_server(tls = TRUE, env = env)
+  list(http = http$get_port(), https = https$get_port())
+}
+
+# A verdict-vector row decided by the guarded hop (§7, L2). A first-hop row
+# is prepared with an empty plan. A redirect row's previous hop, its `hop`
+# column's URL with the server's port added, is prepared under a policy that
+# reopens loopback with the row's chain budgets, and fetched for real: the
+# app answers 302 with the row's input as Location (the X-Corpus-Location
+# field of the plan). The row is then decided by
+# ssrf_prepare_hop(input, policy, from = that binding), under the row's
+# policy with the server's port allowed, so a relative Location that keeps
+# the port is judged on everything else. When the fetch does not return a
+# response, as under max_redirects = 0 where no followed `from` can exist,
+# the row is decided by what it returned. The previous hop's name resolves
+# to loopback; every later query gets the row's `answers`.
+#
+# Returns the outcome, its verdict class, the hop that decided it, `via`
+# ("first", "fetch" or "from") and the resolver queries after the first hop.
+decide_row_l2 <- function(row, ports) {
+  input <- unescape_field(row$input)
+  base <- corpus_base(row$hop)
+  resolver <- answers_resolver(row$answers)
+  if (is.null(base)) {
+    local_mocked_bindings(dep_nslookup = resolver$fn, .package = "ssrfr")
+    out <- ssrf_prepare_hop(input, corpus_policy(row$policy), request = list())
+    return(l2_outcome(out, "first", resolver$seen$queries))
+  }
+  scheme <- sub(":.*$", "", base)
+  port <- ports[[scheme]]
+  previous <- sub("^(https?://[^/?#]+)", paste0("\\1:", port), base)
+  policy <- corpus_policy(row$policy, allow_ports = port)
+  first <- new.env(parent = emptyenv())
+  first$answered <- FALSE
+  local_mocked_bindings(
+    dep_nslookup = function(query) {
+      if (!first$answered) {
+        first$answered <- TRUE
+        return("127.0.0.1")
+      }
+      resolver$fn(query)
+    },
+    .package = "ssrfr"
+  )
+  if (scheme == "https") {
+    local_trust_test_ca()
+  }
+  binding <- ssrf_prepare_hop(
+    previous,
+    loopback_policy(
+      port,
+      max_redirects = policy$max_redirects,
+      total_timeout = policy$total_timeout
+    ),
+    request = list(headers = c(`X-Corpus-Location` = input))
+  )
+  if (!inherits(binding, "ssrfr_binding")) {
+    stop("the corpus harness could not prepare the previous hop: ", previous)
+  }
+  out <- ssrf_fetch(binding)
+  if (!inherits(out, "ssrfr_response")) {
+    return(l2_outcome(out, "fetch", resolver$seen$queries))
+  }
+  out <- ssrf_prepare_hop(input, policy, from = binding)
+  l2_outcome(out, "from", resolver$seen$queries)
+}
+
+l2_outcome <- function(out, via, queries) {
+  verdict <- if (inherits(out, "ssrfr_refusal")) {
+    "refuse"
+  } else if (inherits(out, "ssrfr_failure")) {
+    "fail"
+  } else if (inherits(out, "ssrfr_binding")) {
+    "admit"
+  } else {
+    class(out)[[1L]]
+  }
+  list(
+    outcome = switch(
+      verdict,
+      refuse = out$code,
+      fail = out$cause,
+      admit = "-",
+      verdict
+    ),
+    verdict = verdict,
+    hop = out$hop,
+    via = via,
+    queries = queries
   )
 }

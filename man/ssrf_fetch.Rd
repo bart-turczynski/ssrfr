@@ -11,8 +11,10 @@ ssrf_fetch(binding)
 fetched.}
 }
 \value{
-Either a response, class \code{ssrfr_response}, or an operational
-failure, class \code{ssrfr_failure}.
+A response, class \code{ssrfr_response}; an operational failure, class
+\code{ssrfr_failure}; or, for a \verb{3xx} response past the chain's redirect
+budget, a refusal, class \code{ssrfr_refusal}, with code
+\code{"redirect-limit"}.
 
 A response is a plain list that owns no handle, connection or file:
 \code{status} (the HTTP status code), \code{headers} (the final response's header
@@ -63,7 +65,15 @@ body, as it arrives;
 time spent in \code{ssrfr} for the chain, decoding included.
 
 A redirect is returned, not followed: its status and \code{Location} are in the
-response. \code{ssrfr} guards only requests made through a binding. R's own
+response, and the next hop is prepared with
+\code{ssrf_prepare_hop(location, policy, from = binding)}. Once the chain has
+followed the policy's \code{max_redirects} redirects, a \verb{3xx} response is
+refused as \code{"redirect-limit"} instead, with or without \code{Location}; under
+\code{max_redirects = 0} every \verb{3xx} is. The refusal is decided at the status
+line and the transfer stopped there, so nothing after it changes it: not
+a second \code{Location}, nor a body over the limits or one that stalls.
+\code{ssrfr} guards only requests made
+through a binding. R's own
 \code{download.file()}, \code{url()}, \code{readLines()} on a URL, direct \code{curl} calls,
 and the packages that read URLs through them, such as
 \code{jsonlite::fromJSON(url)}, \code{data.table::fread(url)} and

@@ -396,16 +396,27 @@ new_binding <- function(
     total_timeout = policy$total_timeout,
     elapsed = spent
   )
-  state <- new.env(parent = emptyenv())
-  state$fetchable <- TRUE
-  state$fetched <- FALSE
-  state$status <- NULL
-  state$location <- NULL
-  state$location_count <- NULL
-  state$outcome <- NULL
-  state$pin_used <- NULL
-  state$attempts <- character()
-  state$elapsed <- spent
+  # §2.4: the values live in a private store; `state` shows each field as a
+  # read-only active binding and is locked once, never unlocked. The store
+  # is `state`'s enclosure, where only set_state() looks for it.
+  store <- list2env(
+    list(
+      fetchable = TRUE,
+      fetched = FALSE,
+      status = NULL,
+      location = NULL,
+      location_count = NULL,
+      outcome = NULL,
+      pin_used = NULL,
+      attempts = character(),
+      elapsed = spent
+    ),
+    parent = emptyenv()
+  )
+  state <- new.env(parent = store)
+  for (field in names(store)) {
+    makeActiveBinding(field, state_field(store, field), state)
+  }
   lockEnvironment(state, bindings = TRUE)
   b$state <- state
   lockEnvironment(b, bindings = TRUE)
@@ -413,14 +424,27 @@ new_binding <- function(
   b
 }
 
-# Writes the named fields of a binding's state. Only ssrfr writes it.
+# The active binding that shows `field` of a binding's store. It takes no
+# value: new_binding() locks it, so R refuses a write before calling it. A
+# read never errors, since the transport reads state inside libcurl
+# callbacks (r-binding.md §7).
+state_field <- function(store, field) {
+  force(field)
+  function() store[[field]]
+}
+
+# Writes the named fields of a binding's state into its store. Only ssrfr
+# writes it, so a name that is not a state field is a defect in ssrfr. A
+# valid write never errors: it may run inside a libcurl callback.
 set_state <- function(binding, ...) {
   values <- list(...)
-  state <- binding$state
-  for (field in names(values)) {
-    unlockBinding(field, state)
-    assign(field, values[[field]], envir = state)
-    lockBinding(field, state)
+  store <- parent.env(binding$state)
+  fields <- names(values) %||% rep("", length(values))
+  if (!all(fields %in% names(store))) {
+    internal_error("set_state() names a field a binding's state lacks.")
+  }
+  for (field in fields) {
+    assign(field, values[[field]], envir = store)
   }
   invisible(binding)
 }

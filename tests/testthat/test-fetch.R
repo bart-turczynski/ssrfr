@@ -82,14 +82,14 @@ test_that("a missing trace or another peer is pin-mismatch", {
   transfer <- ssrfr:::dep_curl_transfer
   rewrite <- function(fn) {
     local_mocked_bindings(
-      dep_curl_transfer = function(opts, data, debug, progress) {
+      dep_curl_transfer = function(opts, on_body, debug, progress) {
         rewriting <- function(type, msg) {
           if (type == 0L) {
             msg <- charToRaw(fn(rawToChar(msg)))
           }
           debug(type, msg)
         }
-        transfer(opts, data, rewriting, progress)
+        transfer(opts, on_body, rewriting, progress)
       },
       .env = parent.frame()
     )
@@ -245,8 +245,8 @@ local_callback_warnings <- function(env = parent.frame()) {
     }
   }
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, ...) {
-      transfer(opts, record(data), record(debug), ...)
+    dep_curl_transfer = function(opts, on_body, debug, ...) {
+      transfer(opts, record(on_body), record(debug), ...)
     },
     .package = "ssrfr",
     .env = env
@@ -323,7 +323,7 @@ test_that("a status that disagrees with the header block is a protocol error", {
     local({
       buffer <- buffers[[name]]
       local_mocked_bindings(
-        dep_curl_transfer = function(opts, data, debug, progress) {
+        dep_curl_transfer = function(opts, on_body, debug, progress) {
           debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
           list(
             aborted = FALSE,
@@ -361,7 +361,7 @@ test_that("a completed transfer's header is segmented once", {
       calls$n <- calls$n + 1L
       segmenter(buffer)
     },
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       list(
         aborted = FALSE,
@@ -407,7 +407,7 @@ scripted_transfer <- function(outcomes, env = parent.frame()) {
   tried <- new.env(parent = emptyenv())
   tried$addresses <- character()
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       key <- "multi.invalid::"
       target <- sub(":$", "", substring(opts$connect_to, nchar(key) + 1L))
       address <- gsub("[][]", "", target)
@@ -435,7 +435,7 @@ scripted_transfer <- function(outcomes, env = parent.frame()) {
           headers <- charToRaw(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
           )
-          data(charToRaw("hello"), function() headers)
+          on_body(charToRaw("hello"), function() headers)
           modifyList(
             base,
             list(status = 200L, connect = 0.01, headers = headers)
@@ -513,7 +513,7 @@ test_that("total_timeout ends failover as timeout", {
   tried <- new.env(parent = emptyenv())
   tried$addresses <- character()
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       target <- sub("^multi[.]invalid::(.*):$", "\\1", opts$connect_to)
       tried$addresses <- c(tried$addresses, target)
       debug(0L, charToRaw(paste0("Trying ", target, ":80...\n")))
@@ -620,25 +620,25 @@ test_that("an error in ssrfr's own callback fails closed and says so", {
   withr::local_options(error = function() hook$runs <- hook$runs + 1L)
   transfer <- ssrfr:::dep_curl_transfer
   broken <- list(
-    data = function(data, progress) {
-      list(data = function(x, ...) stop("a defect"), progress = progress)
+    data = function(on_body, progress) {
+      list(on_body = function(x, ...) stop("a defect"), progress = progress)
     },
-    progress = function(data, progress) {
+    progress = function(on_body, progress) {
       failing <- function(down, up, received) {
         if (length(received())) {
           stop("a defect")
         }
         progress(down, up, received)
       }
-      list(data = data, progress = failing)
+      list(on_body = on_body, progress = failing)
     }
   )
   for (name in names(broken)) {
     local({
       local_mocked_bindings(
-        dep_curl_transfer = function(opts, data, debug, progress) {
-          cb <- broken[[name]](data, progress)
-          transfer(opts, cb$data, debug, cb$progress)
+        dep_curl_transfer = function(opts, on_body, debug, progress) {
+          cb <- broken[[name]](on_body, progress)
+          transfer(opts, cb$on_body, debug, cb$progress)
         }
       )
       server <- local_raw_server(wire(
@@ -672,10 +672,10 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   delivered <- new.env(parent = emptyenv())
   delivered$bytes <- 0L
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       counting <- function(x, received) {
         delivered$bytes <- delivered$bytes + length(x)
-        data(x, received)
+        on_body(x, received)
       }
       traced <- new.env(parent = emptyenv())
       traced$trying <- FALSE
@@ -745,7 +745,7 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
     case <- cases[[name]]
     local({
       local_mocked_bindings(
-        dep_curl_transfer = function(opts, data, debug, progress) {
+        dep_curl_transfer = function(opts, on_body, debug, progress) {
           debug(0L, charToRaw(case$trace))
           list(
             aborted = TRUE,
@@ -776,7 +776,7 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
 test_that("a callback that fails before the trace is named", {
   mock_answers("127.0.0.1")
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       # What the wrapper reports when progress throws on its first call,
       # before libcurl traces anything.
       list(
@@ -808,7 +808,7 @@ test_that("a callback that fails before the trace is named", {
 test_that("a stopped transfer with no record fails closed", {
   mock_answers("127.0.0.1")
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       list(
         aborted = TRUE,
@@ -1076,7 +1076,7 @@ test_that("a user interrupt pending when ssrfr stops at a limit propagates", {
   sent <- new.env(parent = emptyenv())
   sent$signal <- FALSE
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       pending <- function(down, up, ...) {
         go <- progress(down, up, ...)
         if (!isTRUE(go) && !sent$signal) {
@@ -1085,7 +1085,7 @@ test_that("a user interrupt pending when ssrfr stops at a limit propagates", {
         }
         go
       }
-      transfer(opts, data, debug, pending)
+      transfer(opts, on_body, debug, pending)
     }
   )
   b <- ssrf_prepare_hop(

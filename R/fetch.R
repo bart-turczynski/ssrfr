@@ -334,7 +334,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # arrives, so a header over its limits, or a 3xx past the redirect budget,
   # ends the transfer there, before any body byte is counted (§6.6, §12 step
   # 13). `received` is the transport wrapper's header buffer reader.
-  data <- function(x, received) {
+  on_body <- function(x, received) {
     if (!length(x)) {
       return(TRUE)
     }
@@ -383,7 +383,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     TRUE
   }
 
-  transfer <- read_transfer(opts, data, debug, progress)
+  transfer <- read_transfer(opts, on_body, debug, progress)
   if (is.null(transfer)) {
     return(list(ending = "pin-mismatch", check = "no-transfer"))
   }

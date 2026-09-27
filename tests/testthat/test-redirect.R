@@ -636,8 +636,8 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
   transfer <- ssrfr:::dep_curl_transfer
   last <- new.env(parent = emptyenv())
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
-      out <- transfer(opts, data, debug, progress)
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
+      out <- transfer(opts, on_body, debug, progress)
       last$aborted <- out$aborted
       last$error <- out$error
       out
@@ -764,7 +764,7 @@ test_that("a completed transfer's statuses must agree before redirect-limit", {
   mock_answers("127.0.0.1")
   reported <- new.env(parent = emptyenv())
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       list(
         aborted = FALSE,
@@ -812,7 +812,7 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
   long <- c(line, wire(strrep("X-F: 1\r\n", 6), "Location: /a\r\n\r\n"))
   scripted <- new.env(parent = emptyenv())
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       # In flight, the status line alone decides and stops the transfer.
       scripted$go <- if (scripted$in_flight) {
@@ -918,7 +918,7 @@ test_that("a stopped transfer whose statuses disagree is never a response", {
   headers <- c(line, wire("Location: /a\r\nContent-Length: 0\r\n\r\n"))
   parse <- ssrfr:::parse_response_headers
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       progress(0, 0, function() line)
       list(

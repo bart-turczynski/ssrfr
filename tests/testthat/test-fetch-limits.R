@@ -27,8 +27,8 @@ test_that("total_timeout is re-checked after decoding", {
   transfer <- ssrfr:::dep_curl_transfer
   # A transfer that returns in time, followed by decoding that does not.
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
-      out <- transfer(opts, data, debug, progress)
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
+      out <- transfer(opts, on_body, debug, progress)
       Sys.sleep(1.3)
       out
     }
@@ -276,7 +276,7 @@ test_that("a status-shaped first trailer counts before any body byte", {
       buffer <- buffers[[name]]
       seen <- new.env(parent = emptyenv())
       local_mocked_bindings(
-        dep_curl_transfer = function(opts, data, debug, progress) {
+        dep_curl_transfer = function(opts, on_body, debug, progress) {
           debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
           seen$go <- progress(0, 0, function() buffer)
           list(
@@ -322,7 +322,7 @@ test_that("a header buffer is decided once per growth", {
         calls$n <- calls$n + 1L
         stop_at(seen, policy, binding, reported)
       },
-      dep_curl_transfer = function(opts, data, debug, progress) {
+      dep_curl_transfer = function(opts, on_body, debug, progress) {
         debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
         calls$go <- logical()
         for (buffer in list(first, first, first, whole, whole)) {
@@ -428,11 +428,11 @@ test_that("the header limits hold without the trace's header or data lines", {
   mock_answers("127.0.0.1")
   transfer <- ssrfr:::dep_curl_transfer
   local_mocked_bindings(
-    dep_curl_transfer = function(opts, data, debug, progress) {
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
       text_only <- function(type, msg) {
         if (type == 0L) debug(type, msg) else NULL
       }
-      transfer(opts, data, text_only, progress)
+      transfer(opts, on_body, text_only, progress)
     }
   )
   cases <- list(

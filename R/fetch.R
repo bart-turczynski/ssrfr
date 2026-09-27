@@ -392,24 +392,17 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   failed <- transfer$failed
   # INV-5: the detector runs on every attempt, whatever its outcome. Absent or
   # unreadable evidence is a mismatch (§6.6), and so is a trace whose
-  # callback failed: evidence it may have missed cannot confirm the pin. A
-  # trace naming another address, or one that cannot be read, is the pin's
-  # own finding and names no other callback. A trace with no `Trying` line
-  # beside a failed progress callback, the one callback that runs before
-  # libcurl dials, is the one that failure cut short, and names it, even when
-  # the trace callback failed after it.
+  # callback failed: evidence it may have missed cannot confirm the pin. The
+  # mismatch names every callback that failed, in that order, whatever the
+  # check: which one cut the trace short is not inferred, since whether
+  # libcurl traces `Trying` before its first progress call is the build's.
   pin <- pin_check(seen$trace, address, binding$origin$port)
   traced <- !"debug" %in% failed
   if (pin == "match" && !traced) {
     pin <- "trace-error"
   }
   if (pin != "match") {
-    callback <- if (pin == "absent" && "progress" %in% failed) {
-      "progress"
-    } else if (!traced) {
-      "debug"
-    }
-    return(list(ending = "pin-mismatch", check = pin, callback = callback))
+    return(list(ending = "pin-mismatch", check = pin, callback = failed))
   }
   connected <- transfer$connect > 0 ||
     any(startsWith(seen$trace, "Connected to "))
@@ -445,15 +438,11 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   if (is.null(record)) {
     # A callback that failed ends the transfer, and fails closed. No
     # cause names a defect of ssrfr's own (§6.6); the closest is
-    # `protocol-error`, and the check says what happened. The condition
-    # itself is not kept: its message may quote response bytes (INV-12).
+    # `protocol-error`, the check says what happened, and the callback names
+    # every callback that failed, in that order. The condition itself is not
+    # kept: its message may quote response bytes (INV-12).
     if (length(failed)) {
-      return(ended(
-        "protocol-error",
-        12L,
-        "callback-error",
-        callback = failed[[1L]]
-      ))
+      return(ended("protocol-error", 12L, "callback-error", callback = failed))
     }
     # INV-11: a transfer the wrapper reports stopped, with neither record,
     # is never a response, however whole its header looks.

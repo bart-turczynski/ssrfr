@@ -761,21 +761,18 @@ test_that("a progress callback that fails on its first call is named", {
   expect_identical(hook$runs, 0L)
 })
 
-# §6.6: a pin-mismatch names only the callback that bears on the trace. A
-# trace naming another address, or one that cannot be read, is the pin's own
-# finding and names no callback. A failed trace callback leaves the evidence
-# unreliable and is named. A trace with no `Trying` line beside a failed
-# progress callback, the one callback that runs before libcurl dials, is the
-# one that failure cut short, and names progress even when the trace callback
-# failed after it; the write callback cannot run before the dial.
-test_that("a pin-mismatch names only the callback that bears on the trace", {
+# §6.6: a pin-mismatch names every callback that failed, in the order they
+# first failed, and none when none did; the check is the trace's own, or
+# `trace-error` when the trace matches but the trace callback failed. Which
+# callback cut the trace short is never inferred from the check.
+test_that("a pin-mismatch names every failed callback, in order", {
   mock_answers("127.0.0.1")
   cases <- list(
     `other-address` = list(
       trace = "Trying 10.0.0.7:80...\n",
       failed = "data",
       check = "other-address",
-      callback = NULL
+      callback = "data"
     ),
     `other-address, debug` = list(
       trace = "Trying 10.0.0.7:80...\n",
@@ -793,19 +790,19 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
       trace = "Dialing\n",
       failed = "data",
       check = "absent",
-      callback = NULL
+      callback = "data"
     ),
     `absent, progress then debug` = list(
       trace = "Dialing\n",
       failed = c("progress", "debug"),
       check = "absent",
-      callback = "progress"
+      callback = c("progress", "debug")
     ),
     garbled = list(
       trace = "Trying ???\n",
       failed = "data",
       check = "garbled",
-      callback = NULL
+      callback = "data"
     ),
     debug = list(
       trace = "Dialing\n",
@@ -823,7 +820,7 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
       trace = "Trying 127.0.0.1:80...\n",
       failed = c("data", "debug"),
       check = "trace-error",
-      callback = "debug"
+      callback = c("data", "debug")
     )
   )
   for (name in names(cases)) {

@@ -36,9 +36,9 @@ mock_answers <- function(answers, env = parent.frame()) {
   seen
 }
 
-# A free TCP port on loopback.
-free_port <- function() {
-  for (p in sample(30000:60000, 50)) {
+# A free TCP port on loopback, the first of `candidates` that is free.
+free_port <- function(candidates = sample(30000:60000, 50)) {
+  for (p in candidates) {
     s <- tryCatch(serverSocket(p), error = function(e) NULL)
     if (!is.null(s)) {
       close(s)

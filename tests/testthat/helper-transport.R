@@ -37,15 +37,48 @@ mock_answers <- function(answers, env = parent.frame()) {
 }
 
 # A free TCP port on loopback, the first of `candidates` that is free.
+# serverSocket() binds every address, and on macOS that bind succeeds while
+# another process listens on 127.0.0.1 or ::1 alone (SSRF-diqojrtv), so a
+# port that binds must also refuse a connection on both loopbacks.
 free_port <- function(candidates = sample(30000:60000, 50)) {
   for (p in candidates) {
     s <- tryCatch(serverSocket(p), error = function(e) NULL)
     if (!is.null(s)) {
       close(s)
-      return(p)
+      if (!loopback_answers(p)) {
+        return(p)
+      }
     }
   }
   stop("no free port")
+}
+
+# Whether anything accepts a TCP connection on `port` at 127.0.0.1 or ::1.
+# A refused connect on loopback returns at once; the 250 ms connect timeout
+# bounds a filtered port. Where there is no IPv6 loopback, the ::1 connect
+# fails at once and counts as not answering.
+loopback_answers <- function(port) {
+  for (host in c("127.0.0.1", "[::1]")) {
+    handle <- curl::new_handle(
+      connect_only = 1L,
+      connecttimeout_ms = 250L,
+      noproxy = "*"
+    )
+    connected <- tryCatch(
+      {
+        curl::curl_fetch_memory(
+          paste0("http://", host, ":", port, "/"),
+          handle = handle
+        )
+        TRUE
+      },
+      error = function(e) FALSE
+    )
+    if (connected) {
+      return(TRUE)
+    }
+  }
+  FALSE
 }
 
 # A URL on the pinned test host.

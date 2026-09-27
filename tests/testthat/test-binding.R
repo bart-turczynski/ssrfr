@@ -155,6 +155,50 @@ test_that("a name is resolved once per hop, and never again by the fetch", {
   expect_identical(b$state$attempts, "127.0.0.1 connect-failed")
 })
 
+# §2.4: a caller cannot write a binding's state, fetchable or spent, while
+# ssrf_fetch() records what it observed there.
+test_that("a caller cannot write the binding's state, but a fetch does", {
+  skip_if_no_webfakes()
+  web <- local_test_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  b <- ssrf_prepare_hop(
+    pinned_url(port),
+    loopback_policy(port),
+    request = list()
+  )
+  expect_error(b$state$fetchable <- FALSE)
+  expect_error(assign("fetchable", FALSE, envir = b$state))
+  expect_error(b$state$status <- 204L)
+  expect_error(assign("status", 204L, envir = b$state))
+  expect_error(b$state$extra <- 1L)
+  expect_error(assign("extra", 1L, envir = b$state))
+  expect_error(b$state <- new.env())
+  expect_true(b$state$fetchable)
+  expect_null(b$state$status)
+  expect_false(exists("extra", envir = b$state, inherits = FALSE))
+
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_response")
+  expect_false(b$state$fetchable)
+  expect_true(b$state$fetched)
+  expect_identical(b$state$status, 200L)
+  expect_identical(b$state$outcome, "response")
+  expect_identical(b$state$pin_used, "127.0.0.1")
+  expect_identical(b$state$attempts, "127.0.0.1 connected")
+  expect_identical(b$state$location_count, 0L)
+  expect_null(b$state$location)
+
+  # A spent binding resists the same writes.
+  expect_error(b$state$fetchable <- TRUE)
+  expect_error(assign("fetchable", TRUE, envir = b$state))
+  expect_error(b$state$status <- 204L)
+  expect_error(assign("extra", 1L, envir = b$state))
+  expect_false(b$state$fetchable)
+  expect_identical(b$state$status, 200L)
+  expect_false(exists("extra", envir = b$state, inherits = FALSE))
+})
+
 # r-binding.md §7: a refusal makes no connection (INV-11). The resolver maps
 # honeypot.invalid to a loopback listener, which the default policy refuses;
 # the listener must see nothing across the whole window. A failing parser,

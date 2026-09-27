@@ -542,15 +542,6 @@ test_that("the chain budgets are inherited through from", {
 test_that("the redirect budget refuses as redirect-limit on a self-redirect", {
   skip_if_no_webfakes()
   mock_answers("127.0.0.1")
-  hits <- function(port) {
-    h <- curl::new_handle()
-    rawToChar(
-      curl::curl_fetch_memory(
-        paste0("http://127.0.0.1:", port, "/hits"),
-        handle = h
-      )$content
-    )
-  }
   for (budget in c(0, 3, 20)) {
     local({
       web <- local_redirect_server()
@@ -572,7 +563,11 @@ test_that("the redirect budget refuses as redirect-limit on a self-redirect", {
       expect_identical(last$state$status, 302L)
       expect_identical(last$state$outcome, "redirect-limit")
       # Each hop's request reached the server once.
-      expect_identical(hits(port), as.character(budget + 1), label = label)
+      expect_identical(
+        loop_hits(port),
+        as.character(budget + 1),
+        label = label
+      )
       expect_identical(ssrf_public_reason(r), "refused")
     })
   }

@@ -298,6 +298,9 @@ test_that("the header buffer is segmented by the block before each line", {
     blocks(c(1, 3), c(2, 5), c(100, 200), c(TRUE, TRUE))
   )
   expect_identical(s$trailers, integer())
+  # Each line ends at its LF; a last line with none ends with the buffer.
+  expect_identical(s$ends, c(23L, 25L, 42L, 48L, 50L))
+  expect_identical(segments("HTTP/1.1 200 OK\r\nX: 1")$ends, c(17L, 21L))
   # A final block, then trailer lines, the first one status-shaped.
   s <- segments(
     "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
@@ -327,6 +330,7 @@ test_that("the header buffer is segmented by the block before each line", {
   s <- ssrfr:::header_segments(raw())
   expect_identical(s$blocks, blocks(integer(), integer(), integer(), logical()))
   expect_identical(s$trailers, integer())
+  expect_identical(s$ends, integer())
   # One status-line test, RFC 9112 §4: a tab for the space is no status
   # line, and a NUL byte never breaks the reading.
   s <- segments("HTTP/1.1 200\tOK\r\nX: 1\r\n\r\n")

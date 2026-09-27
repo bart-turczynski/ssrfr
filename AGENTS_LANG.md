@@ -60,8 +60,10 @@ Documented deviations from the goodpractice set:
   vignette setup chunks legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
   allow `:::`, which tests use to reach internal functions.
-- `strings_as_factors_linter`: off. The R >= 4.0 floor already defaults
-  `stringsAsFactors = FALSE`.
+
+`strings_as_factors_linter` is off, as in goodpractice, which dropped it in 1.2.0
+(ropensci-review-tools/goodpractice#321). The R >= 4.0 floor already defaults
+`stringsAsFactors = FALSE`.
 
 ### Code style
 

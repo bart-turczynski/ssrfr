@@ -13,11 +13,14 @@
 # primitives or base R, and none is an ssrfr internal (a copy of
 # `followed_statuses`, say, or a base name ssrfr masks).
 test_that("ssrf_fetch_chain() reads nothing but the primitives and base R", {
+  # covr instruments a body with calls to its own counter, covr:::count(),
+  # built here so the test names no package it does not suggest.
+  counter <- call(":::", as.name("covr"), as.name("count"))
   read_symbols <- function(expr) {
     if (is.name(expr)) {
       return(as.character(expr))
     }
-    if (!is.call(expr)) {
+    if (!is.call(expr) || identical(expr[[1L]], counter)) {
       return(character())
     }
     parts <- as.list(expr)
@@ -42,6 +45,7 @@ test_that("ssrf_fetch_chain() reads nothing but the primitives and base R", {
     "followed_statuses"
   )
   expect_identical(read_symbols(quote(x$status)), c("$", "x"))
+  expect_identical(read_symbols(as.call(list(counter, "k"))), character())
 
   fn <- ssrf_fetch_chain
   expect_named(formals(fn), c("url", "policy", "request"))

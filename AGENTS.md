@@ -14,6 +14,7 @@ R package: an SSRF guard for applications that fetch attacker-supplied URLs (`pl
 - CI runs only on `main`, tags and hand-started pipelines. On a branch the pre-push hooks are the only gate; an empty pipeline list is not a pass.
 - Gate red on an untouched tree: check toolchain drift first, `Rscript scripts/check-toolchain.R`.
 - New top-level tooling files need a `.Rbuildignore` entry.
+- Git follows the house `agent-workflow` skill. fp status changes stay decoupled from git (the `fp` skill's `references/decoupling.md`).
 - `_scratch/` is disposable working space: never cite it, never update it, never read it as
   documentation. Durable knowledge goes in `design/`, ideas in an fp brainstorm.
 

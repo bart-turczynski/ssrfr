@@ -814,8 +814,10 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
   scripted <- new.env(parent = emptyenv())
   parse <- ssrfr:::parse_response_headers
   local_mocked_bindings(
-    # A parse that reads `scripted$parsed` as the status, when it is set.
+    # A parse that reads `scripted$parsed` as the status, when it is set,
+    # and counts its calls.
     parse_response_headers = function(raw, segments = NULL) {
+      scripted$parses <- scripted$parses + 1L
       parsed <- parse(raw, segments)
       if (!is.null(scripted$parsed)) {
         parsed$status <- scripted$parsed
@@ -852,12 +854,15 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
     scripted$error <- error
     scripted$parsed <- parsed
     scripted$in_flight <- in_flight
+    scripted$parses <- 0L
     r <- guarded_get(
       paste0("http://", pinned_host, "/"),
       loopback_policy(max_redirects = 0, max_header_fields = 4)
     )
+    # INV-11: a stopped transfer is never parsed.
     if (in_flight) {
       expect_false(scripted$go)
+      expect_identical(scripted$parses, 0L)
     }
     state <- attr(r, "binding")$state
     list(

@@ -202,8 +202,14 @@ discouraged. This is the same design move as `connect_to = "HOST::IP:"`
 L0 / L1 inspection            → facts, no security verdict
 ssrf_prepare_hop(url, policy, request = NULL, from = NULL)
                               → refusal  OR  opaque binding
-ssrf_fetch(binding)           → response
+ssrf_fetch(binding)           → response  OR  operational failure
+                                OR  refusal, `redirect-limit` only (§12 step 13)
 ```
+
+A redirect past the chain's budget is a policy decision, not a transport fault, so
+`ssrf_fetch()` returns it as a refusal with code `redirect-limit` (§6.5, §8 item
+33) rather than as a response. *Amended 2026-09-27* (was "→ response";
+`SSRF-fvtqbanc`).
 
 `ssrf_fetch()` takes **one** argument. There is no URL parameter and no header,
 method, or body parameter, so there is no substitution surface.
@@ -477,6 +483,12 @@ and carries no ability to open a connection.
 
 The first hop is the call with `from = NULL`, which requires an absolute URL.
 
+On a redirect hop, `url` MUST be the `Location` value the previous response
+carried, byte for byte, as `from` recorded it; any other value raises
+`ssrfr_error_invalid_from`. A redirect goes where the server pointed, and the
+caller cannot re-aim it: an application that wants a different URL starts a new
+chain with `from = NULL`. *Amended 2026-09-27* (`SSRF-fvtqbanc`).
+
 ---
 
 ## 3. Input contract **[ratified]**
@@ -501,12 +513,16 @@ reverse is not true.
 carried by `from` (§2.6). Callers MUST NOT be required to resolve references
 themselves.
 
-**Not because doing so would be unsafe.** A caller who resolves a reference with
-a foreign resolver and passes the resulting absolute URL is still safe: `ssrfr`
-re-parses it with the transport-agreeing parser and pins to what it derived, so a
-bad resolver produces a crawl-correctness bug, not a bypass. A caller who passes
-the relative reference through unresolved gets a `parse` refusal under INV-2,
-which is fail-closed.
+**Not because doing so would be unsafe.** An absolute URL from a foreign resolver
+would be safe to decide: `ssrfr` re-parses what it is given with the
+transport-agreeing parser and pins to what it derived, so a bad resolver would
+produce a crawl-correctness bug, not a bypass. A redirect hop still refuses it:
+its `url` is the `Location` byte for byte (§2.6), so a pre-resolved URL raises
+`ssrfr_error_invalid_from`. A relative reference passed without `from` gets a
+`parse` refusal under INV-2, which is fail-closed. *Amended 2026-09-27* (was "A
+caller who resolves a reference with a foreign resolver and passes the resulting
+absolute URL is still safe: … A caller who passes the relative reference through
+unresolved gets a `parse` refusal"; `SSRF-fvtqbanc`).
 
 The reason is duplication. All three consumers follow redirects. If `ssrfr` does
 not own reference resolution, each implements RFC 3986 §5.2 — or reaches for
@@ -1290,7 +1306,7 @@ logging. The kinds:
 |---|---|
 | `ssrfr_error_invalid_policy` | building a policy fails its construction checks (§5.3) |
 | `ssrfr_error_invalid_request` | a request plan breaks §2.3's header or body rules |
-| `ssrfr_error_invalid_from` | `from` is unspent, records a failed fetch, or is not a followed redirect (§2.3) |
+| `ssrfr_error_invalid_from` | `from` is unspent, records a failed fetch, or is not a followed redirect (§2.3); or, on a redirect hop, `url` is not the `Location` `from` recorded, byte for byte (§2.6). *Amended 2026-09-27* (`url` clause added; `SSRF-fvtqbanc`) |
 | `ssrfr_error_spent_binding` | `ssrf_fetch()` receives a binding whose fetchability is spent (§2.5) |
 | `ssrfr_error_budget_change` | a redirect-hop policy states a different `max_redirects` or `total_timeout` (§2.5) |
 | `ssrfr_error_invalid_argument` | any other argument of the wrong type or shape, including `request` and `from` passed together, or neither |
@@ -1622,6 +1638,17 @@ a divergence there shows as drift (§7) rather than as a runtime refusal.
   classification does not replace step 8.
 - **Step 11 is not optional but is also not sufficient.** It is a detector; the
   pin at step 9 is the control. See INV-5.
+- **Past the redirect budget, step 13 is decided at the status line.** Once the
+  budget is spent, a 3xx refuses as `redirect-limit` as soon as its final status
+  line has arrived, and the transfer stops there. Nothing after that line
+  changes the outcome: not its header fields, a second `Location`, a body over
+  step 12's limits, nor one that stalls past `total_timeout`. A step 12 limit
+  reached before the line was complete, by interim `1xx` blocks or by the status
+  line itself, was reached first and wins (§6.6). The status is
+  transport-observed (§2.3): when the transport reports a status other than that
+  line's, step 13 decided nothing, and the fetch ends as any transfer whose two
+  statuses disagree: `protocol-error`, unless a step 12 limit or a transport
+  error came first. *Amended 2026-09-27* (`SSRF-fvtqbanc`).
 
 ---
 

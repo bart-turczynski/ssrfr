@@ -167,9 +167,9 @@ dep_nslookup <- function(query) {
 # still in the pool is cancelled, which closes its connection.
 #
 # Returns a list: `aborted` (TRUE when a callback ended the transfer),
-# `failed` (the callbacks that raised an error, of "data" (`on_body`, under
-# curl's name for it), "progress" and "debug", in the order they first did,
-# or NULL), `error` (the curl error class of a failed transfer, or NULL),
+# `failed` (the labels of the callbacks that raised an error, in the order
+# they first did, or NULL: "data" for `on_body`, "progress" and "debug"),
+# `error` (the curl error class of a failed transfer, or NULL),
 # `status`, `headers` (the raw response header bytes), and `connect`
 # (seconds until the TCP connection was established; 0 when it never was).
 dep_curl_transfer <- function(opts, on_body, debug, progress) {
@@ -210,6 +210,8 @@ dep_curl_transfer <- function(opts, on_body, debug, progress) {
     }
     suspendInterrupts({
       outcome$events <- outcome$events + 1L
+      # "data", curl's name for this callback, is the label a failure
+      # records and detail$callback reports; it is not the parameter's name.
       go <- answers_true("data", function() on_body(x, received))
       outcome$stopped <- !go
     })

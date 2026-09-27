@@ -438,15 +438,19 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     ended(record$cause, 12L, record$check, record$limit)
   }
   # A limit a callback reached ends the transfer, which the wrapper cancels;
-  # the record the callback left decides.
-  if (!is.null(seen$abort)) {
-    return(stopped_by(seen$abort))
+  # the record the callback left decides. A 3xx past the redirect budget
+  # recorded in flight is decided once more below, with a completed
+  # transfer's, now that libcurl's status is known (§2.3): the same bytes
+  # end the same way whenever the transfer stopped.
+  record <- seen$abort
+  if (!is.null(record) && is.null(record$redirect_limit)) {
+    return(stopped_by(record))
   }
   # A callback that failed ends the transfer too, and fails closed. No cause
   # names a defect of ssrfr's own (§6.6); the closest is `protocol-error`,
   # and the check says what happened. The condition itself is not kept: its
   # message may quote response bytes (INV-12).
-  if (length(failed)) {
+  if (is.null(record) && length(failed)) {
     return(ended(
       "protocol-error",
       12L,
@@ -456,7 +460,7 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   }
   # INV-11: a transfer the wrapper reports stopped, with neither record, is
   # never a response, however whole its header looks.
-  if (stopped) {
+  if (is.null(record) && stopped) {
     return(ended("protocol-error", 12L, "aborted"))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
@@ -465,7 +469,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # anything libcurl did afterwards (§12 step 13), unless libcurl reports
   # another status (header_stop()). The buffer is measured once more here,
   # before any response is recorded, for header and trailer lines that
-  # arrived after the last progress call.
+  # arrived after the last progress call. A transfer stopped at a 3xx whose
+  # statuses disagree is never a response either (INV-11): the parse below
+  # reads the same final block, whose status libcurl did not report.
   measure_header(seen, transfer$headers)
   stop <- header_stop(seen, policy, binding, transfer$status)
   if (!is.null(stop)) {

@@ -809,6 +809,115 @@ test_that("a completed transfer's statuses must agree before redirect-limit", {
   }
 })
 
+# §2.3, §12 as amended 2026-09-27: a transfer stopped in flight at a 3xx past
+# the budget ends as the completed one with the same bytes does. Once the
+# stop is made libcurl's status is known, and when it is not the status
+# line's, step 13 decided nothing: a header limit passed after the status
+# line, then a transport error, then `protocol-error`, as for any transfer
+# whose statuses disagree.
+test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
+  mock_answers("127.0.0.1")
+  line <- wire("HTTP/1.1 302 Found\r\n")
+  short <- c(line, wire("Location: /a\r\nContent-Length: 0\r\n\r\n"))
+  long <- c(line, wire(strrep("X-F: 1\r\n", 6), "Location: /a\r\n\r\n"))
+  scripted <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      # In flight, the status line alone decides and stops the transfer.
+      scripted$go <- if (scripted$in_flight) {
+        progress(0, 0, function() line)
+      }
+      list(
+        aborted = scripted$in_flight,
+        failed = NULL,
+        error = scripted$error,
+        status = scripted$status,
+        headers = scripted$headers,
+        connect = 0.01
+      )
+    }
+  )
+  # The outcome's class, code or cause, check, limit and recorded status.
+  outcome <- function(status, headers = short, error = NULL, in_flight) {
+    scripted$status <- status
+    scripted$headers <- headers
+    scripted$error <- error
+    scripted$in_flight <- in_flight
+    r <- guarded_get(
+      paste0("http://", pinned_host, "/"),
+      loopback_policy(max_redirects = 0, max_header_fields = 4)
+    )
+    if (in_flight) {
+      expect_false(scripted$go)
+    }
+    list(
+      class(r)[[1L]],
+      if (inherits(r, "ssrfr_refusal")) r$code else r$cause,
+      r$detail$check,
+      r$detail$limit,
+      attr(r, "binding")$state$status
+    )
+  }
+  cases <- list(
+    "disagreeing" = list(
+      args = list(status = 307L),
+      want = list("ssrfr_failure", "protocol-error", "header", NULL, NULL)
+    ),
+    "disagreeing, with a transport error" = list(
+      args = list(status = 307L, error = "curl_error_operation_timedout"),
+      want = list(
+        "ssrfr_failure",
+        "timeout",
+        "transport",
+        "total_timeout",
+        NULL
+      )
+    ),
+    "disagreeing, with a header limit passed after the line" = list(
+      args = list(
+        status = 307L,
+        headers = long,
+        error = "curl_error_operation_timedout"
+      ),
+      want = list(
+        "ssrfr_failure",
+        "response-too-large",
+        "header",
+        "max_header_fields",
+        NULL
+      )
+    ),
+    "agreeing" = list(
+      args = list(status = 302L, headers = long),
+      want = list(
+        "ssrfr_refusal",
+        "redirect-limit",
+        "redirect",
+        "max_redirects",
+        302L
+      )
+    ),
+    "not reported" = list(
+      args = list(status = 0L, error = "curl_error_operation_timedout"),
+      want = list(
+        "ssrfr_refusal",
+        "redirect-limit",
+        "redirect",
+        "max_redirects",
+        302L
+      )
+    )
+  )
+  for (label in names(cases)) {
+    args <- cases[[label]]$args
+    stopped <- do.call(outcome, c(args, in_flight = TRUE))
+    completed <- do.call(outcome, c(args, in_flight = FALSE))
+    expect_identical(stopped, cases[[label]]$want, label = label)
+    expect_identical(stopped, completed, label = label)
+  }
+})
+
 # The decision at the status line, on scripted header buffers: a header
 # limit the interim 1xx blocks passed was reached first; nothing after the
 # final status line counts against it.

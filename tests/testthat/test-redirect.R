@@ -323,8 +323,8 @@ test_that("the Location is compared as bytes, not as strings", {
 
 # The same bytes marked in another encoding pass the byte comparison, so the
 # hop must be prepared from the recorded value: `url` re-encoded to UTF-8
-# would be another URL. A copy marked latin1 proceeds to exactly the
-# recorded target, or raises invalid_from; it never reaches another one.
+# would be another URL. A copy marked latin1 has the recorded bytes, so it
+# proceeds, to exactly the recorded target.
 test_that("a Location marked in another encoding keeps the recorded target", {
   mock_answers("127.0.0.1")
   # What an outcome points at: a binding's URL, or a refusal's code and URL.
@@ -363,13 +363,8 @@ test_that("a Location marked in another encoding keeps the recorded target", {
       # The recorded target: the URL for valid UTF-8, a parse refusal for
       # bytes that are not (test below).
       expect_identical(want[[1L]], kinds[[label]], label = label)
-      got <- tryCatch(
-        target(ssrf_prepare_hop(marked, policy, from = b)),
-        ssrfr_error_invalid_from = function(e) "invalid_from"
-      )
-      if (!identical(got, "invalid_from")) {
-        expect_identical(got, want, label = label)
-      }
+      got <- target(ssrf_prepare_hop(marked, policy, from = b))
+      expect_identical(got, want, label = label)
     })
   }
 })

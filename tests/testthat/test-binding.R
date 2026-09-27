@@ -199,6 +199,62 @@ test_that("a caller cannot write the binding's state, but a fetch does", {
   expect_false(exists("extra", envir = b$state, inherits = FALSE))
 })
 
+# §2.4: state is locked once and never unlocked. Each field is a read-only
+# active binding over a private store, which only set_state() writes.
+test_that("binding state is read-only fields over a store set_state() writes", {
+  mock_answers("127.0.0.1")
+  b <- ssrf_prepare_hop(
+    "http://state.invalid:1/",
+    loopback_policy(1),
+    request = list()
+  )
+  fields <- c(
+    "fetchable",
+    "fetched",
+    "status",
+    "location",
+    "location_count",
+    "outcome",
+    "pin_used",
+    "attempts",
+    "elapsed"
+  )
+  expect_setequal(ls(b$state, all.names = TRUE), fields)
+  expect_true(environmentIsLocked(b$state))
+  for (field in fields) {
+    expect_true(bindingIsActive(field, b$state), label = field)
+    expect_true(bindingIsLocked(field, b$state), label = field)
+  }
+
+  set <- ssrfr:::set_state
+  set(b, status = 302L, location = "/next", location_count = 1L)
+  expect_identical(b$state$status, 302L)
+  expect_identical(b$state$location, "/next")
+  expect_identical(b$state$location_count, 1L)
+  set(b, location = NULL)
+  expect_null(b$state$location)
+  expect_true(environmentIsLocked(b$state))
+  expect_error(b$state$status <- 200L)
+  expect_identical(b$state$status, 302L)
+
+  # Only ssrfr calls set_state(): an unknown field is an internal error, and
+  # nothing is written.
+  expect_error(
+    set(b, status = 200L, extra = 1L),
+    "internal error",
+    class = "ssrfr_error_invalid_argument"
+  )
+  expect_identical(b$state$status, 302L)
+  expect_false(exists("extra", envir = b$state, inherits = FALSE))
+
+  # The active binding reads the stored value and refuses any write.
+  store <- list2env(list(status = 200L), parent = emptyenv())
+  field <- ssrfr:::state_field(store, "status")
+  expect_identical(field(), 200L)
+  expect_error(field(204L), "read-only", class = "ssrfr_error_invalid_argument")
+  expect_identical(store$status, 200L)
+})
+
 # r-binding.md §7: a refusal makes no connection (INV-11). The resolver maps
 # honeypot.invalid to a loopback listener, which the default policy refuses;
 # the listener must see nothing across the whole window. A failing parser,

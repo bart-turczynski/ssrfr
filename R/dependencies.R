@@ -137,9 +137,9 @@ dep_nslookup <- function(query) {
 # --- the transport ------------------------------------------------------------
 # The only place ssrfr dials (r-binding.md §7, "One place dials"): one
 # connection attempt of the guarded fetch (R/fetch.R). `opts` is the option
-# list transport_options() builds (R/transport.R), pin included; `data`,
+# list transport_options() builds (R/transport.R), pin included; `on_body`,
 # `debug` and `progress` are the per-delivery, trace and progress callbacks.
-# `data(x, received)` gets each delivery of body bytes, and libcurl calls
+# `on_body(x, received)` gets each delivery of body bytes, and libcurl calls
 # `progress(down, up, received)` as bytes arrive, the header's included, and
 # whenever it waits; each answers TRUE to go on. `received` is a function
 # returning the header buffer received so far: every header block, interim
@@ -154,9 +154,9 @@ dep_nslookup <- function(query) {
 # options(error = ) hook, which may quit the process. Nor does ssrfr raise an
 # interrupt of its own: libcurl reports a transfer a progress callback
 # aborted as an abort by callback, which curl raises as an interrupt. So
-# every stop takes one path. When `data` or `progress` answers anything but
+# every stop takes one path. When `on_body` or `progress` answers anything but
 # TRUE, or fails, or `debug` fails, this wrapper records the stop, a failure
-# under the callback's name, and calls neither `data` nor `progress` again:
+# under the callback's name, and calls neither `on_body` nor `progress` again:
 # later deliveries are dropped unread. The loop below, which runs one round
 # of libcurl at a time, then cancels the transfer, so it ends within the
 # round the stop came in. Each callback runs with interrupts suspended: a
@@ -167,12 +167,12 @@ dep_nslookup <- function(query) {
 # still in the pool is cancelled, which closes its connection.
 #
 # Returns a list: `aborted` (TRUE when a callback ended the transfer),
-# `failed` (the callbacks that raised an error, of "data", "progress" and
-# "debug", in the order they first did, or NULL), `error` (the curl error
-# class of a failed transfer, or NULL), `status`, `headers` (the raw
-# response header bytes), and `connect` (seconds until the TCP connection
-# was established; 0 when it never was).
-dep_curl_transfer <- function(opts, data, debug, progress) {
+# `failed` (the callbacks that raised an error, of "data" (`on_body`, under
+# curl's name for it), "progress" and "debug", in the order they first did,
+# or NULL), `error` (the curl error class of a failed transfer, or NULL),
+# `status`, `headers` (the raw response header bytes), and `connect`
+# (seconds until the TCP connection was established; 0 when it never was).
+dep_curl_transfer <- function(opts, on_body, debug, progress) {
   pool <- curl::new_pool(total_con = 1L, host_con = 1L, multiplex = FALSE)
   on.exit(
     for (h in curl::multi_list(pool)) {
@@ -210,7 +210,7 @@ dep_curl_transfer <- function(opts, data, debug, progress) {
     }
     suspendInterrupts({
       outcome$events <- outcome$events + 1L
-      go <- answers_true("data", function() data(x, received))
+      go <- answers_true("data", function() on_body(x, received))
       outcome$stopped <- !go
     })
     invisible()
@@ -469,22 +469,29 @@ read_embeddings <- function(x) {
 # One transfer through dep_curl_transfer(), or NULL when the wrapper fails or
 # answers in the wrong shape. An interrupt is not an error: it propagates, and
 # the wrapper has already cancelled the transfer.
-read_transfer <- function(opts, data, debug, progress) {
-  dep_call(dep_curl_transfer, opts, data, debug, progress, valid = function(t) {
-    is.list(t) &&
-      is.logical(t$aborted) &&
-      length(t$aborted) == 1L &&
-      !is.na(t$aborted) &&
-      (is.null(t$failed) || is.character(t$failed) && !anyNA(t$failed)) &&
-      (is.null(t$error) || is_string(t$error)) &&
-      is.numeric(t$status) &&
-      length(t$status) == 1L &&
-      !is.na(t$status) &&
-      is.raw(t$headers) &&
-      is.numeric(t$connect) &&
-      length(t$connect) == 1L &&
-      !is.na(t$connect)
-  })
+read_transfer <- function(opts, on_body, debug, progress) {
+  dep_call(
+    dep_curl_transfer,
+    opts,
+    on_body,
+    debug,
+    progress,
+    valid = function(t) {
+      is.list(t) &&
+        is.logical(t$aborted) &&
+        length(t$aborted) == 1L &&
+        !is.na(t$aborted) &&
+        (is.null(t$failed) || is.character(t$failed) && !anyNA(t$failed)) &&
+        (is.null(t$error) || is_string(t$error)) &&
+        is.numeric(t$status) &&
+        length(t$status) == 1L &&
+        !is.na(t$status) &&
+        is.raw(t$headers) &&
+        is.numeric(t$connect) &&
+        length(t$connect) == 1L &&
+        !is.na(t$connect)
+    }
+  )
 }
 
 # What the option builder needs to know about libcurl: its version, whether

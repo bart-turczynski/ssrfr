@@ -816,10 +816,10 @@ test_that("header_stop decides at the final status line", {
   spent <- list(hop = 1L, budget = list(max_redirects = 0))
   left <- list(hop = 1L, budget = list(max_redirects = 1))
   policy <- ssrf_policy(max_header_fields = 4, max_header_bytes = 200)
-  stop_for <- function(text, binding = spent) {
+  stop_for <- function(text, binding = spent, reported = NULL) {
     seen <- new.env(parent = emptyenv())
     ssrfr:::measure_header(seen, charToRaw(text))
-    ssrfr:::header_stop(seen, policy, binding)
+    ssrfr:::header_stop(seen, policy, binding, reported)
   }
   many <- strrep("X-F: 1\r\n", 6)
   final <- "HTTP/1.1 302 Found\r\n"
@@ -828,6 +828,20 @@ test_that("header_stop decides at the final status line", {
     stop_for(paste0(final, many, "\r\n")),
     list(redirect_limit = 302L)
   )
+  # §2.3: a status libcurl reports decides with the line when it agrees, or
+  # is 0 (none); one that disagrees leaves step 13 deciding nothing, and the
+  # header limits the whole buffer passed decide as for any response.
+  for (reported in list(302L, 0L)) {
+    expect_identical(
+      stop_for(paste0(final, many, "\r\n"), reported = reported),
+      list(redirect_limit = 302L)
+    )
+  }
+  expect_identical(
+    stop_for(paste0(final, many, "\r\n"), reported = 307L)$limit,
+    "max_header_fields"
+  )
+  expect_null(stop_for(paste0(final, "Location: /a\r\n\r\n"), reported = 200L))
   # Only the status line so far, the block not ended.
   expect_identical(stop_for(final), list(redirect_limit = 302L))
   # A 1xx block past the field limit before it: the header limit.

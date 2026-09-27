@@ -318,9 +318,9 @@ test_that("a header buffer is decided once per growth", {
     calls$n <- 0L
     stop_at <- ssrfr:::header_stop
     local_mocked_bindings(
-      header_stop = function(seen, policy, binding) {
+      header_stop = function(seen, policy, binding, reported = NULL) {
         calls$n <- calls$n + 1L
-        stop_at(seen, policy, binding)
+        stop_at(seen, policy, binding, reported)
       },
       dep_curl_transfer = function(opts, data, debug, progress) {
         debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))

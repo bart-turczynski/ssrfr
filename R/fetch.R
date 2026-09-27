@@ -462,24 +462,12 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   # The header is complete before libcurl ends a transfer on its own limits,
   # so a header limit it passed was the first limit reached (§6.6), and a
   # 3xx past the redirect budget was decided at its status line, before
-  # anything libcurl did afterwards (§12 step 13). The buffer is measured
-  # once more here, before any response is recorded, for header and trailer
-  # lines that arrived after the last progress call.
+  # anything libcurl did afterwards (§12 step 13), unless libcurl reports
+  # another status (header_stop()). The buffer is measured once more here,
+  # before any response is recorded, for header and trailer lines that
+  # arrived after the last progress call.
   measure_header(seen, transfer$headers)
-  stop <- header_stop(seen, policy, binding)
-  # §2.3: the status step 13 records is transport-observed. When libcurl
-  # reports one (0: no response) that is not the status line's, step 13
-  # decided nothing, and the transfer ends as any other whose two statuses
-  # disagree, below: `protocol-error`, recording no status. In flight,
-  # libcurl's status is not yet known and the status line decides.
-  if (
-    !is.null(stop$redirect_limit) &&
-      transfer$status != 0 &&
-      transfer$status != stop$redirect_limit
-  ) {
-    over <- header_limit(seen, policy)
-    stop <- if (!is.null(over)) header_limit_stop(over)
-  }
+  stop <- header_stop(seen, policy, binding, transfer$status)
   if (!is.null(stop)) {
     return(stopped_by(stop))
   }
@@ -531,7 +519,14 @@ attempt_address <- function(binding, address, remaining, capabilities) {
 # libcurl's) changes the outcome. A status line is final when it is not
 # 1xx, whether or not its block has ended; libcurl writes whole lines to
 # the buffer.
-header_stop <- function(seen, policy, binding) {
+#
+# `reported` is the status libcurl reports, NULL while it is not known (in
+# flight), or 0 when libcurl reports none. The status step 13 records is
+# transport-observed (§2.3): when libcurl reports one that is not the
+# status line's, step 13 decides nothing, and the transfer ends as any
+# other whose two statuses disagree: a header limit reached first, here,
+# else the transport's error or `protocol-error` (attempt_address()).
+header_stop <- function(seen, policy, binding, reported = NULL) {
   blocks <- seen$segments$blocks
   final <- which(blocks$status >= 200L)
   if (length(final) && budget_spent(binding)) {
@@ -557,7 +552,9 @@ header_stop <- function(seen, policy, binding) {
       if (!is.null(over)) {
         return(header_limit_stop(over))
       }
-      return(list(redirect_limit = status))
+      if (is.null(reported) || reported == 0 || reported == status) {
+        return(list(redirect_limit = status))
+      }
     }
   }
   over <- header_limit(seen, policy)

@@ -1552,19 +1552,24 @@ test_that("the documented redirect loops end on the chain's final outcome", {
     collapse = ""
   )
   source_rmd <- test_path("..", "..", "vignettes", "introduction.Rmd")
-  rmd <- readLines(
-    if (file.exists(source_rmd)) {
-      source_rmd
-    } else {
-      system.file("doc", "introduction.Rmd", package = "ssrfr")
-    },
-    encoding = "UTF-8"
-  )
-  section <- rmd[seq(which(rmd == "## Following redirects"), length(rmd))]
-  opens <- which(startsWith(section, "```{r"))[[1L]]
-  closes <- which(section == "```")
-  closes <- closes[closes > opens][[1L]]
-  vignette <- paste(section[seq(opens + 1L, closes - 1L)], collapse = "\n")
+  rmd_file <- if (file.exists(source_rmd)) {
+    source_rmd
+  } else {
+    system.file("doc", "introduction.Rmd", package = "ssrfr")
+  }
+  # covr installs the package without its vignettes: the Rd half still runs.
+  codes <- list(example = example)
+  if (file.exists(rmd_file)) {
+    rmd <- readLines(rmd_file, encoding = "UTF-8")
+    section <- rmd[seq(which(rmd == "## Following redirects"), length(rmd))]
+    opens <- which(startsWith(section, "```{r"))[[1L]]
+    closes <- which(section == "```")
+    closes <- closes[closes > opens][[1L]]
+    codes$vignette <- paste(
+      section[seq(opens + 1L, closes - 1L)],
+      collapse = "\n"
+    )
+  }
 
   hop <- function(count = 1L) {
     structure(
@@ -1609,7 +1614,7 @@ test_that("the documented redirect loops end on the chain's final outcome", {
       outcome = done
     )
   )
-  for (code in list(example = example, vignette = vignette)) {
+  for (code in codes) {
     for (label in names(scripts)) {
       script <- scripts[[label]]
       queue <- new.env(parent = emptyenv())
@@ -1630,6 +1635,7 @@ test_that("the documented redirect loops end on the chain's final outcome", {
       expect_identical(env$outcome, script$outcome, label = label)
     }
   }
+  skip_if_not("vignette" %in% names(codes), "the vignette is not installed")
 })
 
 # --- a real app ---------------------------------------------------------------

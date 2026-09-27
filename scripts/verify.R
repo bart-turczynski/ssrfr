@@ -15,9 +15,10 @@
 #                 and testthat reports a test with no expectation as skipped,
 #                 so that fails it too (ssrfr-v1.md §7.2).
 #   check         R CMD check --as-cran with NOT_CRAN=false, as CRAN runs it.
-#                 A WARNING or ERROR fails the stage. CRAN incoming feasibility
-#                 stays ON: it is what finds dead URL/BugReports links (seor
-#                 ADR 0004), so do not switch it off to turn the gate green.
+#                 An ERROR, a WARNING or a NOTE not in `allowed_notes` fails
+#                 the stage. CRAN incoming feasibility stays ON: it is what
+#                 finds dead URL/BugReports links (seor ADR 0004), so do not
+#                 switch it off to turn the gate green.
 #
 # Every stage runs even after an earlier one fails, and one VERDICT line names
 # all failures, so one run says everything five separate runs would (seor ADR
@@ -135,6 +136,47 @@ stage_tests <- function(root) {
   ok
 }
 
+# The R CMD check NOTEs the check stage lets through; any other NOTE fails it.
+# `check` is the check's name as the NOTE's first line gives it, between
+# "checking " and " ...". `body` is a regex the rest of the NOTE must match,
+# whitespace collapsed to single spaces; NULL lets any text through.
+allowed_notes <- list(
+  list(
+    check = "CRAN incoming feasibility",
+    body = NULL,
+    reason = paste(
+      "Maintainer, New submission and the .9000 version appear until a CRAN",
+      "release, and URL checks vary with the network, so it is allowed whole:",
+      "a flaky gate costs more than it saves. Read it before submitting."
+    )
+  ),
+  list(
+    check = "HTML version of manual",
+    body = paste0(
+      "^Skipping checking HTML validation: no command 'tidy' found\\.",
+      "( Please obtain a recent version of HTML Tidy[^.]*",
+      "<https://www\\.html-tidy\\.org/>\\.)?$"
+    ),
+    reason = "HTML Tidy is not installed, as in the CI image; nothing else."
+  )
+)
+
+# TRUE when `allowed_notes` covers `note`, one element of rcmdcheck's `notes`:
+# the "checking <name> ... NOTE" line, then the NOTE's text.
+note_allowed <- function(note) {
+  lines <- strsplit(note, "\n", fixed = TRUE)[[1L]]
+  check <- sub("^checking (.*?) \\.\\.\\..*$", "\\1", lines[1L], perl = TRUE)
+  body <- trimws(gsub("[[:space:]]+", " ", paste(lines[-1L], collapse = " ")))
+  any(vapply(
+    allowed_notes,
+    function(entry) {
+      identical(check, entry$check) &&
+        (is.null(entry$body) || grepl(entry$body, body, perl = TRUE))
+    },
+    logical(1L)
+  ))
+}
+
 stage_check <- function(root) {
   cat("R CMD check --as-cran, incoming=on\n")
   res <- rcmdcheck::rcmdcheck(
@@ -152,7 +194,13 @@ stage_check <- function(root) {
     )
     return(FALSE)
   }
-  !length(res$errors) && !length(res$warnings)
+  allowed <- vapply(res$notes, note_allowed, logical(1L), USE.NAMES = FALSE)
+  if (!all(allowed)) {
+    cat("NOTEs not in allowed_notes (scripts/verify.R):\n\n")
+    cat(res$notes[!allowed], sep = "\n\n")
+    cat("\n")
+  }
+  !length(res$errors) && !length(res$warnings) && all(allowed)
 }
 
 main <- function() {

@@ -152,6 +152,18 @@ test_that("each hop is prepared from the recorded Location, as a loop would", {
   expect_identical(ssrf_fetch_chain("http://10.0.0.1/", policy), refused)
   expect_identical(log$prepare[[1L]]$request, list())
   expect_length(log$fetch, 0L)
+
+  # A fetch that ends in a failure after its binding recorded a followed
+  # redirect's status and Location, as when total_timeout runs out after
+  # the body is decoded (§5.3), ends the chain: only a response is followed.
+  log$prepare <- list()
+  log$fetch <- list()
+  late <- ssrfr:::new_ssrf_failure("timeout", 1L)
+  outcomes$prepare <- list(hop("/next"))
+  outcomes$fetch <- list(late)
+  expect_identical(ssrf_fetch_chain("https://example.com/", policy), late)
+  expect_length(log$prepare, 1L)
+  expect_length(log$fetch, 1L)
 })
 
 # The helper adds no misuse of its own and hides none: ssrf_prepare_hop()'s

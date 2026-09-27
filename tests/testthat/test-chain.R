@@ -44,7 +44,7 @@ test_that("ssrf_fetch_chain() reads nothing but the primitives and base R", {
   expect_identical(read_symbols(quote(x$status)), c("$", "x"))
 
   fn <- ssrf_fetch_chain
-  expect_identical(names(formals(fn)), c("url", "policy", "request"))
+  expect_named(formals(fn), c("url", "policy", "request"))
   expect_identical(formals(fn)$request, quote(list()))
   expect_identical(environment(fn), asNamespace("ssrfr"))
 
@@ -173,7 +173,7 @@ test_that("misuse errors propagate from ssrf_prepare_hop() unchanged", {
   same_error <- function(chain, hop) {
     a <- tryCatch(chain, error = identity)
     b <- tryCatch(hop, error = identity)
-    expect_identical(class(a), class(b))
+    expect_s3_class(a, class(b), exact = TRUE)
     expect_identical(conditionMessage(a), conditionMessage(b))
   }
   same_error(

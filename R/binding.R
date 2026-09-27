@@ -424,20 +424,13 @@ new_binding <- function(
   b
 }
 
-# The active binding that shows `field` of a binding's store: it reads the
-# stored value and refuses a write. A read never errors, since the transport
-# reads state inside libcurl callbacks (r-binding.md §7).
+# The active binding that shows `field` of a binding's store. It takes no
+# value: new_binding() locks it, so R refuses a write before calling it. A
+# read never errors, since the transport reads state inside libcurl
+# callbacks (r-binding.md §7).
 state_field <- function(store, field) {
   force(field)
-  function(value) {
-    if (!missing(value)) {
-      abort_ssrfr(
-        "invalid_argument",
-        "A binding's state is read-only; only ssrf_fetch() records it."
-      )
-    }
-    store[[field]]
-  }
+  function() store[[field]]
 }
 
 # Writes the named fields of a binding's state into its store. Only ssrfr

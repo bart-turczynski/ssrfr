@@ -155,6 +155,19 @@ test_that("a name is resolved once per hop, and never again by the fetch", {
   expect_identical(b$state$attempts, "127.0.0.1 connect-failed")
 })
 
+# The fields of a binding's state (§2.3).
+state_fields <- c(
+  "fetchable",
+  "fetched",
+  "status",
+  "location",
+  "location_count",
+  "outcome",
+  "pin_used",
+  "attempts",
+  "elapsed"
+)
+
 # §2.4: a caller cannot write a binding's state, fetchable or spent, while
 # ssrf_fetch() records what it observed there.
 test_that("a caller cannot write the binding's state, but a fetch does", {
@@ -176,7 +189,7 @@ test_that("a caller cannot write the binding's state, but a fetch does", {
   expect_error(b$state <- new.env())
   expect_true(b$state$fetchable)
   expect_null(b$state$status)
-  expect_false(exists("extra", envir = b$state, inherits = FALSE))
+  expect_setequal(ls(b$state, all.names = TRUE), state_fields)
 
   r <- ssrf_fetch(b)
   expect_s3_class(r, "ssrfr_response")
@@ -196,7 +209,7 @@ test_that("a caller cannot write the binding's state, but a fetch does", {
   expect_error(assign("extra", 1L, envir = b$state))
   expect_false(b$state$fetchable)
   expect_identical(b$state$status, 200L)
-  expect_false(exists("extra", envir = b$state, inherits = FALSE))
+  expect_setequal(ls(b$state, all.names = TRUE), state_fields)
 })
 
 # §2.4: state is locked once and never unlocked. Each field is a read-only
@@ -208,23 +221,17 @@ test_that("binding state is read-only fields over a store set_state() writes", {
     loopback_policy(1),
     request = list()
   )
-  fields <- c(
-    "fetchable",
-    "fetched",
-    "status",
-    "location",
-    "location_count",
-    "outcome",
-    "pin_used",
-    "attempts",
-    "elapsed"
-  )
-  expect_setequal(ls(b$state, all.names = TRUE), fields)
+  expect_setequal(ls(b$state, all.names = TRUE), state_fields)
   expect_true(environmentIsLocked(b$state))
-  for (field in fields) {
-    expect_true(bindingIsActive(field, b$state), label = field)
-    expect_true(bindingIsLocked(field, b$state), label = field)
-  }
+  every <- stats::setNames(rep(TRUE, length(state_fields)), state_fields)
+  expect_identical(
+    vapply(state_fields, bindingIsActive, logical(1), env = b$state),
+    every
+  )
+  expect_identical(
+    vapply(state_fields, bindingIsLocked, logical(1), env = b$state),
+    every
+  )
 
   set <- ssrfr:::set_state
   set(b, status = 302L, location = "/next", location_count = 1L)
@@ -245,14 +252,8 @@ test_that("binding state is read-only fields over a store set_state() writes", {
     class = "ssrfr_error_invalid_argument"
   )
   expect_identical(b$state$status, 302L)
-  expect_false(exists("extra", envir = b$state, inherits = FALSE))
-
-  # The active binding reads the stored value and refuses any write.
-  store <- list2env(list(status = 200L), parent = emptyenv())
-  field <- ssrfr:::state_field(store, "status")
-  expect_identical(field(), 200L)
-  expect_error(field(204L), "read-only", class = "ssrfr_error_invalid_argument")
-  expect_identical(store$status, 200L)
+  expect_setequal(ls(b$state, all.names = TRUE), state_fields)
+  expect_setequal(ls(parent.env(b$state), all.names = TRUE), state_fields)
 })
 
 # r-binding.md §7: a refusal makes no connection (INV-11). The resolver maps

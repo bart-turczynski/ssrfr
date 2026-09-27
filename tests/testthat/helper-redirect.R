@@ -1,7 +1,8 @@
 # Harness for redirect hops (ssrfr-v1.md §2.3, §2.5, §2.6, INV-7, INV-8;
 # r-binding.md §7): a webfakes app that redirects and echoes, a TLS server
 # for the corpus's https hosts, and a test-side loop over the public
-# primitives. The loop helper of §2.2 is SSRF-bvuwvcnh, not this file.
+# primitives. The loop helper of §2.2 is ssrf_fetch_chain() (R/chain.R);
+# test-chain.R runs these fixtures through it.
 
 # The second pinned test host: another origin on the same loopback server.
 other_host <- "other.example.invalid"
@@ -114,6 +115,18 @@ follow_chain <- function(url, policy, request = list(), max_hops = 50L) {
     out <- ssrf_prepare_hop(binding$state$location, policy, from = binding)
   }
   list(result = out, bindings = bindings)
+}
+
+# The number of requests the redirect app's /loop has seen, read around the
+# guard.
+loop_hits <- function(port) {
+  h <- curl::new_handle()
+  rawToChar(
+    curl::curl_fetch_memory(
+      paste0("http://127.0.0.1:", port, "/hits"),
+      handle = h
+    )$content
+  )
 }
 
 # The request head a raw server recorded, as lines.

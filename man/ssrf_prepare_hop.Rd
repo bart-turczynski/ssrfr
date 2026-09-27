@@ -45,9 +45,9 @@ code from \code{ssrf_vocabulary("reason_codes")}.}
 \code{cause} is \code{"unresolvable"} when resolution failed, or \code{"timeout"}
 when resolution used up the policy's \code{total_timeout}.}
 }
-A refusal and a failure name the host, address and hop for the
-operator; project them with \code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted
-party sees them.
+A refusal and a failure name the hop, and the host and address where
+they are known, for the operator; project them with
+\code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees them.
 }
 \description{
 Decides whether a URL may be fetched under a policy and, when it may,
@@ -116,6 +116,9 @@ such as a metadata-service marker, is an error of class
 \code{ssrfr_error_invalid_request}, whose message names the field by its
 place in \code{from$request}; a field the redirect dropped is not.
 An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"}.
+\code{\link[=ssrf_fetch_chain]{ssrf_fetch_chain()}} runs this loop for a caller without one of its own,
+and returns only the chain's last outcome; a caller that must log every
+hop runs the loop in the examples below instead.
 
 The chain's budgets are its first hop's: \code{max_redirects} and
 \code{total_timeout} travel through \code{from}, with the time the chain has used,
@@ -188,6 +191,7 @@ outcome <- if (inherits(result, "ssrfr_response")) {
 
 }
 \seealso{
-\code{\link[=ssrf_fetch]{ssrf_fetch()}} to fetch through a binding; \code{\link[=ssrf_policy]{ssrf_policy()}} for the
-rules; \code{\link[=ssrf_inspect_url]{ssrf_inspect_url()}} to lint a URL or policy without fetching.
+\code{\link[=ssrf_fetch]{ssrf_fetch()}} to fetch through a binding; \code{\link[=ssrf_fetch_chain]{ssrf_fetch_chain()}}
+to follow a whole redirect chain; \code{\link[=ssrf_policy]{ssrf_policy()}} for the rules;
+\code{\link[=ssrf_inspect_url]{ssrf_inspect_url()}} to lint a URL or policy without fetching.
 }

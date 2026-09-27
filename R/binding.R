@@ -89,6 +89,9 @@ now <- function() {
 #' `ssrfr_error_invalid_request`, whose message names the field by its
 #' place in `from$request`; a field the redirect dropped is not.
 #' An `https` hop that redirects to `http` is refused as `"downgrade"`.
+#' [ssrf_fetch_chain()] runs this loop for a caller without one of its own,
+#' and returns only the chain's last outcome; a caller that must log every
+#' hop runs the loop in the examples below instead.
 #'
 #' The chain's budgets are its first hop's: `max_redirects` and
 #' `total_timeout` travel through `from`, with the time the chain has used,
@@ -140,12 +143,13 @@ now <- function() {
 #'       `cause` is `"unresolvable"` when resolution failed, or `"timeout"`
 #'       when resolution used up the policy's `total_timeout`.}
 #'   }
-#'   A refusal and a failure name the host, address and hop for the
-#'   operator; project them with [ssrf_public_reason()] before an untrusted
-#'   party sees them.
+#'   A refusal and a failure name the hop, and the host and address where
+#'   they are known, for the operator; project them with
+#'   [ssrf_public_reason()] before an untrusted party sees them.
 #'
-#' @seealso [ssrf_fetch()] to fetch through a binding; [ssrf_policy()] for the
-#'   rules; [ssrf_inspect_url()] to lint a URL or policy without fetching.
+#' @seealso [ssrf_fetch()] to fetch through a binding; [ssrf_fetch_chain()]
+#'   to follow a whole redirect chain; [ssrf_policy()] for the rules;
+#'   [ssrf_inspect_url()] to lint a URL or policy without fetching.
 #'
 #' @examples
 #' policy <- ssrf_policy()

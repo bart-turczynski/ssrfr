@@ -542,15 +542,6 @@ test_that("the chain budgets are inherited through from", {
 test_that("the redirect budget refuses as redirect-limit on a self-redirect", {
   skip_if_no_webfakes()
   mock_answers("127.0.0.1")
-  hits <- function(port) {
-    h <- curl::new_handle()
-    rawToChar(
-      curl::curl_fetch_memory(
-        paste0("http://127.0.0.1:", port, "/hits"),
-        handle = h
-      )$content
-    )
-  }
   for (budget in c(0, 3, 20)) {
     local({
       web <- local_redirect_server()
@@ -572,7 +563,11 @@ test_that("the redirect budget refuses as redirect-limit on a self-redirect", {
       expect_identical(last$state$status, 302L)
       expect_identical(last$state$outcome, "redirect-limit")
       # Each hop's request reached the server once.
-      expect_identical(hits(port), as.character(budget + 1), label = label)
+      expect_identical(
+        loop_hits(port),
+        as.character(budget + 1),
+        label = label
+      )
       expect_identical(ssrf_public_reason(r), "refused")
     })
   }
@@ -1562,13 +1557,18 @@ test_that("the documented redirect loops end on the chain's final outcome", {
   if (file.exists(rmd_file)) {
     rmd <- readLines(rmd_file, encoding = "UTF-8")
     section <- rmd[seq(which(rmd == "## Following redirects"), length(rmd))]
-    opens <- which(startsWith(section, "```{r"))[[1L]]
-    closes <- which(section == "```")
-    closes <- closes[closes > opens][[1L]]
-    codes$vignette <- paste(
-      section[seq(opens + 1L, closes - 1L)],
-      collapse = "\n"
-    )
+    # The section's first chunk calls ssrf_fetch_chain(); the per-hop loop is
+    # the first chunk that runs a `while` loop.
+    ends <- which(section == "```")
+    chunks <- lapply(which(startsWith(section, "```{r")), function(opens) {
+      closes <- ends[ends > opens][[1L]]
+      paste(section[seq(opens + 1L, closes - 1L)], collapse = "\n")
+    })
+    loops <- Filter(function(code) grepl("while (", code, fixed = TRUE), chunks)
+    if (length(loops) == 0L) {
+      stop("the vignette's Following redirects section has no `while` loop")
+    }
+    codes$vignette <- loops[[1L]]
   }
 
   hop <- function(count = 1L) {

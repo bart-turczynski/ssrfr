@@ -913,6 +913,49 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
   }
 })
 
+# INV-11: a transfer the wrapper reports stopped is never a response. When a
+# redirect-limit record was left in flight and libcurl reports another
+# status, the attempt ends as protocol-error before the parse can record
+# anything, even a parse that would read libcurl's status.
+test_that("a stopped transfer whose statuses disagree is never a response", {
+  mock_answers("127.0.0.1")
+  line <- wire("HTTP/1.1 302 Found\r\n")
+  headers <- c(line, wire("Location: /a\r\nContent-Length: 0\r\n\r\n"))
+  parse <- ssrfr:::parse_response_headers
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, data, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      progress(0, 0, function() line)
+      list(
+        aborted = TRUE,
+        failed = NULL,
+        error = NULL,
+        status = 307L,
+        headers = headers,
+        connect = 0.01
+      )
+    },
+    # A parse that agrees with libcurl: only the guard stands in the way.
+    parse_response_headers = function(raw, segments = NULL) {
+      parsed <- parse(raw, segments)
+      parsed$status <- 307L
+      parsed
+    }
+  )
+  r <- guarded_get(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(max_redirects = 0)
+  )
+  expect_s3_class(r, "ssrfr_failure")
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "header")
+  b <- attr(r, "binding")
+  expect_null(b$state$status)
+  expect_null(b$state$location)
+  expect_false(b$state$fetched)
+  expect_identical(b$state$outcome, "protocol-error")
+})
+
 # The decision at the status line, on scripted header buffers: a header
 # limit the interim 1xx blocks passed was reached first; nothing after the
 # final status line counts against it.

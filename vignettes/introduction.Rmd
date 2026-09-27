@@ -21,7 +21,8 @@ library(ssrfr)
 `ssrfr` is under development. It guards one hop at a time:
 `ssrf_prepare_hop()` decides whether a URL may be fetched and `ssrf_fetch()`
 fetches it through a pinned connection; a redirect is followed by preparing
-the next hop from the previous one. The contract it implements is
+the next hop from the previous one, or by `ssrf_fetch_chain()`, which runs
+that loop. The contract it implements is
 `design/specs/ssrfr-v1.md` in the source repository.
 
 Every hop is evaluated under a policy. It is validated when it is built, so a
@@ -162,13 +163,31 @@ before an untrusted party sees it.
 
 ## Following redirects
 
-A redirect is returned, not followed: its status is in the response and its
-`Location` in `binding$state$location`. To follow it, prepare the next hop
-with `from = binding`. The `Location` may be relative; it is resolved against
-the previous hop's URL, and the new URL is checked from the start. The
-request plan is inherited, never restated: a redirect to another origin
+`ssrf_fetch_chain()` follows a whole redirect chain through the guard and
+returns its last outcome: the final response, or the refusal or failure that
+ended the chain.
+
+```{r, eval = FALSE}
+policy <- ssrf_policy(max_redirects = 5)
+result <- ssrf_fetch_chain(
+  "https://example.com/start",
+  policy,
+  request = list(headers = c(Authorization = "Bearer not-shown"))
+)
+```
+
+It is built on the two primitives and adds nothing to them. A redirect is
+returned, not followed, by `ssrf_fetch()`: its status is in the response and
+its `Location` in `binding$state$location`. To follow it, prepare the next
+hop with `from = binding`. The `Location` may be relative; it is resolved
+against the previous hop's URL, and the new URL is checked from the start.
+The request plan is inherited, never restated: a redirect to another origin
 drops the body and every header field the plan did not nominate in `carry`,
-and `Authorization`, `Proxy-Authorization` and `Cookie` never cross.
+and `Authorization`, `Proxy-Authorization` and `Cookie` never cross. This is
+the loop `ssrf_fetch_chain()` runs. It keeps only the last outcome, so an
+application that must log every hop, as OWASP's "log all accepted and
+blocked network flows" asks, runs the loop itself and logs each hop's
+binding and outcome:
 
 ```{r, eval = FALSE}
 policy <- ssrf_policy(max_redirects = 5)
@@ -197,8 +216,9 @@ outcome <- if (inherits(result, "ssrfr_response")) {
 }
 ```
 
-The loop ends with `result` holding the chain's final outcome: a response,
-a refusal or a failure, whichever call returned it. A redirect hop can be
+The loop, like `ssrf_fetch_chain()`, ends with `result` holding the chain's
+final outcome: a response, a refusal or a failure, whichever call returned
+it. A redirect hop can be
 refused like any other: `"downgrade"` for `https` to `http`, or any code a
 first hop can get. Log a refusal's `code` or a failure's `cause` for the
 operator, and show an untrusted party only `ssrf_public_reason(result)`. The

@@ -63,7 +63,8 @@ connected_cause <- function(error) {
 #'
 #' A redirect is returned, not followed: its status and `Location` are in the
 #' response, and the next hop is prepared with
-#' `ssrf_prepare_hop(location, policy, from = binding)`. Once the chain has
+#' `ssrf_prepare_hop(location, policy, from = binding)`, or the whole chain
+#' is followed with [ssrf_fetch_chain()]. Once the chain has
 #' followed the policy's `max_redirects` redirects, a `3xx` response is
 #' refused as `"redirect-limit"` instead, with or without `Location`; under
 #' `max_redirects = 0` every `3xx` is. The refusal is decided at the status

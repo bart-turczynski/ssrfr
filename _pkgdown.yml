@@ -12,6 +12,7 @@ reference:
     contents:
       - ssrf_prepare_hop
       - ssrf_fetch
+      - ssrf_fetch_chain
   - title: Inspect a URL
     contents:
       - ssrf_inspect_url

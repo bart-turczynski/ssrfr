@@ -64,7 +64,7 @@ tried and reverted (`19f08fb`).
   and gates, L1 resolution and answer-set classification, and the L2 guarded
   hop: the request plan (`request.R`), the binding (`binding.R`), the
   transport's option builder and trace matcher (`transport.R`) and the fetch
-  (`fetch.R`), and redirect hops (`redirect.R`).
+  (`fetch.R`), redirect hops (`redirect.R`) and the loop helper (`chain.R`).
 - `tests/testthat/` — testthat tests and cucumber feature specs;
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.

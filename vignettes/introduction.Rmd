@@ -218,15 +218,16 @@ outcome <- if (inherits(result, "ssrfr_response")) {
 
 The loop, like `ssrf_fetch_chain()`, ends with `result` holding the chain's
 final outcome: a response, a refusal or a failure, whichever call returned
-it. A redirect hop can be
-refused like any other: `"downgrade"` for `https` to `http`, or any code a
-first hop can get. Log a refusal's `code` or a failure's `cause` for the
-operator, and show an untrusted party only `ssrf_public_reason(result)`. The
-`url` of a redirect hop is the `Location` exactly as `binding$state$location`
-holds it; a different URL is an error, and starts a new chain instead. The chain's `max_redirects` and `total_timeout`
-are fixed by its first hop: once `max_redirects` redirects have been
-followed, `ssrf_fetch()` refuses the next `3xx` as `"redirect-limit"`, and a
-policy that restates either budget differently mid-chain is an error.
+it. A redirect hop can be refused like any other: `"downgrade"` for `https`
+to `http`, or any code a first hop can get. Log a refusal's `code` or a
+failure's `cause` for the operator, and show an untrusted party only
+`ssrf_public_reason(result)`. The `url` of a redirect hop is the `Location`
+exactly as `binding$state$location` holds it; a different URL is an error,
+and starts a new chain instead. The chain's `max_redirects` and
+`total_timeout` are fixed by its first hop: once `max_redirects` redirects
+have been followed, `ssrf_fetch()` refuses the next `3xx` as
+`"redirect-limit"`, and a policy that restates either budget differently
+mid-chain is an error.
 
 ## What the guard cannot protect
 

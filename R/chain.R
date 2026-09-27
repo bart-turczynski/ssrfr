@@ -48,8 +48,9 @@
 #'   the operational failure that ended it, class `ssrfr_failure`. A
 #'   refusal and a failure name the hop, and the host and address where
 #'   they are known, for the operator; project them with
-#'   [ssrf_public_reason()] before an untrusted party sees them. A misuse, such as a request plan that breaks a header rule, is
-#'   the error [ssrf_prepare_hop()] raises.
+#'   [ssrf_public_reason()] before an untrusted party sees them. A misuse,
+#'   such as a request plan that breaks a header rule, is the error
+#'   [ssrf_prepare_hop()] raises.
 #'
 #' @seealso [ssrf_prepare_hop()] and [ssrf_fetch()], the per-hop primitives
 #'   it is built on, for a caller with its own loop or one that logs every

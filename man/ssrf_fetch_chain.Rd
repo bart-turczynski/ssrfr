@@ -27,8 +27,9 @@ it; the refusal that ended the chain, class \code{ssrfr_refusal}, such as
 the operational failure that ended it, class \code{ssrfr_failure}. A
 refusal and a failure name the hop, and the host and address where
 they are known, for the operator; project them with
-\code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees them. A misuse, such as a request plan that breaks a header rule, is
-the error \code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}} raises.
+\code{\link[=ssrf_public_reason]{ssrf_public_reason()}} before an untrusted party sees them. A misuse,
+such as a request plan that breaks a header rule, is the error
+\code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}} raises.
 }
 \description{
 Fetches a URL through the guard and follows its redirects, hop by hop,

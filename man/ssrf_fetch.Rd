@@ -69,8 +69,9 @@ response, and the next hop is prepared with
 \code{ssrf_prepare_hop(location, policy, from = binding)}. A caller that wants
 the whole chain followed calls \code{\link[=ssrf_fetch_chain]{ssrf_fetch_chain()}} from the first hop,
 in place of \code{\link[=ssrf_prepare_hop]{ssrf_prepare_hop()}} and \code{ssrf_fetch()}; it cannot take over
-a redirect already in hand. Once the chain has followed the policy's \code{max_redirects} redirects, a \verb{3xx} response is
-refused as \code{"redirect-limit"} instead, with or without \code{Location}; under
+a redirect already in hand. Once the chain has followed the policy's
+\code{max_redirects} redirects, a \verb{3xx} response is refused as
+\code{"redirect-limit"} instead, with or without \code{Location}; under
 \code{max_redirects = 0} every \verb{3xx} is. The refusal is decided at the status
 line and the transfer stopped there, so nothing after it changes it: not
 a second \code{Location}, nor a body over the limits or one that stalls.

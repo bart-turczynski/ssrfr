@@ -66,8 +66,9 @@ connected_cause <- function(error) {
 #' `ssrf_prepare_hop(location, policy, from = binding)`. A caller that wants
 #' the whole chain followed calls [ssrf_fetch_chain()] from the first hop,
 #' in place of [ssrf_prepare_hop()] and `ssrf_fetch()`; it cannot take over
-#' a redirect already in hand. Once the chain has followed the policy's `max_redirects` redirects, a `3xx` response is
-#' refused as `"redirect-limit"` instead, with or without `Location`; under
+#' a redirect already in hand. Once the chain has followed the policy's
+#' `max_redirects` redirects, a `3xx` response is refused as
+#' `"redirect-limit"` instead, with or without `Location`; under
 #' `max_redirects = 0` every `3xx` is. The refusal is decided at the status
 #' line and the transfer stopped there, so nothing after it changes it: not
 #' a second `Location`, nor a body over the limits or one that stalls.

@@ -15,7 +15,7 @@ Description: Protects R applications that fetch URLs an attacker can
     name resolves to, and the guarded fetch of each hop of a redirect
     chain are implemented.
 License: MIT + file LICENSE
-URL: https://ssrfr-290b3f.gitlab.io, https://gitlab.com/bart-turczynski/ssrfr
+URL: https://bart-turczynski.gitlab.io/ssrfr/, https://gitlab.com/bart-turczynski/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
 Encoding: UTF-8
 Language: en-US

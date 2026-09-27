@@ -804,14 +804,26 @@ test_that("a completed transfer's statuses must agree before redirect-limit", {
 # stop is made libcurl's status is known, and when it is not the status
 # line's, step 13 decided nothing: a header limit passed after the status
 # line, then a transport error, then `protocol-error`, as for any transfer
-# whose statuses disagree.
+# whose statuses disagree. INV-11: a stopped transfer is never a response,
+# even one whose parse would read libcurl's status.
 test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
   mock_answers("127.0.0.1")
   line <- wire("HTTP/1.1 302 Found\r\n")
   short <- c(line, wire("Location: /a\r\nContent-Length: 0\r\n\r\n"))
   long <- c(line, wire(strrep("X-F: 1\r\n", 6), "Location: /a\r\n\r\n"))
   scripted <- new.env(parent = emptyenv())
+  parse <- ssrfr:::parse_response_headers
   local_mocked_bindings(
+    # A parse that reads `scripted$parsed` as the status, when it is set,
+    # and counts its calls.
+    parse_response_headers = function(raw, segments = NULL) {
+      scripted$parses <- scripted$parses + 1L
+      parsed <- parse(raw, segments)
+      if (!is.null(scripted$parsed)) {
+        parsed$status <- scripted$parsed
+      }
+      parsed
+    },
     dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       # In flight, the status line alone decides and stops the transfer.
@@ -828,41 +840,66 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
       )
     }
   )
-  # The outcome's class, code or cause, check, limit and recorded status.
-  outcome <- function(status, headers = short, error = NULL, in_flight) {
+  # The outcome's class, code or cause, check, limit, and the binding's
+  # recorded status, location, whether it was fetched, and its outcome.
+  outcome <- function(
+    status,
+    headers = short,
+    error = NULL,
+    parsed = NULL,
+    in_flight
+  ) {
     scripted$status <- status
     scripted$headers <- headers
     scripted$error <- error
+    scripted$parsed <- parsed
     scripted$in_flight <- in_flight
+    scripted$parses <- 0L
     r <- guarded_get(
       paste0("http://", pinned_host, "/"),
       loopback_policy(max_redirects = 0, max_header_fields = 4)
     )
+    # INV-11: a stopped transfer is never parsed.
     if (in_flight) {
       expect_false(scripted$go)
+      expect_identical(scripted$parses, 0L)
     }
+    state <- attr(r, "binding")$state
     list(
       class(r)[[1L]],
       if (inherits(r, "ssrfr_refusal")) r$code else r$cause,
       r$detail$check,
       r$detail$limit,
-      attr(r, "binding")$state$status
+      state$status,
+      state$location,
+      state$fetched,
+      state$outcome
     )
   }
+  # A failure that records no status and fetches nothing.
+  failure <- function(cause, check, limit = NULL) {
+    list("ssrfr_failure", cause, check, limit, NULL, NULL, FALSE, cause)
+  }
+  refusal <- list(
+    "ssrfr_refusal",
+    "redirect-limit",
+    "redirect",
+    "max_redirects",
+    302L,
+    NULL,
+    FALSE,
+    "redirect-limit"
+  )
+  # Each case ends as `want`, stopped in flight or completed, unless it
+  # names what the completed transfer ends as.
   cases <- list(
     "disagreeing" = list(
       args = list(status = 307L),
-      want = list("ssrfr_failure", "protocol-error", "header", NULL, NULL)
+      want = failure("protocol-error", "header")
     ),
     "disagreeing, with a transport error" = list(
       args = list(status = 307L, error = "curl_error_operation_timedout"),
-      want = list(
-        "ssrfr_failure",
-        "timeout",
-        "transport",
-        "total_timeout",
-        NULL
-      )
+      want = failure("timeout", "transport", "total_timeout")
     ),
     "disagreeing, with a header limit passed after the line" = list(
       args = list(
@@ -870,85 +907,41 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
         headers = long,
         error = "curl_error_operation_timedout"
       ),
-      want = list(
-        "ssrfr_failure",
-        "response-too-large",
-        "header",
-        "max_header_fields",
-        NULL
+      want = failure("response-too-large", "header", "max_header_fields")
+    ),
+    # INV-11: a parse that reads libcurl's status leaves only `stopped` in
+    # the way. The completed transfer with the same parse is a response,
+    # which shows the parse cannot be what stops the stopped one.
+    "disagreeing, with a parse that agrees with libcurl" = list(
+      args = list(status = 307L, parsed = 307L),
+      want = failure("protocol-error", "header"),
+      completed = list(
+        "ssrfr_response",
+        NULL,
+        NULL,
+        NULL,
+        307L,
+        "/a",
+        TRUE,
+        "response"
       )
     ),
     "agreeing" = list(
       args = list(status = 302L, headers = long),
-      want = list(
-        "ssrfr_refusal",
-        "redirect-limit",
-        "redirect",
-        "max_redirects",
-        302L
-      )
+      want = refusal
     ),
     "not reported" = list(
       args = list(status = 0L, error = "curl_error_operation_timedout"),
-      want = list(
-        "ssrfr_refusal",
-        "redirect-limit",
-        "redirect",
-        "max_redirects",
-        302L
-      )
+      want = refusal
     )
   )
   for (label in names(cases)) {
-    args <- cases[[label]]$args
-    stopped <- do.call(outcome, c(args, in_flight = TRUE))
-    completed <- do.call(outcome, c(args, in_flight = FALSE))
-    expect_identical(stopped, cases[[label]]$want, label = label)
-    expect_identical(stopped, completed, label = label)
+    case <- cases[[label]]
+    stopped <- do.call(outcome, c(case$args, in_flight = TRUE))
+    completed <- do.call(outcome, c(case$args, in_flight = FALSE))
+    expect_identical(stopped, case$want, label = label)
+    expect_identical(completed, case$completed %||% case$want, label = label)
   }
-})
-
-# INV-11: a transfer the wrapper reports stopped is never a response. When a
-# redirect-limit record was left in flight and libcurl reports another
-# status, the attempt ends as protocol-error before the parse can record
-# anything, even a parse that would read libcurl's status.
-test_that("a stopped transfer whose statuses disagree is never a response", {
-  mock_answers("127.0.0.1")
-  line <- wire("HTTP/1.1 302 Found\r\n")
-  headers <- c(line, wire("Location: /a\r\nContent-Length: 0\r\n\r\n"))
-  parse <- ssrfr:::parse_response_headers
-  local_mocked_bindings(
-    dep_curl_transfer = function(opts, on_body, debug, progress) {
-      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
-      progress(0, 0, function() line)
-      list(
-        aborted = TRUE,
-        failed = NULL,
-        error = NULL,
-        status = 307L,
-        headers = headers,
-        connect = 0.01
-      )
-    },
-    # A parse that agrees with libcurl: only the guard stands in the way.
-    parse_response_headers = function(raw, segments = NULL) {
-      parsed <- parse(raw, segments)
-      parsed$status <- 307L
-      parsed
-    }
-  )
-  r <- guarded_get(
-    paste0("http://", pinned_host, "/"),
-    loopback_policy(max_redirects = 0)
-  )
-  expect_s3_class(r, "ssrfr_failure")
-  expect_identical(r$cause, "protocol-error")
-  expect_identical(r$detail$check, "header")
-  b <- attr(r, "binding")
-  expect_null(b$state$status)
-  expect_null(b$state$location)
-  expect_false(b$state$fetched)
-  expect_identical(b$state$outcome, "protocol-error")
 })
 
 # The decision at the status line, on scripted header buffers: a header

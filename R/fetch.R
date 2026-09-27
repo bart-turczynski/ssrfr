@@ -432,32 +432,21 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       callback = callback
     )
   }
-  # A record header_stop() or a callback left, as the attempt's ending: a
-  # 3xx past the redirect budget carries its status (§12 step 13).
-  stopped_by <- function(record) {
-    if (!is.null(record$redirect_limit)) {
-      return(list(ending = "connected", redirect_limit = record$redirect_limit))
-    }
+  # A limit record, left by header_stop() or a callback, as the attempt's
+  # ending.
+  ended_at_limit <- function(record) {
     ended(record$cause, 12L, record$check, record$limit)
   }
   # The record a callback left decides, unless it is a 3xx past the
   # redirect budget: one recorded in flight is decided once more below, with
   # a completed transfer's, now that libcurl's status is known (§2.3), so the
-  # same bytes end the same way whenever the transfer stopped. Every other
-  # transfer decides here:
-  # - a limit a callback reached ends the transfer, which the wrapper
-  #   cancels, as that record says;
-  # - a callback that failed ends it too, and fails closed. No cause names a
-  #   defect of ssrfr's own (§6.6); the closest is `protocol-error`, and the
-  #   check says what happened. The condition itself is not kept: its
-  #   message may quote response bytes (INV-12);
-  # - INV-11: a transfer the wrapper reports stopped, with neither record, is
-  #   never a response, however whole its header looks.
+  # same bytes end the same way whenever the transfer stopped.
   record <- seen$abort
-  if (is.null(record$redirect_limit)) {
-    if (!is.null(record)) {
-      return(stopped_by(record))
-    }
+  if (is.null(record)) {
+    # A callback that failed ends the transfer, and fails closed. No
+    # cause names a defect of ssrfr's own (§6.6); the closest is
+    # `protocol-error`, and the check says what happened. The condition
+    # itself is not kept: its message may quote response bytes (INV-12).
     if (length(failed)) {
       return(ended(
         "protocol-error",
@@ -466,9 +455,15 @@ attempt_address <- function(binding, address, remaining, capabilities) {
         callback = failed[[1L]]
       ))
     }
+    # INV-11: a transfer the wrapper reports stopped, with neither record,
+    # is never a response, however whole its header looks.
     if (stopped) {
       return(ended("protocol-error", 12L, "aborted"))
     }
+  } else if (is.null(record$redirect_limit)) {
+    # A limit a callback reached ends the transfer, which the wrapper
+    # cancels, as that record says.
+    return(ended_at_limit(record))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
   # so a header limit it passed was the first limit reached (§6.6), and a
@@ -480,7 +475,11 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   measure_header(seen, transfer$headers)
   stop <- header_stop(seen, policy, binding, transfer$status)
   if (!is.null(stop)) {
-    return(stopped_by(stop))
+    # A 3xx past the redirect budget carries its status (§12 step 13).
+    if (!is.null(stop$redirect_limit)) {
+      return(list(ending = "connected", redirect_limit = stop$redirect_limit))
+    }
+    return(ended_at_limit(stop))
   }
   if (!is.null(transfer$error)) {
     cause <- connected_cause(transfer$error)
@@ -488,11 +487,13 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     step <- if (cause == "tls-failed") 10L else 12L
     return(ended(cause, step, "transport", limit))
   }
-  # INV-11: a transfer the wrapper reports stopped is never a response. Only
-  # one stopped at a 3xx past the redirect budget gets here, and only when
-  # libcurl reports a status other than the status line's, so step 13
-  # decided nothing (§12): it ends as any transfer whose two statuses
-  # disagree, before the parse can record a status or a response.
+  # INV-11: a transfer the wrapper reports stopped is never a response, and
+  # `stopped` alone decides that, whatever the parse would read: a stopped
+  # transfer is never parsed, and ends here before a status or a response
+  # is recorded. Only one stopped at a 3xx past the redirect budget gets
+  # here, and only when libcurl reports a status other than the status
+  # line's, so step 13 decided nothing (§12): it ends as any transfer whose
+  # two statuses disagree.
   if (stopped) {
     return(ended("protocol-error", 12L, "header"))
   }

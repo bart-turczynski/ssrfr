@@ -26,10 +26,11 @@ detection, YAML/TOML validation, mixed-line-ending and case-conflict guards, a
 |---|---|---|
 | `check-design` | `python3 scripts/check-design.py` | frozen ADRs, frontmatter, `ARCHITECTURE.md` naming every source directory, citations of git-ignored working space |
 | `check-toolchain` | `Rscript scripts/check-toolchain.R` | the machine: roxygen2 against `Config/roxygen2/version`, packages built under a newer R |
+| `spelling` | `Rscript scripts/check-spelling.R` | spelling of `DESCRIPTION`, `man/`, vignettes, README and NEWS against en-US and `inst/WORDLIST` |
 | `verify` | `Rscript scripts/verify.R` | the package; stages listed in the script's header |
 
-`verify` is the same file the CI `verify` job runs. `check-design` and
-`check-toolchain` run only locally.
+`verify` is the same file the CI `verify` job runs. `check-design`,
+`check-toolchain` and `spelling` run only locally.
 
 ## CI
 

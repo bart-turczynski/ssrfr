@@ -258,61 +258,146 @@ status_line <- "^HTTP/[^ ]* +([0-9]{3})( |$)"
 # an empty line ended it) and `trailers` (the
 # numbers of the lines after the complete final block). A line in neither is
 # a stray, which libcurl does not write. Read as bytes: a line may carry
-# obs-text.
+# obs-text. The list also carries `resume`, where the next reading goes on.
 #
 # The header measure (R/fetch.R) runs this on every growth of the buffer,
-# inside callbacks, so it costs time linear in the buffer: each block's end
-# is looked up, never searched for, and each vector is allocated once.
-header_segments <- function(buffer) {
-  buffer[buffer == as.raw(0L)] <- as.raw(0x7fL)
-  lines <- strsplit(rawToChar(buffer), "\n", fixed = TRUE, useBytes = TRUE)
-  lines <- lines[[1L]]
-  ends <- pmin(cumsum(nchar(lines, type = "bytes") + 1L), length(buffer))
-  lines <- sub("\r$", "", lines, useBytes = TRUE)
+# inside callbacks with interrupts suspended. `from` is this function's
+# reading of an earlier buffer that `buffer` extends, or NULL: the lines
+# that reading ended with an LF are kept, with the classification it left
+# after them, and only the bytes after them are read and classified. So the
+# readings of every growth together cost time linear in the last buffer,
+# however it arrives. A last line with no LF is read again with the next
+# growth: its bytes, and whether it is empty or a status line, may change.
+header_segments <- function(buffer, from = NULL) {
+  kept <- if (is.null(from)) {
+    list(bytes = 0L, count = 0L, state = unclassified)
+  } else {
+    from$resume
+  }
+  fresh <- seq_len(length(buffer) - kept$bytes) + kept$bytes
+  read <- header_lines(buffer[fresh])
+  prior <- seq_len(kept$count)
+  lines <- c(from$lines[prior], read$lines)
+  ends <- c(from$ends[prior], read$ends + kept$bytes)
   n <- length(lines)
-  empties <- which(!nzchar(lines))
+  whole <- if (read$open) n - 1L else n
+  state <- classify_lines(kept$state, lines, kept$count + 1L, whole)
+  resume <- list(
+    bytes = if (whole > 0L) ends[[whole]] else 0L,
+    count = whole,
+    state = state
+  )
+  state <- classify_lines(state, lines, whole + 1L, n)
+  list(
+    lines = lines,
+    ends = ends,
+    blocks = state$blocks,
+    trailers = state$trailers,
+    resume = resume
+  )
+}
+
+# The lines of `bytes`, which start at the start of a line, for
+# header_segments(): `lines` without their line endings, a NUL byte read as
+# 0x7f, `ends` (the byte of `bytes` at which each ends, its LF included: the
+# last byte for a last line with no LF) and `open`, whether the last line
+# has no LF.
+header_lines <- function(bytes) {
+  bytes[bytes == as.raw(0L)] <- as.raw(0x7fL)
+  lines <- strsplit(rawToChar(bytes), "\n", fixed = TRUE, useBytes = TRUE)
+  lines <- lines[[1L]]
+  size <- length(bytes)
+  list(
+    lines = sub("\r$", "", lines, useBytes = TRUE),
+    ends = pmin(cumsum(nchar(lines, type = "bytes") + 1L), size),
+    open = size > 0L && bytes[[size]] != as.raw(10L)
+  )
+}
+
+# The classification of no line: header_segments()'s starting state.
+unclassified <- list(
+  mode = "start",
+  blocks = list(
+    start = integer(),
+    end = integer(),
+    status = integer(),
+    complete = logical()
+  ),
+  trailers = integer()
+)
+
+# `state`, the classification of `lines` before line `from`, carried on
+# through line `to`. It holds header_segments()'s `blocks` and `trailers`,
+# and the `mode` the next line is read in: "start" (the start of the buffer
+# or the line after an empty one), "block" (the last block, not yet ended by
+# an empty line), "stray" (a stray line, and any up to the next empty line)
+# or "trailer" (after the complete final block). Each block's end is looked
+# up, never searched for, and each vector grows once a call.
+classify_lines <- function(state, lines, from, to) {
+  if (from > to) {
+    return(state)
+  }
+  if (state$mode == "trailer") {
+    state$trailers <- c(state$trailers, from:to)
+    return(state)
+  }
+  span <- lines[from:to]
+  n <- length(span)
+  skip <- from - 1L
+  empties <- which(!nzchar(span))
   # The first empty line at or after line i, for i in 1..n+1, or NA.
   next_empty <- empties[findInterval(seq_len(n + 1L) - 1L, empties) + 1L]
-  opens <- grepl(status_line, lines, useBytes = TRUE)
+  opens <- grepl(status_line, span, useBytes = TRUE)
   codes <- rep(NA_integer_, n)
   codes[opens] <- as.integer(sub(
     paste0(status_line, ".*$"),
     "\\1",
-    lines[opens],
+    span[opens],
     useBytes = TRUE
   ))
-  most <- sum(opens)
-  start <- end <- status <- integer(most)
-  complete <- logical(most)
-  count <- 0L
-  trailers <- integer()
-  # `at` is always the start of the buffer or the line after an empty one.
+  blocks <- state$blocks
+  more <- sum(opens)
+  start <- c(blocks$start, integer(more))
+  end <- c(blocks$end, integer(more))
+  status <- c(blocks$status, integer(more))
+  complete <- c(blocks$complete, logical(more))
+  count <- length(blocks$start)
+  trailers <- state$trailers
+  mode <- state$mode
   at <- 1L
   while (at <= n) {
-    ended <- next_empty[[at + opens[[at]]]]
-    if (!opens[[at]]) {
-      # A stray line, and any up to the next empty line.
-      at <- if (is.na(ended)) n + 1L else ended + 1L
-      next
+    if (mode == "start" && opens[[at]]) {
+      mode <- "block"
+      count <- count + 1L
+      start[[count]] <- at + skip
+      status[[count]] <- codes[[at]]
+      # The block's end is looked up from the line after its status line.
+      at <- at + 1L
+    } else if (mode == "start") {
+      mode <- "stray"
     }
-    count <- count + 1L
-    start[[count]] <- at
-    end[[count]] <- if (is.na(ended)) n else ended
-    status[[count]] <- codes[[at]]
-    complete[[count]] <- !is.na(ended)
+    ended <- next_empty[[at]]
     if (is.na(ended)) {
+      if (mode == "block") {
+        end[[count]] <- to
+      }
       break
     }
-    if (codes[[at]] >= 200L) {
-      trailers <- seq_len(n - ended) + ended
-      break
+    if (mode == "block") {
+      end[[count]] <- ended + skip
+      complete[[count]] <- TRUE
+      if (status[[count]] >= 200L) {
+        trailers <- c(trailers, seq_len(n - ended) + ended + skip)
+        mode <- "trailer"
+        break
+      }
     }
+    mode <- "start"
     at <- ended + 1L
   }
   kept <- seq_len(count)
   list(
-    lines = lines,
-    ends = ends,
+    mode = mode,
     blocks = list(
       start = start[kept],
       end = end[kept],

@@ -343,6 +343,37 @@ test_that("the header buffer is segmented by the block before each line", {
   expect_identical(s$blocks, blocks(1, 3, 200, TRUE))
 })
 
+# A last line with no LF is read as the buffer holds it, by the block before
+# it: a status line opens a block, a lone CR is an empty line that ends one,
+# and after a complete final block it is a trailer line.
+test_that("a last line with no LF is segmented as the buffer holds it", {
+  segments <- function(...) ssrfr:::header_segments(wire(...))
+  blocks <- function(start, end, status, complete) {
+    list(
+      start = as.integer(start),
+      end = as.integer(end),
+      status = as.integer(status),
+      complete = complete
+    )
+  }
+  s <- segments("HTTP/1.1 100 X\r\n\r\nHTTP/1.1 200 OK")
+  expect_identical(
+    s$blocks,
+    blocks(c(1, 3), c(2, 3), c(100, 200), c(TRUE, FALSE))
+  )
+  expect_identical(s$ends, c(16L, 18L, 33L))
+  s <- segments("HTTP/1.1 100 X\r\n\r")
+  expect_identical(s$blocks, blocks(1, 2, 100, TRUE))
+  expect_identical(s$lines, c("HTTP/1.1 100 X", ""))
+  s <- segments("HTTP/1.1 200 OK\r\nX: 1")
+  expect_identical(s$blocks, blocks(1, 2, 200, FALSE))
+  s <- segments("HTTP/1.1 200 OK\r\n\r\nX: 1")
+  expect_identical(s$trailers, 3L)
+  s <- segments("HTTP/1.1 101 S\r\n\r\nZ")
+  expect_identical(s$blocks, blocks(1, 2, 101, TRUE))
+  expect_identical(s$trailers, integer())
+})
+
 # The header measure runs the segmenter on every growth of the header
 # buffer, inside callbacks that run with interrupts suspended, so one pass
 # costs time linear in the buffer. Eight times the interim blocks, a run of
@@ -370,6 +401,46 @@ test_that("the header buffer is segmented in linear time", {
   small <- timed(64)
   large <- timed(512)
   expect_lt(large / small, 24)
+})
+
+# A server can trickle interim 1xx blocks, which carry no field, so only
+# max_header_bytes bounds the buffer, and the header measure segments it on
+# every growth. Each growth reads only the bytes after the last line the
+# reading before it ended, and classifies only the lines they hold: eight
+# times the blocks, a line at a time, cost eight times the bytes read and
+# the lines classified, where segmenting each growth whole costs sixty-four.
+# The work is counted, not timed, so the ratio holds on any runner.
+test_that("a header trickled a line at a time is segmented in linear work", {
+  work <- new.env(parent = emptyenv())
+  read_lines <- ssrfr:::header_lines
+  classify <- ssrfr:::classify_lines
+  local_mocked_bindings(
+    header_lines = function(bytes) {
+      work$bytes <- work$bytes + length(bytes)
+      read_lines(bytes)
+    },
+    classify_lines = function(state, lines, from, to) {
+      work$lines <- work$lines + max(to - from + 1L, 0L)
+      classify(state, lines, from, to)
+    }
+  )
+  block <- "HTTP/1.1 100 X\r\n\r\n"
+  trickled <- function(kib) {
+    work$bytes <- 0
+    work$lines <- 0
+    count <- (kib * 1024) %/% nchar(block)
+    buffer <- wire(strrep(block, count))
+    seen <- new.env(parent = emptyenv())
+    for (n in which(buffer == as.raw(10L))) {
+      ssrfr:::measure_header(seen, buffer[seq_len(n)])
+    }
+    expect_length(seen$segments$blocks$start, count)
+    c(bytes = work$bytes, lines = work$lines)
+  }
+  small <- trickled(2)
+  large <- trickled(16)
+  expect_lt(large[["bytes"]] / small[["bytes"]], 12)
+  expect_lt(large[["lines"]] / small[["lines"]], 12)
 })
 
 test_that("response headers are read from the final block only", {

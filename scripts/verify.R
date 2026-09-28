@@ -142,10 +142,11 @@ stage_tests <- function(root) {
 # dependency nor dev tooling here. R prints it only once an Rd file has \eqn or
 # \deqn, which none has yet. Wording from tools:::.check_packages in
 # R 4.4.3, 4.5.2 and 4.6.0. The HTML Tidy skip ("Skipping checking HTML
-# validation: ...") is NOT allowed: the CI image installs tidy (Ubuntu noble,
-# 5.6.0), so a machine without HTML Tidy 5.0.0 or later fails the gate: CRAN
-# validates what the check would have skipped. macOS's /usr/bin/tidy is too old; install
-# Homebrew's `tidy-html5` ahead of it on PATH, or point $R_TIDYCMD at one.
+# validation: ...") is NOT allowed, since CRAN validates what the check would
+# have skipped. The CI image installs tidy (Ubuntu noble, 5.6.0); a machine
+# without HTML Tidy 5.0.0 or later fails the gate. macOS's /usr/bin/tidy is too
+# old: put Homebrew's `tidy-html5` ahead of it on PATH, or point $R_TIDYCMD at
+# one.
 v8_skipped <- "Skipping checking math rendering: package 'V8' unavailable"
 
 # The R CMD check NOTEs the check stage lets through; any other NOTE fails it.

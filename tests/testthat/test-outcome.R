@@ -217,6 +217,14 @@ test_that("the rendering still names the predicate, address and hop", {
   expect_identical(failure[[1L]], "<ssrfr_failure>")
   expect_match(failure, "^  cause: timeout$", all = FALSE)
   expect_match(failure, "^    limit: max_header_bytes$", all = FALSE)
+
+  # The callbacks that failed are ssrfr's own labels, shown in order.
+  failed <- format(new_ssrf_failure(
+    "protocol-error",
+    hop = 1,
+    detail = list(check = "callback-error", callback = c("data", "progress"))
+  ))
+  expect_match(failed, "^    callback: data, progress$", all = FALSE)
 })
 
 test_that("absent fields are left out of the rendering", {

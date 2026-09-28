@@ -218,7 +218,12 @@ format.ssrfr_inspection <- function(x, ...) {
   for (key in intersect(names(x$detail), display_detail_keys)) {
     detail <- c(
       detail,
-      paste0("    ", key, ": ", toString(format(x$detail[[key]], trim = TRUE)))
+      paste0(
+        "    ",
+        key,
+        ": ",
+        toString(format(x$detail[[key]], trim = TRUE, justify = "none"))
+      )
     )
   }
   outcome <- if (is.na(x$cause)) {

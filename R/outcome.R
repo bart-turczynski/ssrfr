@@ -21,7 +21,8 @@ display_detail_keys <- c(
   "embedding_kind",
   "category",
   "provider_kind",
-  "attempts"
+  "attempts",
+  "callback"
 )
 
 # The single value ssrf_public_reason() returns (§6.4). It is not a reason code
@@ -139,7 +140,7 @@ format.ssrfr_outcome <- function(x, ...) {
   for (key in names(x$detail)) {
     value <- x$detail[[key]]
     shown <- if (key %in% display_detail_keys && is.atomic(value)) {
-      toString(format(value, trim = TRUE))
+      toString(format(value, trim = TRUE, justify = "none"))
     } else {
       "<withheld>"
     }

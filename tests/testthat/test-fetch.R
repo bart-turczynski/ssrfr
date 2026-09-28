@@ -729,8 +729,12 @@ test_that("a progress callback that fails on its first call is named", {
   local_mocked_bindings(
     dep_curl_transfer = function(opts, on_body, debug, progress) {
       recording <- function(type, msg) {
-        if (type == 0L && length(grepRaw("Trying ", msg, fixed = TRUE))) {
-          seen$trying <- TRUE
+        # A `Trying` line as attempt_address() collects it for pin_check().
+        if (type == 0L) {
+          lines <- trimws(strsplit(rawToChar(msg), "\n", fixed = TRUE)[[1L]])
+          if (any(startsWith(lines, "Trying "))) {
+            seen$trying <- TRUE
+          }
         }
         debug(type, msg)
       }
@@ -768,6 +772,27 @@ test_that("a progress callback that fails on its first call is named", {
 test_that("a pin-mismatch names every failed callback, in order", {
   mock_answers("127.0.0.1")
   cases <- list(
+    `other-address, none` = list(
+      trace = "Trying 10.0.0.7:80...\n",
+      failed = NULL,
+      check = "other-address",
+      callback = NULL
+    ),
+    `garbled, none` = list(
+      trace = "Trying ???\n",
+      failed = NULL,
+      check = "garbled",
+      callback = NULL
+    ),
+    # What the wrapper reports when progress fails on its first call before
+    # libcurl traces anything or connects.
+    `absent, nothing traced` = list(
+      trace = "",
+      failed = "progress",
+      check = "absent",
+      callback = "progress",
+      connect = 0
+    ),
     `other-address` = list(
       trace = "Trying 10.0.0.7:80...\n",
       failed = "data",
@@ -840,7 +865,7 @@ test_that("a pin-mismatch names every failed callback, in order", {
             error = NULL,
             status = 0L,
             headers = raw(),
-            connect = 0.01
+            connect = if (is.null(case$connect)) 0.01 else case$connect
           )
         }
       )
@@ -853,6 +878,7 @@ test_that("a pin-mismatch names every failed callback, in order", {
       expect_identical(r$cause, "pin-mismatch", label = name)
       expect_identical(r$detail$check, case$check, label = name)
       expect_identical(r$detail$callback, case$callback, label = name)
+      expect_null(b$state$status, label = name)
     })
   }
 })

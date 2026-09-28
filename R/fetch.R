@@ -278,9 +278,11 @@ fetch_failure <- function(binding, cause, address, endings, step, ...) {
 
 # One connection attempt at `address`. Returns a list: `ending`, how the
 # attempt ended ("pin-mismatch", "connect-failed", "connect-timeout", or
-# "connected"); for a connected attempt `cause` (with `step`, `check`
-# and `limit`), `redirect_limit` (the status of a 3xx past the redirect
-# budget, §12 step 13) or `response`; for a pin mismatch, `check`.
+# "connected"); for a connected attempt `cause` (with `step`, `check`,
+# `limit` and `callback`), `redirect_limit` (the status of a 3xx past the
+# redirect budget, §12 step 13) or `response`; for a pin mismatch, `check`
+# and `callback`. `callback` is every callback that failed, in the order
+# they first did, or NULL when none did.
 attempt_address <- function(binding, address, remaining, capabilities) {
   policy <- binding$policy
   opts <- transport_options(binding, address, remaining(), capabilities)

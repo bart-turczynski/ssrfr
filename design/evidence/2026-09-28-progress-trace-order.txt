@@ -1,0 +1,100 @@
+# Output of 2026-09-28-progress-trace-order.R, captured 2026-09-28: macOS on the host,
+# the Linux builds in the ssrfr-probe Docker images of 2026-09-25-linux-transport-matrix.sh
+# (docker run --rm -v "$PWD/design/evidence/2026-09-28-progress-trace-order.R:/p.R:ro" ssrfr-probe:<tag> Rscript --vanilla /p.R).
+# The probe's handle keeps curl's default cookie file, so libcurl 8.5.0 traces a cookie warning
+# that ssrfr's options (cookiefile = NULL) avoid.
+
+== macOS (host)
+curl 8.0.0 | libcurl 8.14.1 | aarch64-apple-darwin23
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 2: a stop at the first progress call leaves no `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: 127.0.0.1
+  progress
+  -- round 2
+  progress
+  trace: Trying 127.0.0.1:18182...
+  progress
+  -- round 3
+  trace: Connected to 127.0.0.1 (127.0.0.1) port 18182
+== ::1: first progress call in round 1, first `Trying` in round 2: a stop at the first progress call leaves no `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: ::1
+  progress
+  -- round 2
+  progress
+  trace: Trying [::1]:18182...
+  progress
+  -- round 3
+  trace: connect to ::1 port 18182 from ::1 port 58758 failed: Connection refused
+  trace: Failed to connect to ::1 port 18182 after 2 ms: Could not connect to server
+  progress
+  trace: closing connection #0
+
+== ssrfr-probe:ubuntu2204
+curl 8.0.0 | libcurl 7.81.0 | aarch64-unknown-linux-gnu
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: 127.0.0.1
+  trace: Trying 127.0.0.1:18182...
+  progress
+  trace: Connected to (nil) (127.0.0.1) port 18182 (#0)
+== ::1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: ::1
+  trace: Trying ::1:18182...
+  progress
+  trace: connect to ::1 port 18182 failed: Connection refused
+  trace: Failed to connect to ::1 port 18182 after 0 ms: Connection refused
+  progress
+  trace: Closing connection 0
+
+== ssrfr-probe:ubuntu2404
+curl 8.0.0 | libcurl 8.5.0 | aarch64-unknown-linux-gnu
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: WARNING: failed to open cookie file ""
+  trace: Connecting to hostname: 127.0.0.1
+  progress
+  trace: Trying 127.0.0.1:18182...
+  progress
+  -- round 2
+  trace: Connected to 127.0.0.1 (127.0.0.1) port 18182
+== ::1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: WARNING: failed to open cookie file ""
+  trace: Connecting to hostname: ::1
+  progress
+  trace: Trying [::1]:18182...
+  progress
+  -- round 2
+  trace: connect to ::1 port 18182 from ::1 port 39752 failed: Connection refused
+  trace: Failed to connect to ::1 port 18182 after 1 ms: Couldn't connect to server
+  progress
+  trace: Closing connection
+
+== ssrfr-probe:rocky9
+curl 8.0.0 | libcurl 7.76.1 | aarch64-redhat-linux-gnu
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: 127.0.0.1
+  trace: Trying 127.0.0.1:18182...
+  progress
+  trace: Connected to 127.0.0.1 (127.0.0.1) port 18182 (#0)
+== ::1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: ::1
+  trace: Trying ::1:18182...
+  progress
+  trace: connect to ::1 port 18182 failed: Connection refused
+  trace: Failed to connect to ::1 port 18182: Connection refused
+  progress
+  trace: Closing connection 0
+
+# Reading: the order is the build's. On 8.14.1 the first progress call comes a libcurl round
+# before `Trying`, so ssrfr, which cancels a transfer after the round a callback failed in,
+# stops a progress callback that fails on its first call with no `Trying` traced: check
+# `absent`. On 8.5.0 the first progress call precedes `Trying` within one round, and on
+# 7.76.1 and 7.81.0 `Trying` is traced first; on all three that round traces `Trying` before
+# the transfer is cancelled, so the pin can match and the attempt ends `callback-error`.
+# The loopback listener takes IPv4 only; the ::1 dial is refused after `Trying`, which still
+# shows the order.

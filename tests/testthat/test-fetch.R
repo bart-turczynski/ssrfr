@@ -708,38 +708,150 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   expect_identical(hook$runs, 0L)
 })
 
-# §6.6: a pin-mismatch names only the callback that bears on the trace. A
-# trace naming another address, or one that cannot be read, is the pin's own
-# finding and names no callback. A failed trace callback leaves the evidence
-# unreliable and is named. A trace with no `Trying` line beside a failed
-# progress callback, the one callback that runs before libcurl dials, is the
-# one that failure cut short, and names progress even when the trace callback
-# failed after it; the write callback cannot run before the dial.
-test_that("a pin-mismatch names only the callback that bears on the trace", {
+# Whether libcurl traces `Trying` before the libcurl round of its first
+# progress call ends is the build's (design/evidence/
+# 2026-09-28-progress-trace-order.txt). A progress callback that fails on its
+# first call stops the transfer after that round, so the check the attempt
+# reports records the order: `absent` (pin-mismatch) when no `Trying` line
+# reached the trace, `callback-error` when one did and the pin matched.
+# Either way the failure names progress.
+test_that("a progress callback that fails on its first call is named", {
+  skip_if_not_installed("withr")
+  mock_answers("127.0.0.1")
+  hook <- new.env(parent = emptyenv())
+  hook$runs <- 0L
+  withr::local_options(error = function() hook$runs <- hook$runs + 1L)
+  listener <- local_listener()
+  transfer <- ssrfr:::dep_curl_transfer
+  seen <- new.env(parent = emptyenv())
+  seen$calls <- 0L
+  seen$trying <- FALSE
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
+      recording <- function(type, msg) {
+        # A `Trying` line as attempt_address() collects it for pin_check().
+        if (type == 0L) {
+          lines <- trimws(strsplit(rawToChar(msg), "\n", fixed = TRUE)[[1L]])
+          if (any(startsWith(lines, "Trying "))) {
+            seen$trying <- TRUE
+          }
+        }
+        debug(type, msg)
+      }
+      failing <- function(down, up, received) {
+        seen$calls <- seen$calls + 1L
+        stop("a defect")
+      }
+      transfer(opts, on_body, recording, failing)
+    }
+  )
+  r <- NULL
+  expect_no_error(
+    r <- guarded_get(pinned_url(listener$port), loopback_policy(listener$port))
+  )
+  expect_s3_class(r, "ssrfr_failure")
+  # The wrapper calls a failed progress callback no more.
+  expect_identical(seen$calls, 1L)
+  order <- if (seen$trying) "traced first" else "progress first"
+  want <- if (seen$trying) {
+    list(cause = "protocol-error", check = "callback-error")
+  } else {
+    list(cause = "pin-mismatch", check = "absent")
+  }
+  expect_identical(r$cause, want$cause, label = order)
+  expect_identical(r$detail$check, want$check, label = order)
+  expect_identical(r$detail$callback, "progress", label = order)
+  expect_null(attr(r, "binding")$state$status)
+  expect_identical(hook$runs, 0L)
+})
+
+# §6.6: a pin-mismatch names every callback that failed, in the order they
+# first failed, and none when none did; the check is the trace's own, or
+# `trace-error` when the trace matches but the trace callback failed. Which
+# callback cut the trace short is never inferred from the check.
+test_that("a pin-mismatch names every failed callback, in order", {
   mock_answers("127.0.0.1")
   cases <- list(
+    `other-address, none` = list(
+      trace = "Trying 10.0.0.7:80...\n",
+      failed = NULL,
+      check = "other-address",
+      callback = NULL
+    ),
+    `garbled, none` = list(
+      trace = "Trying ???\n",
+      failed = NULL,
+      check = "garbled",
+      callback = NULL
+    ),
+    # What the wrapper reports when progress fails on its first call before
+    # libcurl traces anything or connects.
+    `absent, nothing traced` = list(
+      trace = "",
+      failed = "progress",
+      check = "absent",
+      callback = "progress",
+      connect = 0
+    ),
     `other-address` = list(
       trace = "Trying 10.0.0.7:80...\n",
       failed = "data",
-      callback = NULL
+      check = "other-address",
+      callback = "data"
+    ),
+    `other-address, debug` = list(
+      trace = "Trying 10.0.0.7:80...\n",
+      failed = "debug",
+      check = "other-address",
+      callback = "debug"
     ),
     absent = list(
       trace = "Dialing\n",
       failed = "progress",
+      check = "absent",
       callback = "progress"
     ),
     `absent after data` = list(
       trace = "Dialing\n",
       failed = "data",
-      callback = NULL
+      check = "absent",
+      callback = "data"
     ),
+    # The wrapper records this: it stops calling progress once progress
+    # fails, but still calls the trace callback until the round ends, and
+    # libcurl can call progress in the round it then traces `Trying` in
+    # (design/evidence/2026-09-28-progress-trace-order.txt). A trace
+    # callback that fails on that line leaves no `Trying` traced.
     `absent, progress then debug` = list(
       trace = "Dialing\n",
       failed = c("progress", "debug"),
-      callback = "progress"
+      check = "absent",
+      callback = c("progress", "debug")
     ),
-    garbled = list(trace = "Trying ???\n", failed = "data", callback = NULL),
-    debug = list(trace = "Dialing\n", failed = "debug", callback = "debug")
+    garbled = list(
+      trace = "Trying ???\n",
+      failed = "data",
+      check = "garbled",
+      callback = "data"
+    ),
+    debug = list(
+      trace = "Dialing\n",
+      failed = "debug",
+      check = "absent",
+      callback = "debug"
+    ),
+    `trace-error` = list(
+      trace = "Trying 127.0.0.1:80...\n",
+      failed = "debug",
+      check = "trace-error",
+      callback = "debug"
+    ),
+    `trace-error after data` = list(
+      trace = "Trying 127.0.0.1:80...\n",
+      failed = c("data", "debug"),
+      check = "trace-error",
+      callback = c("data", "debug")
+    )
   )
   for (name in names(cases)) {
     case <- cases[[name]]
@@ -753,7 +865,7 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
             error = NULL,
             status = 0L,
             headers = raw(),
-            connect = 0.01
+            connect = if (is.null(case$connect)) 0.01 else case$connect
           )
         }
       )
@@ -764,28 +876,26 @@ test_that("a pin-mismatch names only the callback that bears on the trace", {
       )
       r <- ssrf_fetch(b)
       expect_identical(r$cause, "pin-mismatch", label = name)
+      expect_identical(r$detail$check, case$check, label = name)
       expect_identical(r$detail$callback, case$callback, label = name)
+      expect_null(b$state$status, label = name)
     })
   }
 })
 
-# §6.6: a progress callback that fails before libcurl traces `Trying` stops
-# the transfer with the trace empty. The pin is unconfirmed,
-# so the fetch is pin-mismatch, check absent, and the failure names the
-# callback that cut the evidence short.
-test_that("a callback that fails before the trace is named", {
+# A callback-error names every callback that failed, in order, not the first.
+test_that("a callback-error names every failed callback, in order", {
   mock_answers("127.0.0.1")
   local_mocked_bindings(
     dep_curl_transfer = function(opts, on_body, debug, progress) {
-      # What the wrapper reports when progress throws on its first call,
-      # before libcurl traces anything.
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
       list(
         aborted = TRUE,
-        failed = "progress",
+        failed = c("data", "progress"),
         error = NULL,
         status = 0L,
         headers = raw(),
-        connect = 0
+        connect = 0.01
       )
     }
   )
@@ -795,11 +905,9 @@ test_that("a callback that fails before the trace is named", {
     request = list()
   )
   r <- ssrf_fetch(b)
-  expect_s3_class(r, "ssrfr_failure")
-  expect_identical(r$cause, "pin-mismatch")
-  expect_identical(r$detail$check, "absent")
-  expect_identical(r$detail$callback, "progress")
-  expect_null(b$state$status)
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "callback-error")
+  expect_identical(r$detail$callback, c("data", "progress"))
 })
 
 # INV-11: a transfer the wrapper reports as stopped by a callback, with

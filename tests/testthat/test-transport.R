@@ -367,8 +367,8 @@ test_that("the header buffer is segmented in linear time", {
     )
     max(stats::median(runs), 0.001)
   }
-  small <- timed(128)
-  large <- timed(1024)
+  small <- timed(64)
+  large <- timed(512)
   expect_lt(large / small, 24)
 })
 

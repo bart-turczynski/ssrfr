@@ -137,24 +137,16 @@ stage_tests <- function(root) {
   ok
 }
 
-# The "HTML version of manual" lines that only say a tool the environment lacks
-# kept R from checking something; wording from tools:::.check_packages and
-# tools:::.find_tidy_cmd in R 4.4.3, 4.5.2 and 4.6.0. The command is
-# $R_TIDYCMD, default "tidy". Up to 4.4 the Tidy line ends without a period and
-# with no "Please obtain" paragraph, and its too-old wordings differ.
-tidy_skipped <- paste0(
-  "Skipping checking HTML validation: ",
-  "(no command '[^']*' found",
-  "|'[^']*' is too old: need version [0-9.]+, found [0-9.]+",
-  "|'[^']*' doesn't look like recent enough HTML Tidy",
-  "|'tidy' is Apple's too old build",
-  "|'tidy' is not HTML Tidy)\\.?",
-  "( Please obtain a recent version of HTML Tidy by downloading a binary ",
-  "release or compiling the source code from ",
-  "<https://www\\.html-tidy\\.org/>\\.)?"
-)
+# The one "HTML version of manual" line allowed: R skipped math rendering
+# because the V8 package is not installed, which is neither a DESCRIPTION
+# dependency nor dev tooling here. R prints it only once an Rd file has \eqn or
+# \deqn, which none has yet. Wording from tools:::.check_packages in
+# R 4.4.3, 4.5.2 and 4.6.0. The HTML Tidy skip ("Skipping checking HTML
+# validation: ...") is NOT allowed: the CI image installs tidy (Ubuntu noble,
+# 5.6.0), so a machine without HTML Tidy 5.0.0 or later fails the gate: CRAN
+# validates what the check would have skipped. macOS's /usr/bin/tidy is too old; install
+# Homebrew's `tidy-html5` ahead of it on PATH, or point $R_TIDYCMD at one.
 v8_skipped <- "Skipping checking math rendering: package 'V8' unavailable"
-html_skip_line <- paste0("(", tidy_skipped, "|", v8_skipped, ")")
 
 # The R CMD check NOTEs the check stage lets through; any other NOTE fails it.
 # `check` is the check's name as the NOTE's first line gives it, between
@@ -212,10 +204,10 @@ allowed_notes <- list(
   ),
   list(
     check = "HTML version of manual",
-    body = paste0("^", html_skip_line, "( ", html_skip_line, ")*$"),
+    body = paste0("^", v8_skipped, "$"),
     reason = paste(
-      "HTML Tidy (5.0.0 or later) or V8 is missing, as in the CI image, so R",
-      "skipped HTML validation or math rendering; no problem was reported."
+      "V8 is not installed, so R skipped math rendering; HTML validation ran",
+      "and no problem was reported."
     )
   ),
   list(

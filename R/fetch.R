@@ -583,14 +583,20 @@ header_limit <- function(seen, policy) {
 # before each: a block cut short is still a header block, and every line
 # after a complete final block is a trailer line, so a count taken while the
 # buffer arrives and one taken once it is whole agree. The buffer only
-# grows, so a buffer of the length last measured is not scanned again.
+# grows, so a buffer of the length last measured is not scanned again, and
+# one that extends the last is segmented on from where that reading
+# stopped, which keeps the scans of every growth together linear in the
+# buffer; any other buffer is segmented whole.
 # Returns, invisibly, whether it measured.
 measure_header <- function(seen, buffer) {
-  if (!is.raw(buffer) || identical(seen$measured, length(buffer))) {
+  # The bytes last measured, which seen$segments read.
+  last <- seen$segmented
+  if (!is.raw(buffer) || (is.raw(last) && length(buffer) == length(last))) {
     return(invisible(FALSE))
   }
-  seen$measured <- length(buffer)
-  segments <- header_segments(buffer)
+  extends <- length(buffer) > length(last) &&
+    identical(buffer[seq_along(last)], last)
+  segments <- header_segments(buffer, if (extends) seen$segments)
   size <- header_size(segments, length(segments$lines))
   seen$header_bytes <- size$header_bytes
   seen$header_fields <- size$header_fields

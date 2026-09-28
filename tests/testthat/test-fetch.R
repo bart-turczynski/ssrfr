@@ -357,9 +357,9 @@ test_that("a completed transfer's header is segmented once", {
   calls <- new.env(parent = emptyenv())
   calls$n <- 0L
   local_mocked_bindings(
-    header_segments = function(buffer) {
+    header_segments = function(buffer, from = NULL) {
       calls$n <- calls$n + 1L
-      segmenter(buffer)
+      segmenter(buffer, from)
     },
     dep_curl_transfer = function(opts, on_body, debug, progress) {
       debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))

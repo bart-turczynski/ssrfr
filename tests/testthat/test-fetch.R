@@ -857,6 +857,33 @@ test_that("a pin-mismatch names every failed callback, in order", {
   }
 })
 
+# A callback-error names every callback that failed, in order, not the first.
+test_that("a callback-error names every failed callback, in order", {
+  mock_answers("127.0.0.1")
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+      list(
+        aborted = TRUE,
+        failed = c("data", "progress"),
+        error = NULL,
+        status = 0L,
+        headers = raw(),
+        connect = 0.01
+      )
+    }
+  )
+  b <- ssrf_prepare_hop(
+    paste0("http://", pinned_host, "/"),
+    loopback_policy(),
+    request = list()
+  )
+  r <- ssrf_fetch(b)
+  expect_identical(r$cause, "protocol-error")
+  expect_identical(r$detail$check, "callback-error")
+  expect_identical(r$detail$callback, c("data", "progress"))
+})
+
 # INV-11: a transfer the wrapper reports as stopped by a callback, with
 # neither a limit record nor a callback failure to say why, fails closed. Its
 # header block is complete and its status agrees, yet it is never a response.

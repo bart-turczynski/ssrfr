@@ -159,16 +159,55 @@ html_skip_line <- paste0("(", tidy_skipped, "|", v8_skipped, ")")
 # The R CMD check NOTEs the check stage lets through; any other NOTE fails it.
 # `check` is the check's name as the NOTE's first line gives it, between
 # "checking " and " ...". `body` is a regex the rest of the NOTE must match,
-# whitespace collapsed to single spaces; NULL lets any text through. `reason`
-# is printed next to each NOTE it lets through.
+# whitespace collapsed to single spaces; NULL lets any text through. An entry
+# may give `paragraphs` instead: regexes, one of which each paragraph of the
+# NOTE (split at blank lines, line breaks kept, trailing spaces dropped) must
+# match whole; a paragraph none matches fails the stage and is printed on its
+# own. `reason` is printed next to each NOTE it lets through.
 allowed_notes <- list(
   list(
+    # Known paragraphs only; anything else R says here (a misspelling, a
+    # Title-case remark, an HTTP status for a URL) fails the gate. Wording
+    # from tools:::format.check_package_CRAN_incoming and
+    # tools:::format.check_url_db in R 4.6.0, and QC.R on R-4-5-branch and
+    # trunk. R 4.4 has no BugReports remark; up to 4.6 it suggests appending
+    # "/issues", trunk (future 4.7) suggests ".../-/issues". A URL paragraph
+    # passes only when every URL in it failed with Status "Error" and
+    # libcurl error 6 (could not resolve host) or 28 (timed out), in the
+    # serial check's "libcurl error code N:" form, with no other line in the
+    # paragraph. Status 0 fails: R prints it with no message, so a network
+    # blip and a broken server look the same. A dead domain also fails to
+    # resolve and would pass, as it does offline; read the NOTE before a
+    # submission.
     check = "CRAN incoming feasibility",
-    body = NULL,
+    paragraphs = c(
+      "Maintainer: .+",
+      "New submission",
+      "Version contains large components \\([0-9.]+\\.9[0-9]{3}\\)",
+      paste0(
+        "\\QThe BugReports field in DESCRIPTION has\n",
+        "  https://gitlab.com/bart-turczynski/ssrfr/-/work_items\n",
+        "which should likely be\n  https://gitlab.com/bart-turczynski/ssrfr/",
+        "\\E(?:-/work_items/issues|-/issues)\\Q\ninstead.\\E"
+      ),
+      paste0(
+        "Found the following \\(possibly\\) invalid URLs?:",
+        "(?:\n  URL: \\S+(?: \\(moved to \\S+\\))?",
+        "\n    From: \\S+(?:\n {10}\\S+)*",
+        "\n    Status: Error",
+        "\n    Message: libcurl error code (?:6|28):",
+        "\n {6}\t?\\S.*)+"
+      )
+    ),
     reason = paste(
-      "Maintainer, New submission and the .9000 version appear until a CRAN",
-      "release, and URL checks vary with the network, so it is allowed whole:",
-      "a flaky gate costs more than it saves. Read it before submitting."
+      "Only R's pre-first-release lines (Maintainer, New submission, a .9xxx",
+      "version), its BugReports remark on the /-/work_items URL and URLs that",
+      "timed out or did not resolve are allowed. R's BugReports heuristic",
+      "predates GitLab work items: it wants a path ending in /issues, but",
+      "/-/issues is 404 to anonymous clients as of 2026-09-29 and",
+      "/-/work_items/issues redirects to sign-in, so taking R's suggestion",
+      "would trade this remark for a real invalid-URL line. Any HTTP status,",
+      "status 0 or other libcurl error on a URL fails the gate."
     )
   ),
   list(
@@ -190,29 +229,60 @@ allowed_notes <- list(
   )
 )
 
-# The `allowed_notes` entry that covers `note`, one element of rcmdcheck's
-# `notes` (the "checking <name> ... NOTE" line, then the NOTE's text), or NULL.
-# A NOTE the regexes cannot read, such as one with invalid UTF-8, is not
-# covered.
+# Splits `note`, one element of rcmdcheck's `notes` (the "checking <name> ...
+# NOTE" line, then the NOTE's text), into its check name and its text lines.
+note_parts <- function(note) {
+  lines <- strsplit(note, "\n", fixed = TRUE)[[1L]]
+  list(
+    check = sub("^checking (.*?) \\.\\.\\..*$", "\\1", lines[1L], perl = TRUE),
+    text = lines[-1L]
+  )
+}
+
+# The paragraphs of `text` that no regex in `patterns` matches whole. A
+# paragraph is a run of non-blank lines, rejoined with "\n", each line's
+# trailing whitespace dropped; `.` in a pattern does not cross a line break.
+unmatched_paragraphs <- function(text, patterns) {
+  text <- sub("[[:space:]]+$", "", text)
+  keep <- nzchar(text)
+  paras <- unname(vapply(
+    split(text[keep], cumsum(!keep)[keep]),
+    paste,
+    "",
+    collapse = "\n"
+  ))
+  matched <- vapply(
+    paras,
+    function(para) {
+      any(vapply(
+        patterns,
+        function(re) grepl(paste0("\\A(?:", re, ")\\z"), para, perl = TRUE),
+        logical(1L)
+      ))
+    },
+    logical(1L)
+  )
+  paras[!matched]
+}
+
+# The `allowed_notes` entry that covers `note`, or NULL. A NOTE the regexes
+# cannot read, such as one with invalid UTF-8, is not covered.
 note_entry <- function(note) {
   tryCatch(
     {
-      lines <- strsplit(note, "\n", fixed = TRUE)[[1L]]
-      check <- sub(
-        "^checking (.*?) \\.\\.\\..*$",
-        "\\1",
-        lines[1L],
-        perl = TRUE
-      )
+      parts <- note_parts(note)
       body <- trimws(gsub(
         "[[:space:]]+",
         " ",
-        paste(lines[-1L], collapse = " ")
+        paste(parts$text, collapse = " ")
       ))
       for (entry in allowed_notes) {
-        body_ok <- is.null(entry$body) ||
-          isTRUE(grepl(entry$body, body, perl = TRUE))
-        if (identical(check, entry$check) && body_ok) {
+        body_ok <- if (is.null(entry$paragraphs)) {
+          is.null(entry$body) || isTRUE(grepl(entry$body, body, perl = TRUE))
+        } else {
+          !length(unmatched_paragraphs(parts$text, entry$paragraphs))
+        }
+        if (identical(parts$check, entry$check) && body_ok) {
           return(entry)
         }
       }
@@ -224,6 +294,32 @@ note_entry <- function(note) {
 }
 
 note_allowed <- function(note) !is.null(note_entry(note))
+
+# What to print for a NOTE `allowed_notes` does not cover: when an entry for
+# its check lists `paragraphs`, the "checking" line and only the paragraphs
+# none of them matches; otherwise, or when that fails, the whole NOTE.
+note_unexplained <- function(note) {
+  tryCatch(
+    {
+      parts <- note_parts(note)
+      for (entry in allowed_notes) {
+        if (identical(parts$check, entry$check) && length(entry$paragraphs)) {
+          return(paste(
+            c(
+              strsplit(note, "\n", fixed = TRUE)[[1L]][1L],
+              "(only the paragraphs no allowed_notes entry allows)",
+              unmatched_paragraphs(parts$text, entry$paragraphs)
+            ),
+            collapse = "\n"
+          ))
+        }
+      }
+      note
+    },
+    error = function(e) note,
+    warning = function(w) note
+  )
+}
 
 stage_check <- function(root) {
   cat("R CMD check --as-cran, incoming=on\n")
@@ -256,7 +352,10 @@ stage_check <- function(root) {
   }
   if (!all(allowed)) {
     cat("NOTEs not in allowed_notes (scripts/verify.R):\n\n")
-    cat(res$notes[!allowed], sep = "\n\n")
+    cat(
+      vapply(res$notes[!allowed], note_unexplained, "", USE.NAMES = FALSE),
+      sep = "\n\n"
+    )
     cat("\n")
   }
   !length(res$errors) && !length(res$warnings) && all(allowed)

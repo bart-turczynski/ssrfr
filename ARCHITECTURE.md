@@ -69,6 +69,7 @@ tried and reverted (`19f08fb`).
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.
 - `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/`.
+- `inst/WORDLIST` — the genuine terms the spelling check accepts.
 - `design/` — specs, ADRs, evidence (above). Not built into the package.
 - `scripts/check-design.py` — design-doc hygiene: frontmatter, frozen ADRs, this
   file naming every source directory.
@@ -77,6 +78,8 @@ tried and reverted (`19f08fb`).
 - `scripts/verify.R` — the verify gate, run by the pre-push hook and by CI.
 - `scripts/check-toolchain.R` — pre-push check that names machine drift
   (roxygen2 skew, packages built under a newer R) before the gate runs.
+- `scripts/check-spelling.R` — pre-push spelling check (`spelling`, en-US,
+  `inst/WORDLIST`), since R CMD check skips it without an English dictionary.
 - `site/` — pkgdown output (`_pkgdown.yml`), git-ignored; the CI `pages` job
   publishes it. Neither it nor `docs/` holds design documents.
 - `.gitlab-ci.yml` — CI, on `main` only; see

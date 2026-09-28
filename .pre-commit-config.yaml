@@ -43,6 +43,16 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      # R CMD check skips DESCRIPTION spelling on a machine with no English
+      # dictionary; `spelling` bundles its own (SEOR-mtbzfroz). Genuine terms
+      # go in inst/WORDLIST. Seconds, so it runs ahead of `verify`.
+      - id: spelling
+        name: spelling (en-US, inst/WORDLIST)
+        entry: Rscript scripts/check-spelling.R
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       # The same file the CI `verify` job runs. Its stages, including the
       # NOT_CRAN=true test run that fails on skipped or expectation-free tests
       # (ssrfr-v1.md §7.2), are listed in its header.

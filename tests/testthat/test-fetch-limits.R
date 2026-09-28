@@ -812,3 +812,75 @@ test_that("an empty line after the final block is no field", {
   expect_identical(seen$header_bytes, length(buffer))
   expect_identical(seen$header_fields, 2L + 1L)
 })
+
+# §14: the header measure reads libcurl's header buffer each time it grows.
+# However the bytes arrive, a line or a byte at a time, cut mid-line or
+# mid-block, each growth measures, segments and parses as one reading of the
+# same bytes; and so does a buffer that does not extend the one before.
+test_that("a header measured as it grows reads as the whole measured once", {
+  once <- function(buffer) {
+    seen <- new.env(parent = emptyenv())
+    ssrfr:::measure_header(seen, buffer)
+    seen
+  }
+  reading <- function(seen, buffer) {
+    list(
+      bytes = seen$header_bytes,
+      fields = seen$header_fields,
+      segments = seen$segments[c("lines", "ends", "blocks", "trailers")],
+      parsed = ssrfr:::parse_response_headers(buffer, seen$segments)
+    )
+  }
+  buffers <- list(
+    interim = wire(
+      strrep("HTTP/1.1 100 X\r\n\r\n", 3),
+      "HTTP/1.1 200 OK\r\nA: 1\r\n\r\n"
+    ),
+    trailers = wire(
+      "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+      "HTTP/1.1 302 Found\r\nLocation: /t\r\n\r\n",
+      "X: 1\r\n"
+    ),
+    strays = wire(
+      "X: 1\r\nY: 2\r\n\r\n\r\n\r\nHTTP/1.1 101 S\r\n\r\n",
+      "Z\r\n\r\nHTTP/1.1 200\tOK\r\n\r\nHTTP/1.1 200 OK\r\n\r\n"
+    ),
+    cut = wire(
+      "HTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n",
+      "HTTP/1.1 200 OK\r\nX: 1\r"
+    ),
+    bare = wire("HTTP/1.1 100 X\n\nHTTP/1.1 204 N\n\n\r\nT: 1\n"),
+    bytes = c(
+      wire("HTTP/1.1 100 X\r\n\rY: 1\r\n\r\nHTTP/1.1 200 OK\r\nX: a"),
+      as.raw(c(0L, 0xffL)),
+      wire("b\r\n\r\n\r")
+    )
+  )
+  for (name in names(buffers)) {
+    buffer <- buffers[[name]]
+    for (step in c(1L, 2L, 3L, 7L, 19L)) {
+      seen <- new.env(parent = emptyenv())
+      got <- list()
+      want <- list()
+      for (n in unique(c(seq(0L, length(buffer), by = step), length(buffer)))) {
+        prefix <- buffer[seq_len(n)]
+        ssrfr:::measure_header(seen, prefix)
+        got[[length(got) + 1L]] <- reading(seen, prefix)
+        want[[length(want) + 1L]] <- reading(once(prefix), prefix)
+      }
+      expect_identical(got, want, label = paste(name, step))
+    }
+  }
+  # A buffer that does not extend the one measured before it, longer or
+  # shorter, is measured as a whole.
+  seen <- new.env(parent = emptyenv())
+  for (buffer in list(
+    buffers$interim[1:40],
+    buffers$trailers,
+    buffers$trailers[1:30],
+    buffers$strays
+  )) {
+    ssrfr:::measure_header(seen, buffer)
+    expect_identical(reading(seen, buffer), reading(once(buffer), buffer))
+  }
+})

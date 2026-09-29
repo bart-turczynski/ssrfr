@@ -1,0 +1,549 @@
+# Output of the transport probes on Windows, run through R-hub (fp SSRF-fjgfnaaq).
+# Generated 2026-09-29T13:01Z inside R CMD check --as-cran of a scratch copy of ssrfr whose
+# tests/testthat/ held copies of 2026-09-25-platform-transport-probes.R,
+# 2026-09-28-progress-trace-order.R, 2026-09-26-post-stop-reads.R and
+# 2026-09-29-revocation-probe.R, run one Rscript subprocess each by
+# 2026-09-29-windows-transport-wrapper.R (callr::rscript(), output printed between
+# BEGIN/END markers into testthat.Rout; a DIFFERS row never fails the check).
+# Ports, connection numbers and pointers vary between runs; everything else is the
+# observed behaviour. The ::1 progress/trace block is shortened where marked.
+#
+# R-hub run:  https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36570519825
+#             (platform "windows", job "windows (R-devel)", build polkadotted-urutu)
+# OS image:   GitHub-hosted windows-latest, ImageOS win25-vs2026, ImageVersion 20260922.246.2;
+#             Sys.info(): Windows Server x64 build 26100, x86-64 (utils::osVersion prints
+#             "Windows Server 2022 x64 (build 26100)"; build 26100 is Windows Server 2025)
+# R:          R Under development (unstable) (2026-09-28 r90591 ucrt), 4.7.0,
+#             x86_64-w64-mingw32, LC_CTYPE English_United States.utf8
+# curl:       curl 8.0.0 (CRAN Windows binary), libcurl 8.14.1, libssh2 1.11.0, zlib 1.3,
+#             idn TRUE with libidn_version NA (WinIDN), ipv6 TRUE, http2 TRUE, ares FALSE,
+#             26 protocols; webfakes 1.5.0, httpuv 1.6.17
+# TLS:        run 1, CURL_SSL_BACKEND unset: ssl_version "(OpenSSL/3.5.0) Schannel",
+#             the active backend is Schannel (the parenthesised one is available, not active)
+#             run 2, CURL_SSL_BACKEND=openssl set in the subprocess environment before curl
+#             loads: ssl_version "OpenSSL/3.5.0 (Schannel)", the active backend is OpenSSL
+#             (curl prints "Initiating curl with CURL_SSL_BACKEND: openssl" on stderr)
+#             CURL_CA_BUNDLE was set in the check environment, to C:/R/etc/curl-ca-bundle.crt
+#             (revocation block), so curl's NATIVE_CA branch (OpenSSL with CURL_CA_BUNDLE
+#             unset) was not exercised.
+# Not run:    2026-09-24-tls-pin-probes.R (its block 3 needs example.com);
+#             2026-09-25-search-domain-probe.R (Docker --dns-search specific).
+#
+# Reading, against the macOS reference (libcurl 8.14.1, IDN off) and the Linux matrix:
+# - Both backends print the same rows. Every row is "ok" except 3c-3e and 4c.
+# - 3c-3e DIFFERS as on the Linux IDN builds (Ubuntu 22.04 and 24.04): with IDN on (WinIDN)
+#   and a UTF-8 locale, libcurl matches connect_to against the A-label while
+#   curl_parse_url() returns the U-label, so the key taken from curl_parse_url() fails
+#   open. An A-label request host engages (3a, 3e2).
+# - 4c DIFFERS because a connect to a closed loopback port is not refused within the
+#   2 s connect timeout on Windows: 1a and 4a-4b trace "Connection timed out after ~2000
+#   milliseconds" where macOS and Linux trace "Connection refused". The pin itself is
+#   honoured (4a, 4b dial [::1]:1) and 4e reaches the httpuv server on ::1 with Host kept.
+#   [assumption] Windows TCP retries a SYN answered by RST before it reports refusal.
+# - Trace text: the Trying, Connecting, Connected, Re-using and closing lines match macOS
+#   8.14.1 word for word; the connect-failure line differs ("Connection timed out after
+#   N milliseconds").
+# - Protocols: 26 compiled in (macOS's 24 plus scp and sftp), every one attempted on an
+#   unrestricted first hop; protocols_str and the protocols bitmask both refuse all but
+#   http and https; redirect hops as on macOS (6c, 6d).
+# - maxfilesize aborts the chunked body (8b), as on 8.5.0 and macOS 8.14.1.
+# - Progress/trace order: on this 8.14.1 the first progress call and the first `Trying`
+#   come in the same libcurl round (as on 8.5.0), not a round apart as on macOS 8.14.1.
+# - Post-stop reads: identical to macOS 8.14.1, byte for byte.
+# - Revocation: under Schannel the package default accepts the revoked host, like
+#   ssl_options = 2 (CURLSSLOPT_NO_REVOKE); ssl_options = 0 or 16 refuses it with
+#   CRYPT_E_REVOKED. Under OpenSSL no ssl_options value checks revocation.
+
+################################################################
+## windows (R-devel), R-hub, runner environment
+################################################################
+######## RUNNER ########
+ImageOS: win25-vs2026 | ImageVersion: 20260922.246.2 | RUNNER_OS: Windows | NOT_CRAN: ""
+Sys.info(): Windows | Server x64 | build 26100 | x86-64
+######## END RUNNER ########
+
+################################################################
+## windows (R-devel), R-hub: platform-transport, default backend
+################################################################
+######## BEGIN PROBE: platform-transport, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+os: Windows Server x64 x86-64 | R 4.7.0 | LC_CTYPE English_United States.utf8
+curl 8.0.0 | libcurl 8.14.1 | (OpenSSL/3.5.0) Schannel | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | Connection timed out after 2002 milliseconds
+        | closing connection #0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2003 milliseconds
+        | closing connection #36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2000 milliseconds
+        | closing connection #37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+DIFFERS 4c ... refused by ::1, not unreachable                     FALSE   [ref: TRUE]
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 26 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing http: connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing http: connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | using HTTP/1.x
+        | Request completely sent off
+        | shutting down connection #89
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+######## STDERR: platform-transport, default backend ########
+
+######## END PROBE: platform-transport, default backend (exit status 0, 123 s) ########
+
+################################################################
+## windows (R-devel), R-hub: platform-transport, CURL_SSL_BACKEND=openssl
+################################################################
+######## BEGIN PROBE: platform-transport, CURL_SSL_BACKEND=openssl ########
+CURL_SSL_BACKEND = "openssl"
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "OpenSSL/3.5.0 (Schannel)"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+os: Windows Server x64 x86-64 | R 4.7.0 | LC_CTYPE English_United States.utf8
+curl 8.0.0 | libcurl 8.14.1 | OpenSSL/3.5.0 (Schannel) | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | Connection timed out after 2013 milliseconds
+        | closing connection #0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2006 milliseconds
+        | closing connection #36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2008 milliseconds
+        | closing connection #37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+DIFFERS 4c ... refused by ::1, not unreachable                     FALSE   [ref: TRUE]
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 26 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing http: connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing http: connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | using HTTP/1.x
+        | Request completely sent off
+        | shutting down connection #89
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+######## STDERR: platform-transport, CURL_SSL_BACKEND=openssl ########
+Initiating curl with CURL_SSL_BACKEND: openssl
+
+######## END PROBE: platform-transport, CURL_SSL_BACKEND=openssl (exit status 0, 126 s) ########
+
+################################################################
+## windows (R-devel), R-hub: progress-trace-order, default backend
+################################################################
+######## BEGIN PROBE: progress-trace-order, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+curl 8.0.0 | libcurl 8.14.1 | x86_64-w64-mingw32
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: 127.0.0.1
+  progress
+  trace: Trying 127.0.0.1:18182...
+  progress
+  -- round 2
+  trace: Connected to 127.0.0.1 (127.0.0.1) port 18182
+== ::1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: ::1
+  progress
+  trace: Trying [::1]:18182...
+  progress
+  -- rounds 2 to 166: one progress call each, nothing traced (shortened here)
+  -- round 167
+  trace: Connection timed out after 2008 milliseconds
+  progress
+  trace: closing connection #0
+
+######## STDERR: progress-trace-order, default backend ########
+
+######## END PROBE: progress-trace-order, default backend (exit status 0, 2 s) ########
+
+################################################################
+## windows (R-devel), R-hub: post-stop-reads, default backend
+################################################################
+######## BEGIN PROBE: post-stop-reads, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+curl 8.0.0 | libcurl 8.14.1 | x86_64-w64-mingw32
+buffersize default wire bytes after the stop   163840 | decoded bytes after the stop   178080753
+buffersize 4096    wire bytes after the stop    40960 | decoded bytes after the stop    44327877
+buffersize 1024    wire bytes after the stop    10240 | decoded bytes after the stop    10899333
+
+######## STDERR: post-stop-reads, default backend ########
+
+######## END PROBE: post-stop-reads, default backend (exit status 0, 187 s) ########
+
+################################################################
+## windows (R-devel), R-hub: revocation, default backend
+################################################################
+######## BEGIN PROBE: revocation, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+CURL_SSL_BACKEND: "" | CURL_CA_BUNDLE: "C:/R/etc/curl-ca-bundle.crt" | ssl_version: (OpenSSL/3.5.0) Schannel
+valid    default (new_handle)             status 200
+valid    ssl_options = 0                   status 200
+valid    ssl_options = 2                   status 200
+valid    ssl_options = 16                  status 200
+valid    ssl_options = 18                  status 200
+revoked  default (new_handle)             status 200
+revoked  ssl_options = 0                   error: SSL connect error [revoked-isrgrootx1.letsencrypt.org]: schannel: next InitializeSecurityContext failed: CRYPT_E_REVOKED (0x80092010) - The certificate is revoked.
+revoked  ssl_options = 2                   status 200
+revoked  ssl_options = 16                  error: SSL connect error [revoked-isrgrootx1.letsencrypt.org]: schannel: next InitializeSecurityContext failed: CRYPT_E_REVOKED (0x80092010) - The certificate is revoked.
+revoked  ssl_options = 18                  status 200
+done
+
+######## STDERR: revocation, default backend ########
+
+######## END PROBE: revocation, default backend (exit status 0, 1 s) ########
+
+################################################################
+## windows (R-devel), R-hub: revocation, CURL_SSL_BACKEND=openssl
+################################################################
+######## BEGIN PROBE: revocation, CURL_SSL_BACKEND=openssl ########
+CURL_SSL_BACKEND = "openssl"
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "OpenSSL/3.5.0 (Schannel)"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+CURL_SSL_BACKEND: "openssl" | CURL_CA_BUNDLE: "C:/R/etc/curl-ca-bundle.crt" | ssl_version: OpenSSL/3.5.0 (Schannel)
+valid    default (new_handle)             status 200
+valid    ssl_options = 0                   status 200
+valid    ssl_options = 2                   status 200
+valid    ssl_options = 16                  status 200
+valid    ssl_options = 18                  status 200
+revoked  default (new_handle)             status 200
+revoked  ssl_options = 0                   status 200
+revoked  ssl_options = 2                   status 200
+revoked  ssl_options = 16                  status 200
+revoked  ssl_options = 18                  status 200
+done
+
+######## STDERR: revocation, CURL_SSL_BACKEND=openssl ########
+Initiating curl with CURL_SSL_BACKEND: openssl
+
+######## END PROBE: revocation, CURL_SSL_BACKEND=openssl (exit status 0, 1 s) ########

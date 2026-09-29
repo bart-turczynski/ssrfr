@@ -1,0 +1,1109 @@
+
+R Under development (unstable) (2026-09-28 r90591 ucrt) -- "Unsuffered Consequences"
+Copyright (C) 2026 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(testthat)
+> library(ssrfr)
+>
+> test_check("ssrfr")
+Saving _problems/test-chain-393.R
+Saving _problems/test-chain-394.R
+Saving _problems/test-chain-395.R
+Saving _problems/test-chain-396.R
+Saving _problems/test-corpus-40.R
+Saving _problems/test-corpus-40.R
+Saving _problems/test-corpus-40.R
+Saving _problems/test-corpus-194.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-535.R
+Saving _problems/test-fetch-limits-567.R
+Saving _problems/test-fetch-tls-20.R
+Saving _problems/test-fetch-tls-21.R
+Saving _problems/test-fetch-tls-211.R
+Saving _problems/test-fetch-138.R
+Saving _problems/test-inspect-364.R
+Saving _problems/test-redirect-1167.R
+Saving _problems/test-redirect-1168.R
+
+
+######## RUNNER ########
+ImageOS: win25-vs2026 | ImageVersion: 20260922.246.2 | RUNNER_OS: Windows | NOT_CRAN: ""
+Sys.info(): Windows | Server x64 | build 26100 | x86-64
+######## END RUNNER ########
+
+
+######## BEGIN PROBE: platform-transport, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+os: Windows Server x64 x86-64 | R 4.7.0 | LC_CTYPE English_United States.utf8
+curl 8.0.0 | libcurl 8.14.1 | (OpenSSL/3.5.0) Schannel | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | Connection timed out after 2002 milliseconds
+        | closing connection #0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2003 milliseconds
+        | closing connection #36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2000 milliseconds
+        | closing connection #37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+DIFFERS 4c ... refused by ::1, not unreachable                     FALSE   [ref: TRUE]
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 26 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing http: connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing http: connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | using HTTP/1.x
+        | Request completely sent off
+        | shutting down connection #89
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+######## STDERR: platform-transport, default backend ########
+
+######## END PROBE: platform-transport, default backend (exit status 0, 123 s) ########
+
+
+
+######## BEGIN PROBE: platform-transport, CURL_SSL_BACKEND=openssl ########
+CURL_SSL_BACKEND = "openssl"
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "OpenSSL/3.5.0 (Schannel)"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+os: Windows Server x64 x86-64 | R 4.7.0 | LC_CTYPE English_United States.utf8
+curl 8.0.0 | libcurl 8.14.1 | OpenSSL/3.5.0 (Schannel) | ipv6 TRUE | idn TRUE | http2 TRUE | ares FALSE
+webfakes 1.5.0 | httpuv 1.6.17
+
+## 1. debugfunction audit seam
+        | Trying 127.0.0.1:1...
+        | Connection timed out after 2013 milliseconds
+        | closing connection #0
+ok      1a debugfunction fires with an R closure                   TRUE
+ok      1b trace names the dialed address 127.0.0.1:1              honoured
+ok      1c handle_data() has a peer-IP field                       FALSE
+
+## 2. pin key forms; a port-key mismatch fails open
+ok      2a resolve  key :1   request :1 (control)                  honoured
+ok      2b resolve  key :443 request :1                            IGNORED (resolved the name: failed)
+ok      2c connect_to key :1   request :1 (control)                honoured
+ok      2d connect_to key :443 request :1                          IGNORED (resolved the name: failed)
+ok      2e connect_to HOST::IP: request :1                         honoured
+ok      2f connect_to HOST::IP:1 request :8080 (port rewritten)    honoured
+ok      2g connect_to ::IP: (empty HOST) matches any host          honoured
+ok      2h HOST::IP: http default port                             honoured
+ok      2i HOST::IP: https default port                            honoured
+ok      2j key :80 on an http URL with no port                     honoured
+ok      2k key :443 on an http URL with no port                    IGNORED (resolved the name: failed)
+ok      2l HOST::IP: reaches the app, Host kept                    host: pinned.example.invalid:<port>
+
+## 3. host-key mismatch
+        curl_parse_url host of the U-label URL: bücher.invalid
+ok      3a request A-label, key A-label (control)                  honoured
+ok      3b request A-label, key U-label                            IGNORED (resolved the name: failed)
+DIFFERS 3c request U-label, key U-label                            IGNORED (resolved the name: failed)   [ref: honoured]
+DIFFERS 3d request U-label, key A-label                            honoured   [ref: IGNORED (resolved the name: failed)]
+DIFFERS 3e request U-label, key = curl_parse_url() host            IGNORED (resolved the name: failed)   [ref: honoured]
+ok      3e2 request A-label, key = curl_parse_url() host           honoured
+ok      3f request lower case, key upper case                      honoured
+        curl_parse_url host of http://dot.invalid.:1/: dot.invalid.
+ok      3g request dot1.invalid., key dot1.invalid.                honoured
+ok      3h request dot2.invalid., key dot2.invalid                 IGNORED (resolved the name: failed)
+ok      3i request dot3.invalid, key dot3.invalid.                 IGNORED (resolved the name: failed)
+        curl_parse_url host of http://[0:0:0:0:0:0:0:1]:1/ : [::1]
+ok      3j request [::1], key [::1] (control)                      honoured
+ok      3k request [::1], key [0:0:0:0:0:0:0:1]                    IGNORED (dialed ::1:1)
+ok      3l request [0:..:1], key [::1]                             honoured
+ok      3m request [0:..:1], key [0:0:0:0:0:0:0:1]                 IGNORED (dialed ::1:1)
+ok      3n request [0:..:1], key = curl_parse_url() host           honoured
+        curl_parse_url host of http://[::ffff:127.0.0.1]:1/ : [::ffff:127.0.0.1]
+ok      3o request [::ffff:127.0.0.1], key [::ffff:7f00:1] (rurl)  IGNORED (dialed ::ffff:127.0.0.1:1)
+ok      3p request [::ffff:127.0.0.1], key = curl_parse_url() host honoured
+        curl_parse_url host of http://0177.0.0.1:1/ : 127.0.0.1
+ok      3q request 0177.0.0.1, key 127.0.0.1                       honoured
+ok      3r request 0177.0.0.1, key 0177.0.0.1                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 0177.0.0.1, key = curl_parse_url() host         honoured
+        curl_parse_url host of http://2130706433:1/ : 127.0.0.1
+ok      3q request 2130706433, key 127.0.0.1                       honoured
+ok      3r request 2130706433, key 2130706433                      IGNORED (dialed 127.0.0.1:1)
+ok      3s request 2130706433, key = curl_parse_url() host         honoured
+
+## 4. IPv6 bracketed-literal pin
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2006 milliseconds
+        | closing connection #36
+ok      4a direct http://[::1]:1/ dials ::1                        honoured
+        | Connecting to hostname: ::1
+        | Hostname ::1 was found in DNS cache
+        | Trying [::1]:1...
+        | Connection timed out after 2008 milliseconds
+        | closing connection #37
+ok      4b connect_to v6.invalid::[::1]: (control)                 honoured
+DIFFERS 4c ... refused by ::1, not unreachable                     FALSE   [ref: TRUE]
+ok      4d connect_to v6b.invalid:443:[::1]: request :1            IGNORED (resolved the name: failed)
+ok      4e httpuv on ::1, pinned fetch, Host kept                  host=v6pin.invalid:<port>
+
+## 5. failover
+ok      5a resolve with two addresses tries both, in order         127.0.0.1:1 -> 127.0.0.2:1
+ok      5b connect_to with two entries: first match only           127.0.0.1:1
+
+## 6. protocol exposure
+        compiled in ( 26 ): dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss
+        protocols_str        listed TRUE  settable
+        redir_protocols_str  listed TRUE  settable
+        protocols            listed TRUE  settable
+        redir_protocols      listed TRUE  settable
+        6a unrestricted first hop: dict ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [ATTEMPTED (dialed)]; file [ATTEMPTED (fetched)]
+ok      6a unrestricted: file:// is read                           ATTEMPTED (fetched)
+        6b protocols_str: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols_str: every other scheme refused               TRUE
+ok      6b protocols_str: http and https attempted                 TRUE
+        6b protocols: http https [ATTEMPTED (dialed)]; dict file ftp ftps gopher gophers imap imaps ldap ldaps mqtt pop3 pop3s rtsp scp sftp smb smbs smtp smtps telnet tftp ws wss [refused]
+ok      6b protocols: every other scheme refused                   TRUE
+ok      6b protocols: http and https attempted                     TRUE
+ok      6c redirect to file - libcurl default                      refused
+ok      6c redirect to gopher - libcurl default                    refused
+ok      6c redirect to dict - libcurl default                      refused
+ok      6c redirect to ftp - libcurl default                       ATTEMPTED (dialed)
+ok      6c redirect to http - libcurl default                      ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols_str                  refused
+ok      6d redirect to gopher - redir_protocols_str                refused
+ok      6d redirect to dict - redir_protocols_str                  refused
+ok      6d redirect to ftp - redir_protocols_str                   refused
+ok      6d redirect to http - redir_protocols_str                  ATTEMPTED (dialed)
+ok      6d redirect to file - redir_protocols                      refused
+ok      6d redirect to gopher - redir_protocols                    refused
+ok      6d redirect to dict - redir_protocols                      refused
+ok      6d redirect to ftp - redir_protocols                       refused
+ok      6d redirect to http - redir_protocols                      ATTEMPTED (dialed)
+
+## 7. connection reuse and the DNS cache
+        | Re-using existing http: connection with host <host>
+ok      7a resolve,    same handle                                 first 200 | REUSED -> 200
+        | Re-using existing http: connection with host <host>
+ok      7b resolve,    fresh handle                                first 200 | REUSED -> 200
+ok      7c resolve,    same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7d connect_to, same handle                                 first 200 | new connection to 192.0.2.1
+ok      7e connect_to, fresh handle                                first 200 | new connection to 192.0.2.1
+ok      7f connect_to, same handle, forbid_reuse                   first 200 | new connection to 192.0.2.1
+ok      7g resolve on A answers B's lookup                         A 200, B 200
+ok      7h connect_to on A does not                                A 200, B error
+
+## 8. maxfilesize
+ok      8a Content-Length 200000, maxfilesize 1000                 aborted
+ok      8b chunked 250000, maxfilesize 1000                        aborted
+
+## 9. trace of a successful pinned fetch
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:<port>...
+        | Connected to 127.0.0.1 (127.0.0.1) port <port>
+        | using HTTP/1.x
+        | Request completely sent off
+        | shutting down connection #89
+ok      9a first Trying line names the pin                         honoured
+
+done
+
+######## STDERR: platform-transport, CURL_SSL_BACKEND=openssl ########
+Initiating curl with CURL_SSL_BACKEND: openssl
+
+######## END PROBE: platform-transport, CURL_SSL_BACKEND=openssl (exit status 0, 126 s) ########
+
+
+
+######## BEGIN PROBE: progress-trace-order, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+curl 8.0.0 | libcurl 8.14.1 | x86_64-w64-mingw32
+== 127.0.0.1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: 127.0.0.1
+  progress
+  trace: Trying 127.0.0.1:18182...
+  progress
+  -- round 2
+  trace: Connected to 127.0.0.1 (127.0.0.1) port 18182
+== ::1: first progress call in round 1, first `Trying` in round 1: a stop at the first progress call leaves `Trying` traced
+  -- round 1
+  trace: Connecting to hostname: ::1
+  progress
+  trace: Trying [::1]:18182...
+  progress
+  -- round 2
+  progress
+  -- round 3
+  progress
+  -- round 4
+  progress
+  -- round 5
+  progress
+  -- round 6
+  progress
+  -- round 7
+  progress
+  -- round 8
+  progress
+  -- round 9
+  progress
+  -- round 10
+  progress
+  -- round 11
+  progress
+  -- round 12
+  progress
+  -- round 13
+  progress
+  -- round 14
+  progress
+  -- round 15
+  progress
+  -- round 16
+  progress
+  -- round 17
+  progress
+  -- round 18
+  progress
+  -- round 19
+  progress
+  -- round 20
+  progress
+  -- round 21
+  progress
+  -- round 22
+  progress
+  -- round 23
+  progress
+  -- round 24
+  progress
+  -- round 25
+  progress
+  -- round 26
+  progress
+  -- round 27
+  progress
+  -- round 28
+  progress
+  -- round 29
+  progress
+  -- round 30
+  progress
+  -- round 31
+  progress
+  -- round 32
+  progress
+  -- round 33
+  progress
+  -- round 34
+  progress
+  -- round 35
+  progress
+  -- round 36
+  progress
+  -- round 37
+  progress
+  -- round 38
+  progress
+  -- round 39
+  progress
+  -- round 40
+  progress
+  -- round 41
+  progress
+  -- round 42
+  progress
+  -- round 43
+  progress
+  -- round 44
+  progress
+  -- round 45
+  progress
+  -- round 46
+  progress
+  -- round 47
+  progress
+  -- round 48
+  progress
+  -- round 49
+  progress
+  -- round 50
+  progress
+  -- round 51
+  progress
+  -- round 52
+  progress
+  -- round 53
+  progress
+  -- round 54
+  progress
+  -- round 55
+  progress
+  -- round 56
+  progress
+  -- round 57
+  progress
+  -- round 58
+  progress
+  -- round 59
+  progress
+  -- round 60
+  progress
+  -- round 61
+  progress
+  -- round 62
+  progress
+  -- round 63
+  progress
+  -- round 64
+  progress
+  -- round 65
+  progress
+  -- round 66
+  progress
+  -- round 67
+  progress
+  -- round 68
+  progress
+  -- round 69
+  progress
+  -- round 70
+  progress
+  -- round 71
+  progress
+  -- round 72
+  progress
+  -- round 73
+  progress
+  -- round 74
+  progress
+  -- round 75
+  progress
+  -- round 76
+  progress
+  -- round 77
+  progress
+  -- round 78
+  progress
+  -- round 79
+  progress
+  -- round 80
+  progress
+  -- round 81
+  progress
+  -- round 82
+  progress
+  -- round 83
+  progress
+  -- round 84
+  progress
+  -- round 85
+  progress
+  -- round 86
+  progress
+  -- round 87
+  progress
+  -- round 88
+  progress
+  -- round 89
+  progress
+  -- round 90
+  progress
+  -- round 91
+  progress
+  -- round 92
+  progress
+  -- round 93
+  progress
+  -- round 94
+  progress
+  -- round 95
+  progress
+  -- round 96
+  progress
+  -- round 97
+  progress
+  -- round 98
+  progress
+  -- round 99
+  progress
+  -- round 100
+  progress
+  -- round 101
+  progress
+  -- round 102
+  progress
+  -- round 103
+  progress
+  -- round 104
+  progress
+  -- round 105
+  progress
+  -- round 106
+  progress
+  -- round 107
+  progress
+  -- round 108
+  progress
+  -- round 109
+  progress
+  -- round 110
+  progress
+  -- round 111
+  progress
+  -- round 112
+  progress
+  -- round 113
+  progress
+  -- round 114
+  progress
+  -- round 115
+  progress
+  -- round 116
+  progress
+  -- round 117
+  progress
+  -- round 118
+  progress
+  -- round 119
+  progress
+  -- round 120
+  progress
+  -- round 121
+  progress
+  -- round 122
+  progress
+  -- round 123
+  progress
+  -- round 124
+  progress
+  -- round 125
+  progress
+  -- round 126
+  progress
+  -- round 127
+  progress
+  -- round 128
+  progress
+  -- round 129
+  progress
+  -- round 130
+  progress
+  -- round 131
+  progress
+  -- round 132
+  progress
+  -- round 133
+  progress
+  -- round 134
+  progress
+  -- round 135
+  progress
+  -- round 136
+  progress
+  -- round 137
+  progress
+  -- round 138
+  progress
+  -- round 139
+  progress
+  -- round 140
+  progress
+  -- round 141
+  progress
+  -- round 142
+  progress
+  -- round 143
+  progress
+  -- round 144
+  progress
+  -- round 145
+  progress
+  -- round 146
+  progress
+  -- round 147
+  progress
+  -- round 148
+  progress
+  -- round 149
+  progress
+  -- round 150
+  progress
+  -- round 151
+  progress
+  -- round 152
+  progress
+  -- round 153
+  progress
+  -- round 154
+  progress
+  -- round 155
+  progress
+  -- round 156
+  progress
+  -- round 157
+  progress
+  -- round 158
+  progress
+  -- round 159
+  progress
+  -- round 160
+  progress
+  -- round 161
+  progress
+  -- round 162
+  progress
+  -- round 163
+  progress
+  -- round 164
+  progress
+  -- round 165
+  progress
+  -- round 166
+  progress
+  -- round 167
+  trace: Connection timed out after 2008 milliseconds
+  progress
+  trace: closing connection #0
+
+######## STDERR: progress-trace-order, default backend ########
+
+######## END PROBE: progress-trace-order, default backend (exit status 0, 2 s) ########
+
+
+
+######## BEGIN PROBE: post-stop-reads, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+curl 8.0.0 | libcurl 8.14.1 | x86_64-w64-mingw32
+buffersize default wire bytes after the stop   163840 | decoded bytes after the stop   178080753
+buffersize 4096    wire bytes after the stop    40960 | decoded bytes after the stop    44327877
+buffersize 1024    wire bytes after the stop    10240 | decoded bytes after the stop    10899333
+
+######## STDERR: post-stop-reads, default backend ########
+
+######## END PROBE: post-stop-reads, default backend (exit status 0, 187 s) ########
+
+
+
+######## BEGIN PROBE: revocation, default backend ########
+CURL_SSL_BACKEND = ""
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "(OpenSSL/3.5.0) Schannel"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+CURL_SSL_BACKEND: "" | CURL_CA_BUNDLE: "C:/R/etc/curl-ca-bundle.crt" | ssl_version: (OpenSSL/3.5.0) Schannel
+valid    default (new_handle)             status 200
+valid    ssl_options = 0                   status 200
+valid    ssl_options = 2                   status 200
+valid    ssl_options = 16                  status 200
+valid    ssl_options = 18                  status 200
+revoked  default (new_handle)             status 200
+revoked  ssl_options = 0                   error: SSL connect error [revoked-isrgrootx1.letsencrypt.org]: schannel: next InitializeSecurityContext failed: CRYPT_E_REVOKED (0x80092010) - The certificate is revoked.
+revoked  ssl_options = 2                   status 200
+revoked  ssl_options = 16                  error: SSL connect error [revoked-isrgrootx1.letsencrypt.org]: schannel: next InitializeSecurityContext failed: CRYPT_E_REVOKED (0x80092010) - The certificate is revoked.
+revoked  ssl_options = 18                  status 200
+done
+
+######## STDERR: revocation, default backend ########
+
+######## END PROBE: revocation, default backend (exit status 0, 1 s) ########
+
+
+
+######## BEGIN PROBE: revocation, CURL_SSL_BACKEND=openssl ########
+CURL_SSL_BACKEND = "openssl"
+R: R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | Windows Server 2022 x64 (build 26100)
+LC_CTYPE: English_United States.utf8
+curl package: 8.0.0
+curl_version():
+List of 12
+ $ version       : chr "8.14.1"
+ $ headers       : chr "8.14.1"
+ $ ssl_version   : chr "OpenSSL/3.5.0 (Schannel)"
+ $ libz_version  : chr "1.3"
+ $ libssh_version: chr "libssh2/1.11.0"
+ $ libidn_version: chr NA
+ $ host          : chr "x86_64-w64-mingw32"
+ $ protocols     : chr [1:26] "dict" "file" "ftp" "ftps" ...
+ $ ipv6          : logi TRUE
+ $ http2         : logi TRUE
+ $ idn           : logi TRUE
+ $ url_parser    : logi TRUE
+----
+CURL_SSL_BACKEND: "openssl" | CURL_CA_BUNDLE: "C:/R/etc/curl-ca-bundle.crt" | ssl_version: OpenSSL/3.5.0 (Schannel)
+valid    default (new_handle)             status 200
+valid    ssl_options = 0                   status 200
+valid    ssl_options = 2                   status 200
+valid    ssl_options = 16                  status 200
+valid    ssl_options = 18                  status 200
+revoked  default (new_handle)             status 200
+revoked  ssl_options = 0                   status 200
+revoked  ssl_options = 2                   status 200
+revoked  ssl_options = 16                  status 200
+revoked  ssl_options = 18                  status 200
+done
+
+######## STDERR: revocation, CURL_SSL_BACKEND=openssl ########
+Initiating curl with CURL_SSL_BACKEND: openssl
+
+######## END PROBE: revocation, CURL_SSL_BACKEND=openssl (exit status 0, 1 s) ########
+
+[ FAIL 28 | WARN 0 | SKIP 4 | PASS 3391 ]
+
+══ Skipped tests (4) ═══════════════════════════════════════════════════════════
+• On CRAN (2): 'test-fetch-tls.R:34:3', 'test-transport.R:384:3'
+• On Windows (2): 'test-fetch.R:1086:3', 'test-fetch.R:1177:3'
+
+══ Failed tests ════════════════════════════════════════════════════════════════
+── Failure ('test-chain.R:393:3'): an https to http redirect ends the chain as downgrade ──
+Expected `r` to inherit from "ssrfr_refusal".
+Actual class: "ssrfr_failure"/"ssrfr_outcome".
+── Failure ('test-chain.R:394:3'): an https to http redirect ends the chain as downgrade ──
+Expected `r$code` to be identical to "downgrade".
+Differences:
+`actual` is NULL
+`expected` is a character vector ('downgrade')
+
+── Failure ('test-chain.R:395:3'): an https to http redirect ends the chain as downgrade ──
+Expected `r$hop` to be identical to 2L.
+Differences:
+  `actual`: 1
+`expected`: 2
+
+── Failure ('test-chain.R:396:3'): an https to http redirect ends the chain as downgrade ──
+Expected `r$detail$step` to be identical to 3L.
+Differences:
+  `actual`: 10
+`expected`:  3
+
+── Failure ('test-corpus.R:36:5'): every corpus file matches its committed row count and checksum ──
+Expected MD5 of verdict-vectors.tsv to be identical to `manifest$md5[i]`.
+Differences:
+`actual`:   "4db98842a7c050175c24f1aca1abb19b"
+`expected`: "0a7a18d3a0782f561509d331ce87d9fd"
+
+── Failure ('test-corpus.R:36:5'): every corpus file matches its committed row count and checksum ──
+Expected MD5 of parse-vectors.tsv to be identical to `manifest$md5[i]`.
+Differences:
+`actual`:   "662934a3fbb8da2df286103bff0fd03e"
+`expected`: "e6bcdf99b3cb11ce98812f3708889555"
+
+── Failure ('test-corpus.R:36:5'): every corpus file matches its committed row count and checksum ──
+Expected MD5 of requirements.tsv to be identical to `manifest$md5[i]`.
+Differences:
+`actual`:   "29ff0945d2f05be0bbb759fe41801f68"
+`expected`: "9a706bad32cf087f5bb42b193058dd89"
+
+── Error ('test-corpus.R:194:7'): (code run outside of `test_that()`) ──────────
+Error in `eval(quote({     manifest <- read_corpus("corpus-manifest.tsv")     for (i in seq_len(nrow(manifest))) {         path <- test_path("fixtures", manifest$file[i])         if (!identical(unname(tools::md5sum(path)), manifest$md5[i])) {             stop("corpus file does not match its manifest: ", manifest$file[i])         }     } }), new.env())`: corpus file does not match its manifest: verdict-vectors.tsv
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected http_proxy http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected http_proxy socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected HTTP_PROXY http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected HTTP_PROXY socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected https_proxy http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected https_proxy socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected HTTPS_PROXY http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected HTTPS_PROXY socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected all_proxy http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected all_proxy socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected ALL_PROXY http://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+Expected ALL_PROXY socks5h://127.0.0.1:49641 https to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+Backtrace:
+    ▆
+ 1. └─base::eval(...)
+ 2.   └─base::eval(...)
+ 3.     └─testthat::expect_identical(...) at test-fetch-limits.R:531:9
+── Failure ('test-fetch-limits.R:567:3'): nothing reaches a listener standing in for the proxy ──
+Expected `secure$status` to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+── Failure ('test-fetch-tls.R:20:3'): certificate verification stays bound to the hostname over TLS ──
+Expected `r$status` to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+── Error ('test-fetch-tls.R:21:3'): certificate verification stays bound to the hostname over TLS ──
+Error in `rawToChar(response$body)`: argument 'x' must be a raw vector
+Backtrace:
+    ▆
+ 1. ├─testthat::expect_identical(...) at test-fetch-tls.R:21:3
+ 2. │ └─testthat::quasi_label(enquo(object), label)
+ 3. │   └─rlang::eval_bare(expr, quo_get_env(quo))
+ 4. └─ssrfr:::body_text(r)
+ 5.   └─base::rawToChar(response$body) at ./helper-transport.R:101:3
+── Error ('test-fetch-tls.R:211:3'): ordinary HTTP still works through the guard ──
+Error in `rawToChar(response$body)`: argument 'x' must be a raw vector
+Backtrace:
+    ▆
+ 1. ├─testthat::expect_match(body_text(get("/gzip")), "\"gzipped\": *true") at test-fetch-tls.R:211:3
+ 2. │ └─testthat::quasi_label(enquo(object), label)
+ 3. │   └─rlang::eval_bare(expr, quo_get_env(quo))
+ 4. └─ssrfr:::body_text(get("/gzip"))
+ 5.   └─base::rawToChar(response$body) at ./helper-transport.R:101:3
+── Failure ('test-fetch.R:138:3'): HTTP/2 is never offered, even over TLS ──────
+Expected `r$status` to be identical to 200L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (200)
+
+── Failure ('test-inspect.R:364:3'): L0 makes no network call ──────────────────
+Expected `got[l0]` to be identical to `rows$code[l0]`.
+Differences:
+`actual[359:365]`:   "-" "scheme" "scheme" "scheme" "parse" "parse" "scheme"
+`expected[359:365]`: "-" "scheme" "scheme" "parse"  "parse" "parse" "scheme"
+
+── Failure ('test-redirect.R:1167:3'): every dimension is revalidated on every hop ──
+Expected `ssrf_fetch(b)$status` to be identical to 302L.
+Differences:
+`actual` is NULL
+`expected` is an integer vector (302)
+
+── Error ('test-redirect.R:1168:3'): every dimension is revalidated on every hop ──
+<ssrfr_error_invalid_argument/ssrfr_error/error/condition>
+Error in `ssrf_prepare_hop()`: `url` must be a single string.
+Backtrace:
+    ▆
+ 1. └─ssrfr::ssrf_prepare_hop(b$state$location, tpolicy, from = b) at test-redirect.R:1168:3
+ 2.   └─ssrfr (local) bad("`url` must be a single string.") at ssrfr/R/binding.R:214:5
+ 3.     └─ssrfr:::abort_ssrfr("invalid_argument", message, fn = "ssrf_prepare_hop") at ssrfr/R/binding.R:211:5
+
+[ FAIL 28 | WARN 0 | SKIP 4 | PASS 3391 ]
+Error:
+! Test failures.
+Execution halted

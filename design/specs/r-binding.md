@@ -317,7 +317,8 @@ three other ways elsewhere: the key engages on the builds without IDN (macOS
 `C.UTF-8`; under the C locale, 8.5.0 and the full 7.76.1 refuse the URL (`URL
 using bad/illegal format`). A URL whose host is already the A-label, which
 `ssrfr-v1.md` §4.1 says the binding hands libcurl, engages on every build and
-locale run (3a, 3e2).
+locale run (3a, 3e2). `ssrfr-v1.md` §4.1 refuses any other wire string as `parse`
+(proposed, §8 item 34).
 
 ### 4.3 Failover
 

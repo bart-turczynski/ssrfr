@@ -113,12 +113,15 @@ default:
         -e 'cat("Library paths:\n"); print(.libPaths())'
     - apt-get update -qq
     # git because pak and covr shell out to it; LaTeX and qpdf for the
-    # `--as-cran` PDF manual; the -dev headers for source compiles on a runner
-    # p3m serves no binaries for.
+    # `--as-cran` PDF manual; HTML Tidy (5.0.0 or later; noble ships 5.6.0) so
+    # the check validates the HTML manual as CRAN does, rather than skipping
+    # it; the -dev headers for source compiles on a runner p3m serves no
+    # binaries for.
     - >
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends
       curl ca-certificates git
       pandoc texlive-latex-base texlive-fonts-recommended texlive-latex-recommended qpdf
+      tidy
       libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
       libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
       libpng-dev libtiff5-dev libjpeg-dev

@@ -1,0 +1,66 @@
+# Output of 2026-09-29-abort-post-stop-reads.R, captured 2026-09-29: macOS on the host,
+# the Linux builds in the ssrfr-probe Docker images of 2026-09-25-linux-transport-matrix.sh
+# (docker run --rm --network none -v "$PWD/design/evidence/2026-09-29-abort-post-stop-reads.R:/p.R:ro" ssrfr-probe:<tag> Rscript --vanilla /p.R).
+# Body: memCompress(raw(4e8), "gzip"), 404,282 bytes on the wire; the write stop falls at
+# 100,000 decoded bytes, the progress stop at 20,000 wire bytes. Windows was not run.
+
+== macOS (host)
+curl 8.0.0 | libcurl 8.14.1 | aarch64-apple-darwin23
+record   buffersize default wire after stop    163840 | decoded after stop   178080753 | fail none                     | finals 0
+record   buffersize 4096    wire after stop     40960 | decoded after stop    44327877 | fail none                     | finals 0
+record   buffersize 1024    wire after stop     10240 | decoded after stop    10899333 | fail none                     | finals 0
+abort    buffersize default wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 4096    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 1024    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+progress buffersize default wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 4096    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 1024    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+reached the end; the error hook did not run
+
+== ssrfr-probe:ubuntu2204
+curl 8.0.0 | libcurl 7.81.0 | aarch64-unknown-linux-gnu
+record   buffersize default wire after stop         0 | decoded after stop    15963873 | fail none                     | finals 0
+record   buffersize 4096    wire after stop         0 | decoded after stop     3798657 | fail none                     | finals 0
+record   buffersize 1024    wire after stop         0 | decoded after stop      770253 | fail none                     | finals 0
+abort    buffersize default wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 4096    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 1024    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+progress buffersize default wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 4096    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 1024    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+reached the end; the error hook did not run
+
+== ssrfr-probe:ubuntu2404
+curl 8.0.0 | libcurl 8.5.0 | aarch64-unknown-linux-gnu
+record   buffersize default wire after stop    388024 | decoded after stop   399885312 | fail none                     | finals 1
+record   buffersize 4096    wire after stop    400312 | decoded after stop   399885312 | fail none                     | finals 1
+record   buffersize 1024    wire after stop    102400 | decoded after stop   102086853 | fail none                     | finals 0
+abort    buffersize default wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 4096    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 1024    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+progress buffersize default wire after stop         0 | decoded after stop           0 | fail none                     | finals 1
+progress buffersize 4096    wire after stop         0 | decoded after stop           0 | fail none                     | finals 1
+progress buffersize 1024    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+reached the end; the error hook did not run
+
+== ssrfr-probe:rocky9
+curl 8.0.0 | libcurl 7.76.1 | aarch64-redhat-linux-gnu
+record   buffersize default wire after stop         0 | decoded after stop    15963873 | fail none                     | finals 0
+record   buffersize 4096    wire after stop         0 | decoded after stop     3798657 | fail none                     | finals 0
+record   buffersize 1024    wire after stop         0 | decoded after stop      770253 | fail none                     | finals 0
+abort    buffersize default wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 4096    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+abort    buffersize 1024    wire after stop         0 | decoded after stop           0 | fail curl_error_write_error   | finals 1
+progress buffersize default wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 4096    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+progress buffersize 1024    wire after stop         0 | decoded after stop           0 | fail none                     | finals 0
+reached the end; the error hook did not run
+
+
+# Reading: record reproduces 2026-09-26-post-stop-reads.txt. With abort, every build reads no wire
+# byte and delivers no decoded byte after the stop, and the fail callback gets
+# curl_error_write_error, followed by one final (empty) delivery; the error hook never ran.
+# In the progress mode no build delivered anything after the progress stop, so the abort at
+# the next delivery was not exercised: the loop cancelled the transfer first, or, on 8.5.0 at the
+# default and 4096 buffers, the whole body had arrived in the round before the progress call that
+# stopped it (finals 1, no failure).

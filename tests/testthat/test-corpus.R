@@ -334,7 +334,7 @@ test_that("every active L2 verdict vector is decided at L2 with its code", {
     length(untrusted) > 0L,
     paste(
       "not decided, the fixture CA cannot be trusted:",
-      paste(untrusted, collapse = ", ")
+      toString(untrusted)
     )
   )
 })
@@ -366,7 +366,7 @@ test_that("every redirect verdict vector is decided through the guarded hop", {
     length(untrusted) > 0L,
     paste(
       "not decided, the fixture CA cannot be trusted:",
-      paste(untrusted, collapse = ", ")
+      toString(untrusted)
     )
   )
   expect_identical(sum(via == "from"), 28L)

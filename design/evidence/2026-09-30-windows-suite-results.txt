@@ -1,0 +1,46 @@
+# ssrfr's own test suite on Windows, the runs that close ssrfr-v1.md §8 item 6
+# (fp SSRF-nfizdzxt). R-hub, 2026-09-30, branch fix/windows-schannel-tests at
+# 1c34285 as a tarball, with .gitattributes added to it (r-binding.md §7,
+# Harness notes, "R-hub") and one line added to tests/testthat.R before
+# library(testthat), nothing else:
+#   striped-alpinegoat, Schannel (the default): Sys.setenv(NOT_CRAN = "true")
+#     https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36640341491
+#   trichophobia-indiancow, OpenSSL:
+#     Sys.setenv(CURL_SSL_BACKEND = "openssl", NOT_CRAN = "true")
+#     https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36640881336
+# Windows Server build 26100, R-devel (r90591, UCRT), CRAN curl 8.0.0,
+# libcurl 8.14.1. NOT_CRAN is set so the skip_on_cran tests run. Below, per
+# run: the tail of testthat.Rout and the status line of 00check.log,
+# unedited.
+#
+# Reading: no failure under either backend, and R CMD check's status is OK.
+# Under OpenSSL only the two SIGINT tests skip, on Windows by design
+# (r-binding.md §7, behaviour table). Under Schannel the tests that need the
+# fixture CA skip as well, 7 tests and 3 corpus rows, on the probe that finds
+# cainfo ignored (r-binding.md §5, §7).
+
+######## RUN: schannel ########
+[ FAIL 0 | WARN 0 | SKIP 11 | PASS 5533 ]
+
+══ Skipped tests (11) ══════════════════════════════════════════════════════════
+• On Windows (2): 'test-fetch.R:1086:3', 'test-fetch.R:1177:3'
+• Schannel ignores cainfo in this libcurl build (r-binding.md §7) (7):
+  'test-chain.R:384:3', 'test-fetch-limits.R:545:3',
+  'test-fetch-limits.R:581:3', 'test-fetch-tls.R:18:3',
+  'test-fetch-tls.R:94:3', 'test-fetch.R:131:3', 'test-redirect.R:1164:3'
+• not decided, the fixture CA cannot be trusted: V0416, V0420, V0425 (1):
+  'test-corpus.R:365:3'
+• not decided, the fixture CA cannot be trusted: V0420, V0425 (1):
+  'test-corpus.R:333:3'
+
+[ FAIL 0 | WARN 0 | SKIP 11 | PASS 5533 ]
+Status: OK
+
+######## RUN: openssl ########
+[ FAIL 0 | WARN 0 | SKIP 2 | PASS 5592 ]
+
+══ Skipped tests (2) ═══════════════════════════════════════════════════════════
+• On Windows (2): 'test-fetch.R:1086:3', 'test-fetch.R:1177:3'
+
+[ FAIL 0 | WARN 0 | SKIP 2 | PASS 5592 ]
+Status: OK

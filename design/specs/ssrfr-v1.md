@@ -30,7 +30,7 @@ Only **[ratified]** text may be implemented against.
 | Marker | Meaning |
 |---|---|
 | **[ratified]** | Accepted by the maintainer. |
-| **[proposed]** | Recommended position awaiting ratification. None remains since §8 item 23 closed on 2026-09-25. |
+| **[proposed]** | Recommended position awaiting ratification. None remains since §8 item 34 closed on 2026-09-29. |
 | **[open]** | Undecided. |
 | **[inherited]** | Carried from the retired guard spec and not separately ratified. None remains since §8 item 14 closed on 2026-09-24. |
 | **[suspended]** | A ratified clause whose stated premise has since been found false. It is not implementable until re-ratified. The correction and a **[proposed]** replacement sit directly beside it. None remains since 2026-09-25. |
@@ -43,6 +43,8 @@ findings proposed on 2026-09-24 (§8 item 23, `SSRF-nbcgyled`), with INV-10's ra
 corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
 unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
 items 32–33, two gaps a review of the implementation tickets found.
+**Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
+parsed host (§4.1, `SSRF-ljqshjmj`).
 The transport findings are verified on macOS and Linux (§8 item 7 closed);
 Windows is outstanding under §8 item 6 (`SSRF-fjgfnaaq`), a v1 release blocker.
 
@@ -652,6 +654,31 @@ across a large slice of the web.
 *Clarified 2026-09-24:* it follows that the binding hands libcurl a URL whose host
 is already in A-label form; the build used for the 2026-09-24 evidence has IDN
 support off.
+
+*Ratified 2026-09-29* (§8 item 34, `SSRF-ljqshjmj`). The string handed to
+libcurl, with the fragment removed (§2.3), MUST be printable ASCII (U+0021 to
+U+007E); any other string refuses as `parse` before `curl_parse_url()` reads it.
+The host `curl_parse_url()` returns from that string, which is the `connect_to`
+key (INV-6), MUST be printable ASCII too, or the hop refuses as `parse`: libcurl
+percent-decodes the host, so the ASCII string `http://b%C3%BCcher.invalid/`
+parses to the host `bücher.invalid` **[verified]**. This turns the clarification
+above from a property of construction into a refusal. A U-label that reaches
+libcurl can defeat the pin: on builds with IDN support, libcurl matches
+`connect_to` against the A-label while `curl_parse_url()` returns the U-label,
+so the key misses and libcurl resolves the name itself (INV-6) **[verified]**
+(`r-binding.md` §4.2). The agreement check above compares the two parsed hosts,
+and a parser that returned the A-label for a U-label string would pass it. The
+rule on the string reads the string itself, because finding its host component
+would take a third parser; the rule on the host reads libcurl's own parse. Past
+`rurl`'s syntax and scheme verdicts, every string `rurl` 3.0.1 serializes from
+the parse-vector and verdict corpora and from generated non-ASCII inputs is
+printable ASCII, except a host holding a space, which the agreement check
+already refuses, and every host `curl_parse_url()` returns for a string
+admitted today is printable ASCII. `rurl` decodes a percent-encoded host and
+serializes its A-label. The two rules therefore refuse nothing admitted today
+**[verified]** (`design/evidence/2026-09-29-wire-ascii.R`). ASCII is not IDNA
+validity: the §5.0 A-label rule and its `rurl` gap (`RURL-vicyvlvh`) are
+unchanged.
 
 ### 4.2 INV-1 is preserved by construction, not by hope
 
@@ -1403,8 +1430,8 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 3 | Limits: defaults, floors, decoding, per-hop header limits | **closed — ratified** (§5.3): finite and raisable, with no ceiling and no "unlimited" sentinel; `total_timeout` is chain-scoped and covers decoding. `curl::nslookup()` has no timeout of its own **[assumption]**, a documented residual — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution | **closed — ratified** (§5.0): names resolve as absolute, with no opt-out in v1 — `SSRF-ighscodn` |
 | 5 | Default User-Agent | **closed — ratified** (§5.3) — `SSRF-uitcvnif` |
-| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker. **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own. Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code). HTTP/2 coalescing no longer applies: the transport speaks HTTP/1.1 only (`r-binding.md` §5; *amended 2026-09-26*, `SSRF-rgcijatt`). Windows outstanding — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo` |
-| 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | **closed — verified** 2026-09-25 on macOS (8.14.1), Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1): `"HOST::[::1]:"` dials `::1` and reaches an `httpuv` server there with `Host` intact; a `resolve` pin is bypassed by a pooled connection on the same or a fresh handle, a changed `connect_to` pin is not, and `forbid_reuse` closes the gap (`r-binding.md` §4.1, §4.4; `design/evidence/2026-09-25-linux-transport-results.txt`). Windows under item 6 — `SSRF-rcwugkqo` |
+| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | open, v1 blocker. **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own (item 34). Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code). HTTP/2 coalescing no longer applies: the transport speaks HTTP/1.1 only (`r-binding.md` §5; *amended 2026-09-26*, `SSRF-rgcijatt`). **Windows re-run 2026-09-29** through R-hub (Windows Server build 26100, R-devel, the CRAN `curl` 8.0.0 binary, libcurl 8.14.1 with IDN through WinIDN), under Schannel, the default, and again under `CURL_SSL_BACKEND=openssl`, with the same rows under both (`design/evidence/2026-09-29-windows-transport-results.txt`). Reproduced under both backends: everything reproduced on every Linux build above, with 26 compiled-in schemes refused on the first hop under `protocols_str` and under the bitmask. Differs: for a U-label URL the `curl_parse_url()` key **failed open**, as on the Ubuntu IDN builds (item 34); a dial to a closed loopback port traces `Connection timed out` within the 2-second connect timeout, where macOS and Linux trace `Connection refused` (`r-binding.md` §6); and the first progress call and the first `Trying` fall in one libcurl round, as on 8.5.0, not a round apart as on macOS's 8.14.1, so a progress callback that fails on its first call ends as `callback-error` there, not as `pin-mismatch` with check `absent` (`r-binding.md` §7). `CURLSSLOPT_NO_REVOKE` under Schannel verified by behaviour; the `NATIVE_CA` default under OpenSSL was not exercised, because `CURL_CA_BUNDLE` was set (`r-binding.md` §5). The same run found 28 failures in `ssrfr`'s own test suite on Windows, every https fetch through the guard among them. Open until item 34's check is implemented (`SSRF-afpkreyj`) and the suite passes on Windows (`SSRF-nfizdzxt`; `design/evidence/2026-09-29-windows-testthat-output.txt`) — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo` |
+| 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | **closed — verified** 2026-09-25 on macOS (8.14.1), Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1), and 2026-09-29 on Windows (8.14.1, Schannel and OpenSSL): `"HOST::[::1]:"` dials `::1` and reaches an `httpuv` server there with `Host` intact; a `resolve` pin is bypassed by a pooled connection on the same or a fresh handle, a changed `connect_to` pin is not, and `forbid_reuse` closes the gap (`r-binding.md` §4.1, §4.4; `design/evidence/2026-09-25-linux-transport-results.txt`, `design/evidence/2026-09-29-windows-transport-results.txt`) — `SSRF-rcwugkqo`; `SSRF-fjgfnaaq` |
 | 8 | Chain-scoped redirect budget under per-hop policy (§2.5) | **closed — ratified**, and extended to `total_timeout` — `SSRF-pipbsrtr` |
 | 9 | Hostname rule normalization and suffix syntax (§5.0) | **closed — ratified** — `SSRF-pipbsrtr` |
 | 10 | The parse boundary after `rurl` 3.0 (§4.1, §4.2) | **closed — replacement ratified** — `SSRF-foggmyfe` |
@@ -1431,6 +1458,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: straight to the guarded fetch, with no L0 adapter (S6, ADR 0007) — `SSRF-cnljaaek` |
 | 32 | The reason code when a `raddr` call fails on an address it has already parsed: INV-11 requires refusal, and §6.6's `unresolvable` covers only an answer `raddr` cannot parse | **closed — ratified** 2026-09-25 by the maintainer: `malformed-address`, the existing code for an address that could not be interpreted; no new code (§6.5). Raised by a GPT-6 Sol review of the implementation tickets — `SSRF-ifldwmnc` |
 | 33 | A 3xx without `Location` once the redirect budget is spent: §2.3 calls it a final response, while §5.3 and §6.5 refuse any 3xx | **closed — ratified** 2026-09-25 by the maintainer: every 3xx refuses as `redirect-limit` once the budget is spent, including under `max_redirects = 0` (§2.3). Raised by the same review — `SSRF-fvtqbanc` |
+| 34 | Whether the string handed to libcurl MUST be printable ASCII, enforced as a `parse` refusal, or whether A-label hosts stay a property of construction only (§4.1, INV-6) | **closed — ratified** 2026-09-29 by the maintainer, with one amendment: the host `curl_parse_url()` returns, the `connect_to` key, MUST be printable ASCII too, since libcurl percent-decodes the host (raised by a research agent, confirmed by a GPT-6 Sol review). The maintainer chose an enforced rule on the whole string over a check of its host component, which would need a third parser, and over a check at the `connect_to` key in L2. The `connect_to` key stays `curl_parse_url()`'s host, verbatim, in `"HOST::IP:"` form. Raised by the Linux transport re-run (item 6) — `SSRF-ljqshjmj` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1768,7 +1796,8 @@ The mechanism binding a hostname to a validated address MUST NOT silently
 disengage. Where the platform's pinning primitive is keyed (e.g. by host and
 port), the implementation MUST construct the key such that a mismatch is
 impossible, or MUST verify the pin engaged. With §4.2, the host in the key MUST
-be the transport's own parse of the requested URL.
+be the transport's own parse of the requested URL. That URL and its parsed host
+meet §4.1's printable-ASCII rule (§8 item 34).
 
 **Rationale.** **[verified]** in the R stack: both available primitives discard
 the pin and perform a *real, unvalidated* resolution when the key's port does not

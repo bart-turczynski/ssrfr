@@ -1,0 +1,86 @@
+# Output of design/evidence/2026-09-29-windows-schannel-ca-probe.R (fp SSRF-nfizdzxt)
+# R-hub build unarithmetical-africanwildcat, 2026-09-29:
+#   https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36624302914
+# Windows Server build 26100, R-devel, CRAN curl 8.0.0, libcurl 8.14.1,
+# Schannel the default backend. The package was ssrfr main at e7bb132 with
+# the probe added as tests/testthat/test-zz-windows-schannel-ca-probe.R and
+# .gitattributes (`* text=auto eol=lf`) added to the built tarball, which
+# R CMD build leaves out. Below: the probe's section of testthat.Rout.fail,
+# then every failure heading of the suite with its count, unedited.
+#
+# Reading: with .gitattributes in the tarball the fixtures arrive with LF
+# endings (ca.crt has 0 CR bytes) and the corpus checksums pass, so the
+# earlier checksum failures were R-hub's checkout, not ssrfr. Under Schannel
+# a fetch naming the test CA in `cainfo` fails exactly as the control with no
+# CA file, in every form tried: the file as shipped, an LF copy, a
+# backslashed path, TLS 1.2 only; a cipher list and `capath` are refused
+# outright. That fits the Rtools build of libcurl, which patches Schannel
+# never to use a CA file (r-windows/rtools-packages,
+# mingw-w64-curl/disable-cainfo-for-schannel.patch: `if(0) { /* disabled by
+# jeroen: does not work well */`), so Schannel trusts the Windows store
+# alone. A caller's fetch sets no CA file: public https through the guard
+# answers 200. The remaining 42 failures are all fetches that trust the test
+# CA, plus verdict vector V0453 (file://93.184.216.34/), which Windows
+# libcurl parses as a UNC path (lib/urlapi.c, the _WIN32 branch of the
+# file-URL host check), so it refuses at §12 step 3 as `scheme`, not at
+# step 2 as `parse`.
+
+######## BEGIN PROBE: windows schannel CA ########
+curl 8.0.0 | libcurl 8.14.1 | ssl: (OpenSSL/3.5.0) Schannel | os: Windows Server 2022 x64 (build 26100)
+ca.crt CR bytes: 0
+no CA file (control)             error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]: schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | schannel: disabled automatic use of client certificate
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+cainfo, as shipped               error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]: schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Hostname 127.0.0.1 was found in DNS cache
+        | schannel: disabled automatic use of client certificate
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+cainfo, LF copy                  error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]: schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Hostname 127.0.0.1 was found in DNS cache
+        | schannel: disabled automatic use of client certificate
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+cainfo, LF copy, backslashes     error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]: schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Hostname 127.0.0.1 was found in DNS cache
+        | schannel: disabled automatic use of client certificate
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+cainfo, LF copy, TLS 1.2 only    error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]: schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Hostname 127.0.0.1 was found in DNS cache
+        | schannel: disabled automatic use of client certificate
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+cainfo, LF copy, cipher list     error [curl_error_ssl_cipher]: Could not use specified SSL cipher [alpha.example.invalid]: schannel: Failed setting algorithm cipher list
+        | Hostname 127.0.0.1 was found in DNS cache
+        | schannel: disabled automatic use of client certificate
+        | schannel: WARNING: This version of Schannel negotiates a less-secure TLS version than TLS 1.3 because the user set an algorithm cipher list.
+        | schannel: Failed setting algorithm cipher list
+cainfo, LF copy, capath too      setup error: Invalid or unsupported value when setting curl option 'capath'
+
+## public https through the guard (no CA file set)
+https://cloud.r-project.org/     class ssrfr_response | status 200 | cause NULL | code NULL
+https://www.example.com/         class ssrfr_response | status 200 | cause NULL | code NULL
+
+######## END PROBE: windows schannel CA ########
+
+   1 ── Error ('test-fetch-tls.R:21:3'): certificate verification stays bound to the hostname over TLS ──
+   1 ── Error ('test-fetch-tls.R:211:3'): ordinary HTTP still works through the guard ──
+   1 ── Error ('test-redirect.R:1174:3'): every dimension is revalidated on every hop ──
+   1 ── Failure ('test-chain.R:393:3'): an https to http redirect ends the chain as downgrade ──
+   1 ── Failure ('test-chain.R:394:3'): an https to http redirect ends the chain as downgrade ──
+   1 ── Failure ('test-chain.R:395:3'): an https to http redirect ends the chain as downgrade ──
+   1 ── Failure ('test-chain.R:396:3'): an https to http redirect ends the chain as downgrade ──
+   1 ── Failure ('test-corpus.R:204:5'): every active L0 verdict vector is decided at L0 with its code ──
+   1 ── Failure ('test-corpus.R:268:5'): rows L0 decides are decided the same at L1, with no resolution ──
+   2 ── Failure ('test-corpus.R:321:5'): every active L2 verdict vector is decided at L2 with its code ──
+   2 ── Failure ('test-corpus.R:322:5'): every active L2 verdict vector is decided at L2 with its code ──
+   2 ── Failure ('test-corpus.R:324:5'): every active L2 verdict vector is decided at L2 with its code ──
+   2 ── Failure ('test-corpus.R:325:5'): every active L2 verdict vector is decided at L2 with its code ──
+   3 ── Failure ('test-corpus.R:341:5'): every redirect verdict vector is decided through the guarded hop ──
+   3 ── Failure ('test-corpus.R:342:5'): every redirect verdict vector is decided through the guarded hop ──
+   1 ── Failure ('test-corpus.R:348:3'): every redirect verdict vector is decided through the guarded hop ──
+   1 ── Failure ('test-corpus.R:349:3'): every redirect verdict vector is decided through the guarded hop ──
+  12 ── Failure ('test-fetch-limits.R:531:9'): proxy variables have no effect ───────
+   1 ── Failure ('test-fetch-limits.R:567:3'): nothing reaches a listener standing in for the proxy ──
+   1 ── Failure ('test-fetch-tls.R:20:3'): certificate verification stays bound to the hostname over TLS ──
+   1 ── Failure ('test-fetch.R:138:3'): HTTP/2 is never offered, even over TLS ──────
+   1 ── Failure ('test-inspect.R:418:3'): L0 makes no network call ──────────────────
+   1 ── Failure ('test-redirect.R:1173:3'): every dimension is revalidated on every hop ──
+[ FAIL 42 | WARN 0 | SKIP 4 | PASS 5528 ]

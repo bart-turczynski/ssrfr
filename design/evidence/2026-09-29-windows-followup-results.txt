@@ -1,0 +1,59 @@
+# Output of design/evidence/2026-09-29-windows-followup-probe.R (fp SSRF-nfizdzxt)
+# R-hub build uncheery-hornedtoad, 2026-09-30:
+#   https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36639374158
+# Windows Server build 26100, R-devel (2026-09-28 r90591 ucrt), CRAN curl
+# 8.0.0, libcurl 8.14.1, Schannel. The package was branch
+# fix/windows-schannel-tests at 8ab44f6 with the probe added as
+# tests/testthat/test-zz-windows-followup-probe.R, .gitattributes added to
+# the tarball and NOT_CRAN=true set in tests/testthat.R. The probe's first
+# version, which decoded with memDecompress() in the check process, never
+# finished (builds clever-dingo and washable-arrowcrab); this one runs each
+# part in a child process under a time limit. Below: the probe's section of
+# testthat.Rout.fail, then the suite's summary, skips and failures, unedited.
+#
+# Reading: gzcon(file(tmp, "wb")) writes a zeroed trailer (CRC and ISIZE 0)
+# and 63 bytes where gzfile() writes 43 with a correct trailer; httpbin's
+# /gzip carries the same zeroed trailer. header_segments() costs 7.47 times
+# as much a call on 512 KiB as on 64 KiB, linear, while single calls on 64
+# KiB time as 0.00 or 0.01 s, the 10 ms step of Windows' elapsed clock, so
+# the suite's test, which timed single calls, saw a ratio of 60.
+
+######## BEGIN PROBE: windows follow-up ########
+R Under development (unstable) (2026-09-28 r90591 ucrt) | x86_64-w64-mingw32 | curl 8.0.0 | libcurl 8.14.1 | zlib 1.3
+
+## 1. gzcon() writing to a file, as webfakes' /gzip does
+gzcon(file(wb))         63 bytes | head 1f 8b 08 00 00 00 00 00 00 06 | tail 00 00 00 00 00 00 00 00 | ISIZE 0 (input 359) | gzcon read: 359
+gzfile(wb)              43 bytes | head 1f 8b 08 00 00 00 00 00 00 06 | tail bb a5 cb e2 67 01 00 00 | ISIZE 359 (input 359) | gzcon read: 359
+httpbin /gzip body     241 bytes | head 1f 8b 08 00 00 00 00 00 00 06 | tail 00 00 00 00 00 00 00 00 | ISIZE 0 (input NA) | gzcon read: 362
+(2 s)
+
+## 2. header_segments() per call, over sizes
+   64 KiB:   32 calls in 0.300 s, 0.00938 s a call
+  128 KiB:   16 calls in 0.290 s, 0.01813 s a call
+  256 KiB:    8 calls in 0.330 s, 0.04125 s a call
+  512 KiB:    4 calls in 0.280 s, 0.07000 s a call
+per-call ratio 512/64: 7.466667
+single calls, as the test times them: 64 KiB 0.01 0.00 0.01 | 512 KiB 0.06 0.06 0.07
+(3 s)
+
+######## END PROBE: windows follow-up ########
+[ FAIL 2 | WARN 0 | SKIP 11 | PASS 5531 ]
+
+══ Skipped tests (11) ══════════════════════════════════════════════════════════
+• On Windows (2): 'test-fetch.R:1086:3', 'test-fetch.R:1177:3'
+• Schannel ignores cainfo in this libcurl build (r-binding.md §7) (7):
+  'test-chain.R:384:3', 'test-fetch-limits.R:545:3',
+  'test-fetch-limits.R:581:3', 'test-fetch-tls.R:18:3',
+  'test-fetch-tls.R:94:3', 'test-fetch.R:131:3', 'test-redirect.R:1164:3'
+• not decided, the fixture CA cannot be trusted: V0416, V0420, V0425 (1):
+  'test-corpus.R:365:3'
+• not decided, the fixture CA cannot be trusted: V0420, V0425 (1):
+  'test-corpus.R:333:3'
+
+══ Failed tests ════════════════════════════════════════════════════════════════
+   1 ── Error ('test-fetch-tls.R:211:3'): ordinary HTTP still works through the guard ──
+   1 ── Failure ('test-transport.R:403:3'): the header buffer is segmented in linear time ──
+── Failure ('test-transport.R:403:3'): the header buffer is segmented in linear time ──
+Expected `large/small` < 24.
+Actual comparison: 60.0 >= 24.0
+Difference: 36.0 >= 0

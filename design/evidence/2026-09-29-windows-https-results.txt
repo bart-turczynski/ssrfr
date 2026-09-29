@@ -1,0 +1,97 @@
+# Output of design/evidence/2026-09-29-windows-https-probe.R (fp SSRF-nfizdzxt)
+# R-hub build glandular-terrier, 2026-09-29:
+#   https://github.com/r-hub2/roasted-eel-ssrfr/actions/runs/36623073558
+# Windows Server build 26100, R-devel (2026-09-28 r90591 ucrt), CRAN curl 8.0.0,
+# libcurl 8.14.1, Schannel the default backend. The package was ssrfr main at
+# e7bb132 with the probe added as tests/testthat/test-zz-windows-https-probe.R;
+# the whole suite ran first. Below: the probe's section of testthat.Rout.fail,
+# then the suite's summary and skip list, unedited.
+#
+# Reading: part 1, every fixture arrives with CR bytes and the MD5s the
+# earlier run reported, so R-hub's git checkout converted LF to CRLF (the
+# tarball carries no .gitattributes). Part 2 and 3, the fetch with the test CA
+# as `cainfo` fails in the handshake with SEC_E_UNTRUSTED_ROOT, through the
+# guard and on a bare handle alike, whatever ssl_options says, so revocation
+# is not the cause. Part 4, the same bare fetch passes under
+# CURL_SSL_BACKEND=openssl. The failures are the 28 of the earlier run;
+# "a stop in the write callback aborts, without the error hook"
+# (test-fetch-limits.R) is neither failed nor skipped, so the write-callback
+# abort holds on Windows.
+
+######## BEGIN PROBE: windows https ########
+curl 8.0.0 | libcurl 8.14.1 | ssl: (OpenSSL/3.5.0) Schannel | CURL_SSL_BACKEND: "" | CURL_CA_BUNDLE: "C:/R/etc/curl-ca-bundle.crt"
+
+## 1. fixtures as the check sees them
+fixtures/verdict-vectors.tsv       113098 bytes  md5 4db98842a7c050175c24f1aca1abb19b  CR bytes 538
+fixtures/parse-vectors.tsv          47512 bytes  md5 662934a3fbb8da2df286103bff0fd03e  CR bytes 121
+fixtures/requirements.tsv           53084 bytes  md5 29ff0945d2f05be0bbb759fe41801f68  CR bytes 97
+fixtures/corpus-manifest.tsv          183 bytes  md5 8d82a80bfcf225fcdb4f823ebbaf470d  CR bytes 4
+certs/ca.crt                         1122 bytes  md5 a54c5cbe50b970b26bc8751b19f7db4d  CR bytes 19
+certs/alpha.pem                      2932 bytes  md5 7960c0086c2b3facb8a0087b765e1bc4  CR bytes 48
+
+## 2. through the guard, test CA trusted (test-fetch-tls.R)
+class: ssrfr_failure ssrfr_outcome | status: NULL | cause: tls-failed | code: NULL
+detail:
+List of 3
+ $ step    : int 10
+ $ check   : chr "transport"
+ $ attempts: chr "127.0.0.1 connected"
+        | Connecting to hostname: 127.0.0.1
+        | Trying 127.0.0.1:51310...
+        | schannel: disabled automatic use of client certificate
+        | ALPN: curl offers http/1.1
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | closing connection #0
+
+## 3. bare curl handle, same pin and CA, default backend
+default            error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]:
+schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Connecting to hostname: 127.0.0.1
+        | Trying 127.0.0.1:51310...
+        | schannel: disabled automatic use of client certificate
+        | ALPN: curl offers h2,http/1.1
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | closing connection #149
+ssl_options = 0    error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]:
+schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:51310...
+        | schannel: disabled automatic use of client certificate
+        | ALPN: curl offers h2,http/1.1
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | closing connection #150
+ssl_options = 2    error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]:
+schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:51310...
+        | schannel: disabled automatic use of client certificate
+        | ALPN: curl offers h2,http/1.1
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | closing connection #151
+ssl_options = 8    error [curl_error_peer_failed_verification]: SSL peer certificate or SSH remote key was not OK [alpha.example.invalid]:
+schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | Connecting to hostname: 127.0.0.1
+        | Hostname 127.0.0.1 was found in DNS cache
+        | Trying 127.0.0.1:51310...
+        | schannel: disabled automatic use of client certificate
+        | ALPN: curl offers h2,http/1.1
+        | schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - The certificate chain was issued by an authority that is not trusted.
+        | closing connection #152
+
+## 4. bare curl handle, CURL_SSL_BACKEND=openssl
+Initiating curl with CURL_SSL_BACKEND: openssl
+ssl: OpenSSL/3.5.0 (Schannel)
+default            status 200
+ssl_options = 0    status 200
+ssl_options = 2    status 200
+ssl_options = 8    status 200
+
+######## END PROBE: windows https ########
+
+[ FAIL 28 | WARN 0 | SKIP 4 | PASS 3406 ]
+
+══ Skipped tests (4) ═══════════════════════════════════════════════════════════
+• On CRAN (2): 'test-fetch-tls.R:34:3', 'test-transport.R:384:3'
+• On Windows (2): 'test-fetch.R:1086:3', 'test-fetch.R:1177:3'

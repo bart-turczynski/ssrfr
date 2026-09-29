@@ -147,6 +147,18 @@ purpose and unsafe for this one.
   `http://svc./`, 7.76.1 and 7.81.0 drop the dot and the search list applies;
   8.5.0 keeps it **[verified]** (same run). Under a pin libcurl resolves
   nothing (§4.2).
+- **`file://` with a host.** libcurl accepts a file URL's host only when it is
+  empty, `localhost` or `127.0.0.1`, except on Windows, where it reads any
+  other host as a UNC path (`lib/urlapi.c`, the `_WIN32` branch of the
+  file-URL host check) **[sourced]**. So `file://93.184.216.34/` fails
+  `curl_parse_url()` and refuses at spec §12 step 2 as `parse` on macOS, and
+  parses on Windows and refuses at step 3 as `scheme` **[verified]** (macOS;
+  Windows, verdict vector V0453 in
+  [`2026-09-29-windows-schannel-ca-results.txt`](../evidence/2026-09-29-windows-schannel-ca-results.txt)).
+  Either way it refuses at L0 with no network call; only the reason code
+  differs by platform. The Windows branch also rejects a host that contains
+  `:` **[sourced]**, so `file://93.184.216.34:21/` fails the parse everywhere
+  (verdict vector V0538, which replaces V0453).
 - **Scalar vs vector.** `safe_parse_url()` is scalar; vectors need
   `safe_parse_urls()`.
 - **Userinfo.** Exposed as the `user` and `password` columns plus the
@@ -399,6 +411,21 @@ function — sets these before `ssrfr` sets anything **[sourced]**:
 
 `ssrfr` never relies on a package default for any row of the table above.
 
+**Windows, Schannel: a CA file is never used.** The Rtools build of libcurl,
+which the CRAN `curl` binary links, has carried a patch since 2019 that stops
+`CURLOPT_CAINFO` from switching Schannel to manual validation against the file
+(`mingw-w64-curl/disable-cainfo-for-schannel.patch` in
+`r-windows/rtools-packages`: "disabled by jeroen: does not work well")
+**[sourced]**. Schannel then trusts the Windows certificate store alone. On
+libcurl 8.14.1 a fetch naming a CA file failed with `SEC_E_UNTRUSTED_ROOT`
+exactly as one naming none, whatever the file's line endings, path form or
+TLS version, and passed under `CURL_SSL_BACKEND=openssl` **[verified]**
+(Windows;
+[`2026-09-29-windows-schannel-ca-results.txt`](../evidence/2026-09-29-windows-schannel-ca-results.txt)).
+`ssrfr` sets no CA file (spec §14), so this costs a caller nothing: public
+https through the guard answered 200 under Schannel **[verified]** (same run).
+What it costs is the test suite's fixture CA (§7, Rules).
+
 ### Minimum libcurl
 
 `protocols_str` and `redir_protocols_str` need libcurl 7.85. Below that, `ssrfr`
@@ -649,7 +676,7 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 | Timeouts; byte cap on a chunked body | §5.3, §14 | L2 | `res$delay()`, `res$send_chunk()` | if `webfakes`; wide margins |
 | Compression bomb: a `gzip` body under `max_response_size` on the wire and over it decoded → `response-too-large`, from `ssrfr`'s own counter, never `maxfilesize`; `total_timeout` re-checked after decoding | §5.3, §14 | L2 | served pre-compressed body | if `webfakes` |
 | Accepted residual, decoding after a stop in the progress callback. A stop in the write callback ends the transfer in that callback (row below), and libcurl then reads and decodes nothing more: against a 404,282-byte `gzip` bomb stopped at 100,000 decoded bytes, 0 bytes on libcurl 8.14.1 (macOS), 8.5.0, 7.81.0 and 7.76.1, where recording the stop alone left 178 MB decoded and dropped on 8.14.1, macOS and Windows alike (10 reads of 16 KiB), about 400 MB on 8.5.0 (the whole body) and 16 MB on 7.81.0 and 7.76.1 (the rest of the read in hand) **[verified]** ([`2026-09-29-abort-post-stop-reads.txt`](../evidence/2026-09-29-abort-post-stop-reads.txt); the record-only figures first in [`2026-09-26-post-stop-reads.txt`](../evidence/2026-09-26-post-stop-reads.txt), Windows in [`2026-09-29-windows-transport-results.txt`](../evidence/2026-09-29-windows-transport-results.txt)); the abort is not yet run on Windows. A stop in the progress callback, which may not abort (row below), takes effect at the next delivery, which aborts, or when the libcurl round it came in ends; until then libcurl may go on reading and decoding what arrives, and `ssrfr` drops it, never keeps or counts it, so the response and its limits hold, but the work is done. The probe's progress stop, at 20,000 wire bytes, saw no delivery after it on any build, so that abort is **[assumption]**: the loop cancelled first, or, on 8.5.0, the whole body had arrived before the progress call that stopped it ([`2026-09-29-abort-post-stop-reads.txt`](../evidence/2026-09-29-abort-post-stop-reads.txt)). Declined: turning decoding off and refusing compressed responses, which costs every caller the bandwidth compression saves (maintainer, 2026-09-26). A supported way for a `curl` callback to end a transfer stays requested upstream (`SSRF-qqfvoxch`) | §5.3, §14 | — | none: a measured residual | — |
-| An interrupt mid-transfer leaves the binding spent and no handle open | §2.5 | L2 | `res$send_chunk()` with a delay, and an interrupt raised during the transfer | if `webfakes` |
+| An interrupt mid-transfer leaves the binding spent and no handle open | §2.5 | L2 | `res$send_chunk()` with a delay, and an interrupt raised during the transfer | if `webfakes`; not on Windows, where another process cannot send R a `SIGINT` |
 | `ssrfr` raises no interrupt and no R error of its own inside a `curl` callback, so a limit stop is always a failure, and a stop at a `3xx` past the redirect budget the `redirect-limit` refusal, and every interrupt is the user's and propagates, one pending as `ssrfr` stops a transfer at a limit included. `curl` evaluates each callback as a top-level call, so an R error raised there runs the user's `options(error = )` hook, and libcurl reports a transfer a progress callback aborted as an abort by callback, which `curl` raises as an interrupt. So no callback raises, and only the write callback aborts: a limit reached in the write or the progress callback is recorded and later deliveries are dropped unread; the write callback then ends the transfer, on the delivery that stopped it or the first one after a stop elsewhere, by invoking R's `abort` restart, and a stop with no delivery after it is cancelled between libcurl rounds. `curl` evaluates the write callback through `R_tryEval()` (`curl` 8.0.0, `src/utils.c`, `data_callback()`), so the jump ends there, with no condition signalled and no hook run, and the callback returns a short write, which libcurl fails as `curl_error_write_error` without reading further **[verified]** on macOS (8.14.1), Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1) ([`2026-09-29-abort-post-stop-reads.txt`](../evidence/2026-09-29-abort-post-stop-reads.txt)). `curl` evaluates its final, empty delivery with `Rf_eval()` (`src/multi.c`), where the jump would escape, so that one never aborts **[sourced]**. `curl` documents neither evaluation, so a change there could let the restart escape; the subprocess test with a quitting hook is what catches it. The write error is the stop's, never a transport error: the limit record decides the ending, and the refusal is the one recording the stop alone gave. An error in `ssrfr`'s own write or progress callback is caught and ends the fetch as `protocol-error`, check `callback-error`; one in the trace callback, whose errors `curl` would discard, leaves the pin unconfirmed, so `pin-mismatch`: check `trace-error` when the trace otherwise matches, or the trace's own check when it does not. Either way the failure names every callback that failed, in the order they first failed, and never infers which one cut the trace short. The check is the pin's finding; a callback named beside it is a further defect of `ssrfr`'s own, not an explanation of it, so an `other-address` naming `data` still dialed another address. Route on the cause and the check, never on the callback. Whether a progress callback that fails on its first call ends as `pin-mismatch`, check `absent`, or as `callback-error` is the build's, not the libcurl version's: libcurl 8.14.1 on macOS calls progress a round before it traces `Trying`, so the trace holds no `Trying` and the check is `absent`; 7.76.1, 7.81.0, 8.5.0 and 8.14.1 on Windows trace `Trying` in the round the transfer stops in, so the pin can match **[verified]** for those five builds (`design/evidence/2026-09-28-progress-trace-order.txt`, and the Windows run in `design/evidence/2026-09-29-windows-transport-results.txt`; on the build it runs on, the L3 test that fails progress on its first call asserts the check that follows from the trace). A transfer the wrapper reports stopped with neither a limit record nor a callback failure ends as `protocol-error`, check `aborted`. Callbacks run with interrupts suspended, because a top-level call swallows an interrupt R acts on inside it. Residual: R may act on one in the few evaluations before a callback's suspension takes hold or after it lifts; in the trace or write callback it is then lost, and the transfer goes on or ends as `protocol-error` | §2.5, §6.6 | L3 | the process sends itself `SIGINT`, interrupts suspended, from the progress call that reaches `max_header_bytes`; twenty header-limit stops in a row against a counting server; an `options(error = )` hook that must not run through a size, a `total_timeout` and two header-limit stops; `data`, `progress` and `debug` made to throw, `progress` on its first call; a `gzip` bomb stopped at `max_response_size` in a subprocess whose `options(error = )` hook quits it, reaching a marker after the fetch with the same refusal, a write error, and at most one 16 KiB read after the stop | runs; the `SIGINT` test not on Windows |
 | The request is sent at most once: a `417` to a body, a `401` challenge with URL credentials, a `3xx` with `Location`, `1xx` before a final response; `Expect` and `h2` are never offered | §2.5 | L3; L2 for the `401` and TLS | a raw server that answers every request on every connection it accepts and keeps them open, counting requests | runs; the `401` and TLS rows if `webfakes` |
 | Each transfer's first request goes on a fresh connection | §14 | L3 | two fetches to a server that keeps connections open arrive on two | runs |
@@ -707,6 +734,15 @@ its live tests the same way (`node-transport-live.test.ts`).
 
 ### Rules
 
+- **The fixture CA, where `cainfo` is ignored.** Under Schannel on Windows the
+  fixture CA cannot be trusted (§5, "Windows, Schannel"), so every test that
+  fetches over TLS through the guard skips there, found by one probe fetch
+  per run (`test_ca_ignored()`, `tests/testthat/helper-transport.R`), never
+  assumed from the platform. A test that also fetches over plain http runs
+  that part first and skips at its end, and the corpus decides every row it
+  can before it skips the rest. Windows conformance therefore takes a second
+  run under `CURL_SSL_BACKEND=openssl`, set before `curl` loads, in which
+  nothing skips for this reason (spec §7.2).
 - **No public `resolver` argument, ever.** `local_mocked_bindings()` needs no
   public seam — strictly better than exposing a test-mode toggle as one Go
   implementation does. Add a test asserting the seam cannot be overridden from
@@ -836,6 +872,35 @@ its live tests the same way (`node-transport-live.test.ts`).
   cores **[sourced]**. The check cannot see `webfakes`' `num_threads`, but the
   policy covers it; hence the L2 cap of 2.
 
+**R-hub.** `rhub::rc_submit()` uploads a tarball to a public repository
+under `r-hub2`, and the Windows job checks it out with git, whose
+`core.autocrlf` turns the corpus files' LF endings into CRLF, so their
+checksums fail **[verified]** (Windows;
+[`2026-09-29-windows-https-results.txt`](../evidence/2026-09-29-windows-https-results.txt)).
+`R CMD build` leaves `.gitattributes` out of the tarball, so a Windows run
+adds it to the built tarball by hand; with it the fixtures keep their LF
+endings **[verified]**
+([`2026-09-29-windows-schannel-ca-results.txt`](../evidence/2026-09-29-windows-schannel-ca-results.txt)).
+A tarball repacked on macOS needs `COPYFILE_DISABLE=1 tar --no-xattrs
+--format ustar`, or `rc_submit()` cannot read its `DESCRIPTION`. R-hub takes
+one submission every five minutes.
+
+**Windows, under R-devel.** Two things the suite leaned on differ there
+**[verified]** (Windows, R-devel r90591;
+[`2026-09-29-windows-followup-results.txt`](../evidence/2026-09-29-windows-followup-results.txt)):
+- `gzcon()` on a file connection opened `"wb"` writes a gzip member whose
+  trailer is zeroed, CRC and length alike, with 20 bytes more than
+  `gzfile()` writes for the same input, which is correct. `webfakes`' httpbin
+  builds `/gzip` that way, so libcurl cannot decode it, through the guard or
+  on a bare handle ([`2026-09-29-windows-gzip-results.txt`](../evidence/2026-09-29-windows-gzip-results.txt)).
+  The suite serves its own gzip body, written by `gzfile()`. Whether R-devel
+  or Windows is at fault was not separated: R 4.6.0 on macOS writes a correct
+  trailer.
+- `system.time()` counts elapsed time in steps of 10 ms, about one
+  `header_segments()` call on 64 KiB, so a ratio of single calls measured
+  60 where the per-call ratio of repeated calls was 7.5, linear. The
+  linear-time test times batches of repeated calls.
+
 **Servers.**
 - **The IP-SAN trap.** `webfakes`' certificate carries `IP Address:127.0.0.1`
   beside `DNS:localhost` **[verified]**, so `https://127.0.0.1:PORT/` verifies.
@@ -932,6 +997,10 @@ Each script records its environment and expected output; run it with
 | [`2026-09-26-post-stop-reads.R`](../evidence/2026-09-26-post-stop-reads.R) | how much libcurl reads and decodes after a write callback records a stop and returns, per `buffersize`, reproduced with `curl` alone; run on the host and in the Docker images above, output in [`2026-09-26-post-stop-reads.txt`](../evidence/2026-09-26-post-stop-reads.txt) (§7) |
 | [`2026-09-29-abort-post-stop-reads.R`](../evidence/2026-09-29-abort-post-stop-reads.R) | the same reads with the stop only recorded, with the write callback then invoking R's `abort` restart, and with a progress stop followed by an abort at the next delivery, under an `options(error = )` hook that quits; run on the host and in the Docker images above, output in [`2026-09-29-abort-post-stop-reads.txt`](../evidence/2026-09-29-abort-post-stop-reads.txt) (§7) |
 | [`2026-09-29-windows-transport-wrapper.R`](../evidence/2026-09-29-windows-transport-wrapper.R) | a `testthat` file that runs the platform transport probes (twice: Schannel, then `CURL_SSL_BACKEND=openssl`), the progress/trace order probe, the post-stop reads probe and the revocation probe in `Rscript` subprocesses and prints their output, so an R-hub `R CMD check` on Windows carries it; output in [`2026-09-29-windows-transport-results.txt`](../evidence/2026-09-29-windows-transport-results.txt) (§4–§7) |
+| [`2026-09-29-windows-https-probe.R`](../evidence/2026-09-29-windows-https-probe.R) | a `testthat` file for an R-hub Windows run: the corpus and certificate fixtures' CR bytes, a fetch through the guard with the fixture CA trusted, and the same fetch on a bare handle under each `ssl_options` value and under `CURL_SSL_BACKEND=openssl`; output in [`2026-09-29-windows-https-results.txt`](../evidence/2026-09-29-windows-https-results.txt) (§5, §7) |
+| [`2026-09-29-windows-schannel-ca-probe.R`](../evidence/2026-09-29-windows-schannel-ca-probe.R) | the same fetch under Schannel with the CA file varied one way at a time, and public https through the guard; output in [`2026-09-29-windows-schannel-ca-results.txt`](../evidence/2026-09-29-windows-schannel-ca-results.txt) (§2.3, §5, §7) |
+| [`2026-09-29-windows-gzip-probe.R`](../evidence/2026-09-29-windows-gzip-probe.R) | httpbin's `/gzip`, `/deflate` and `/get` through the guard on Windows, with the trace, and `/gzip` on a bare handle with and without decoding; output, with the two suite runs it rode in, in [`2026-09-29-windows-gzip-results.txt`](../evidence/2026-09-29-windows-gzip-results.txt) (§7) |
+| [`2026-09-29-windows-followup-probe.R`](../evidence/2026-09-29-windows-followup-probe.R) | `gzcon()` and `gzfile()` writing the same bytes, checked by their gzip trailers, and `header_segments()` timed per call over sizes, each part in a child process under a time limit; output in [`2026-09-29-windows-followup-results.txt`](../evidence/2026-09-29-windows-followup-results.txt) (§7) |
 | [`2026-09-29-revocation-probe.R`](../evidence/2026-09-29-revocation-probe.R) | which `ssl_options` bits a new handle carries on Windows, read off by behaviour against a valid and a revoked Let's Encrypt test host; needs outbound HTTPS (§5) |
 
 External sources for this file are in [`../references.md`](../references.md).

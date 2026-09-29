@@ -317,8 +317,9 @@ three other ways elsewhere: the key engages on the builds without IDN (macOS
 `C.UTF-8`; under the C locale, 8.5.0 and the full 7.76.1 refuse the URL (`URL
 using bad/illegal format`). A URL whose host is already the A-label, which
 `ssrfr-v1.md` §4.1 says the binding hands libcurl, engages on every build and
-locale run (3a, 3e2). `ssrfr-v1.md` §4.1 refuses any other wire string as `parse`
-(proposed, §8 item 34).
+locale run (3a, 3e2). `ssrfr-v1.md` §4.1 refuses as `parse` a wire string, or
+the host `curl_parse_url()` returns from it, that is not printable ASCII (§8
+item 34).
 
 ### 4.3 Failover
 
@@ -610,6 +611,7 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 | Verdicts and reason codes | §5, §6.5 | L0 | golden table | runs |
 | Guard host equals transport host, by value | INV-1, INV-2 | L0 | parse-vector corpus | runs |
 | Parser disagreement refuses as `parse` (a MUST-test): the four fullwidth separators in a host (`design/evidence/2026-09-25-fullwidth-separators.R`), with the refusal asserted whatever `rurl`'s verdict | §4.1 | L0 | named test, beside the corpus rows | runs |
+| A wire string or parsed host that is not printable ASCII refuses as `parse` (a MUST-test): a U-label serialization refuses even when a mocked `curl_parse_url()` returns the A-label, before any resolver call; a mocked serialization `http://b%C3%BCcher.invalid/` refuses through the real `curl_parse_url()` (`design/evidence/2026-09-29-wire-ascii.R`) | §4.1, INV-6 | L0 | named test, beside the disagreement test | runs |
 | A failing dependency refuses: `get_parse_verdicts`, `safe_parse_url`, `curl_parse_url` and each `raddr` call, through their internal wrappers, made to `stop()` or return `NULL` or a wrong shape | INV-11, §5.3 | L1 + L3 | mocked wrappers; honeypot listener sees no connection | runs |
 | Minimized projection and redaction | INV-12, §2.3, §6.4 | L0 | one projected value for every code and cause; `print`, `format` and conditions searched for planted userinfo, header value, body and proxy value | runs |
 | Trace matcher fails safe | INV-5, §6.6 | L0 | synthetic `debugfunction` traces (this file §6): none, garbled, another address → `pin-mismatch`; the pinned address → match, an IPv6 compared as a `raddr` value (INV-3) | runs |

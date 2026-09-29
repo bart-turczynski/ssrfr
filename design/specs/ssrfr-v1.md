@@ -30,7 +30,7 @@ Only **[ratified]** text may be implemented against.
 | Marker | Meaning |
 |---|---|
 | **[ratified]** | Accepted by the maintainer. |
-| **[proposed]** | Recommended position awaiting ratification. One remains: §4.1's printable-ASCII wire string and its INV-6 pointer (§8 item 34). |
+| **[proposed]** | Recommended position awaiting ratification. None remains since §8 item 34 closed on 2026-09-29. |
 | **[open]** | Undecided. |
 | **[inherited]** | Carried from the retired guard spec and not separately ratified. None remains since §8 item 14 closed on 2026-09-24. |
 | **[suspended]** | A ratified clause whose stated premise has since been found false. It is not implementable until re-ratified. The correction and a **[proposed]** replacement sit directly beside it. None remains since 2026-09-25. |
@@ -43,6 +43,8 @@ findings proposed on 2026-09-24 (§8 item 23, `SSRF-nbcgyled`), with INV-10's ra
 corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
 unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
 items 32–33, two gaps a review of the implementation tickets found.
+**Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
+parsed host (§4.1, `SSRF-ljqshjmj`).
 The transport findings are verified on macOS and Linux (§8 item 7 closed);
 Windows is outstanding under §8 item 6 (`SSRF-fjgfnaaq`), a v1 release blocker.
 
@@ -653,23 +655,30 @@ across a large slice of the web.
 is already in A-label form; the build used for the 2026-09-24 evidence has IDN
 support off.
 
-**[proposed]** *2026-09-29* (§8 item 34, `SSRF-ljqshjmj`). The string handed to
+*Ratified 2026-09-29* (§8 item 34, `SSRF-ljqshjmj`). The string handed to
 libcurl, with the fragment removed (§2.3), MUST be printable ASCII (U+0021 to
 U+007E); any other string refuses as `parse` before `curl_parse_url()` reads it.
-This turns the clarification above from a property of construction into a
-refusal. A U-label that reaches libcurl can defeat the pin: on builds with IDN
-support, libcurl matches `connect_to` against the A-label while
-`curl_parse_url()` returns the U-label, so the key misses and libcurl resolves
-the name itself (INV-6) **[verified]** (`r-binding.md` §4.2). The agreement check
-above compares the two parsed hosts, and a parser that returned the A-label for
-a U-label string would pass it. The rule reads the string itself, because
-finding its host component would take a third parser. Past `rurl`'s syntax and
-scheme verdicts, every string `rurl` 3.0.1 serializes from the parse-vector and
-verdict corpora and from generated non-ASCII inputs is printable ASCII, except a
-host holding a space, which the agreement check already refuses. The rule
-therefore refuses nothing admitted today **[verified]**
-(`design/evidence/2026-09-29-wire-ascii.R`). ASCII is not IDNA validity: the
-§5.0 A-label rule and its `rurl` gap (`RURL-vicyvlvh`) are unchanged.
+The host `curl_parse_url()` returns from that string, which is the `connect_to`
+key (INV-6), MUST be printable ASCII too, or the hop refuses as `parse`: libcurl
+percent-decodes the host, so the ASCII string `http://b%C3%BCcher.invalid/`
+parses to the host `bücher.invalid` **[verified]**. This turns the clarification
+above from a property of construction into a refusal. A U-label that reaches
+libcurl can defeat the pin: on builds with IDN support, libcurl matches
+`connect_to` against the A-label while `curl_parse_url()` returns the U-label,
+so the key misses and libcurl resolves the name itself (INV-6) **[verified]**
+(`r-binding.md` §4.2). The agreement check above compares the two parsed hosts,
+and a parser that returned the A-label for a U-label string would pass it. The
+rule on the string reads the string itself, because finding its host component
+would take a third parser; the rule on the host reads libcurl's own parse. Past
+`rurl`'s syntax and scheme verdicts, every string `rurl` 3.0.1 serializes from
+the parse-vector and verdict corpora and from generated non-ASCII inputs is
+printable ASCII, except a host holding a space, which the agreement check
+already refuses, and every host `curl_parse_url()` returns for a string
+admitted today is printable ASCII. `rurl` decodes a percent-encoded host and
+serializes its A-label. The two rules therefore refuse nothing admitted today
+**[verified]** (`design/evidence/2026-09-29-wire-ascii.R`). ASCII is not IDNA
+validity: the §5.0 A-label rule and its `rurl` gap (`RURL-vicyvlvh`) are
+unchanged.
 
 ### 4.2 INV-1 is preserved by construction, not by hope
 
@@ -1449,7 +1458,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 31 | How `robotstxtr` and `sitemapr` migrate: an L0 compatibility adapter first, or straight to the guarded fetch (S6, §6.5) | **closed — ratified** 2026-09-25 by a unanimous four-model vote: straight to the guarded fetch, with no L0 adapter (S6, ADR 0007) — `SSRF-cnljaaek` |
 | 32 | The reason code when a `raddr` call fails on an address it has already parsed: INV-11 requires refusal, and §6.6's `unresolvable` covers only an answer `raddr` cannot parse | **closed — ratified** 2026-09-25 by the maintainer: `malformed-address`, the existing code for an address that could not be interpreted; no new code (§6.5). Raised by a GPT-6 Sol review of the implementation tickets — `SSRF-ifldwmnc` |
 | 33 | A 3xx without `Location` once the redirect budget is spent: §2.3 calls it a final response, while §5.3 and §6.5 refuse any 3xx | **closed — ratified** 2026-09-25 by the maintainer: every 3xx refuses as `redirect-limit` once the budget is spent, including under `max_redirects = 0` (§2.3). Raised by the same review — `SSRF-fvtqbanc` |
-| 34 | Whether the string handed to libcurl MUST be printable ASCII, enforced as a `parse` refusal, or whether A-label hosts stay a property of construction only (§4.1, INV-6) | **proposed** 2026-09-29, awaiting ratification. The maintainer chose an enforced rule on the whole string over a check of its host component, which would need a third parser, and over a check at the `connect_to` key in L2. The `connect_to` key stays `curl_parse_url()`'s host, verbatim, in `"HOST::IP:"` form. Raised by the Linux transport re-run (item 6) — `SSRF-ljqshjmj` |
+| 34 | Whether the string handed to libcurl MUST be printable ASCII, enforced as a `parse` refusal, or whether A-label hosts stay a property of construction only (§4.1, INV-6) | **closed — ratified** 2026-09-29 by the maintainer, with one amendment: the host `curl_parse_url()` returns, the `connect_to` key, MUST be printable ASCII too, since libcurl percent-decodes the host (raised by a research agent, confirmed by a GPT-6 Sol review). The maintainer chose an enforced rule on the whole string over a check of its host component, which would need a third parser, and over a check at the `connect_to` key in L2. The `connect_to` key stays `curl_parse_url()`'s host, verbatim, in `"HOST::IP:"` form. Raised by the Linux transport re-run (item 6) — `SSRF-ljqshjmj` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1787,8 +1796,8 @@ The mechanism binding a hostname to a validated address MUST NOT silently
 disengage. Where the platform's pinning primitive is keyed (e.g. by host and
 port), the implementation MUST construct the key such that a mismatch is
 impossible, or MUST verify the pin engaged. With §4.2, the host in the key MUST
-be the transport's own parse of the requested URL. **[proposed]** *2026-09-29*
-(§8 item 34): that URL MUST be printable ASCII (§4.1).
+be the transport's own parse of the requested URL. That URL and its parsed host
+meet §4.1's printable-ASCII rule (§8 item 34).
 
 **Rationale.** **[verified]** in the R stack: both available primitives discard
 the pin and perform a *real, unvalidated* resolution when the key's port does not

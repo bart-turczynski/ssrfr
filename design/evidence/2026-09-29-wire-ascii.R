@@ -1,7 +1,9 @@
 # Probe behind ssrfr-v1.md §4.1's wire-string precondition (§8 item 34, fp
 # SSRF-ljqshjmj): is every string rurl serializes for libcurl, once past the
 # syntax and scheme gates, printable ASCII? If so, refusing any other string as
-# `parse` refuses nothing the binding admits today.
+# `parse` refuses nothing the binding admits today. Then the second half of the
+# rule: is the host curl_parse_url() returns, the connect_to key, printable
+# ASCII for every string admitted today?
 #
 # Run from the repository root with pkgload, rurl and curl installed. No network
 # access is needed.
@@ -79,3 +81,24 @@ print(res[!res$ascii, ], right = FALSE, row.names = FALSE)
 #  input                   wire                   ascii today
 #  http://b cher.example/  http://b cher.example/ FALSE refused
 #  http://b　cher.example/ http://b cher.example/ FALSE refused
+
+# The host curl_parse_url() returns becomes the connect_to key (INV-6). libcurl
+# percent-decodes the host, so an ASCII string does not make that key ASCII.
+# rurl decodes the same input and serializes the A-label, so no such string
+# reaches libcurl today.
+pct <- "http://b%C3%BCcher.invalid/"
+cat(
+  "curl_parse_url() host of", pct, ":", curl::curl_parse_url(pct)$host,
+  "| wire string today:", parse_boundary(pct)$wire, "\n"
+)
+keys <- vapply(
+  res$input[res$today == "admitted"],
+  function(u) parse_boundary(u)$host %||% "", ""
+)
+cat(
+  "admitted today:", length(keys),
+  "| parsed host not printable ASCII:",
+  sum(grepl("[^\\x21-\\x7e]", keys, perl = TRUE)), "\n"
+)
+# curl_parse_url() host of http://b%C3%BCcher.invalid/ : bücher.invalid | wire string today: http://xn--bcher-kva.invalid/
+# admitted today: 558 | parsed host not printable ASCII: 0

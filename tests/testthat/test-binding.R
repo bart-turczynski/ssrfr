@@ -146,25 +146,29 @@ test_that("a U-label URL's refusal and binding carry the A-label host", {
   a_label <- "xn--bcher-kva.example"
   url <- paste0("https://", u_label, "/")
 
-  # Refused by a hostname rule (step 6) and by the resolved address (step 8).
-  mock_answers("10.0.0.5")
+  # Refused by a rule written as the A-label (step 6), before any query, and
+  # by the address the A-label resolved to (step 8).
+  seen <- mock_answers("10.0.0.5")
   r <- ssrf_prepare_hop(
     url,
-    ssrf_policy(deny_hosts = u_label),
+    ssrf_policy(deny_hosts = a_label),
     request = list()
   )
   expect_s3_class(r, "ssrfr_refusal")
   expect_identical(r$code, "host-denied")
   expect_identical(r$host, a_label)
+  expect_identical(seen$queries, character())
   r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
   expect_s3_class(r, "ssrfr_refusal")
   expect_identical(r$code, "private")
   expect_identical(r$host, a_label)
+  expect_identical(seen$queries, paste0(a_label, "."))
 
   seen <- mock_answers("93.184.216.34")
   b <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
   expect_s3_class(b, "ssrfr_binding")
   expect_identical(seen$queries, paste0(a_label, "."))
+  expect_identical(b$url, paste0("https://", a_label, "/"))
   expect_identical(b$origin$host, a_label)
   expect_identical(b$tls$name, a_label)
 })

@@ -39,6 +39,7 @@ public/
 doc/
 Meta/
 tests/testthat/_snaps/
+tests/testthat/_problems/
 
 # Fiberplane local issue tracking
 .fp/

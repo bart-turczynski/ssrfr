@@ -128,6 +128,15 @@ default:
       libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
       libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
       libpng-dev libtiff5-dev libjpeg-dev
+    # rocker/r-ver generates only C.UTF-8 and en_US.UTF-8, and
+    # tests/testthat/test-locale.R runs its Turkish leg (REQ-094) only where
+    # the machine has the locale. So build tr_TR.UTF-8, where glibc folds "I"
+    # to dotless "ı", and list it so the log shows the leg can run. The image
+    # ships the locales package that localedef reads; naming it in the install
+    # line above would upgrade glibc under R. The session locale stays C.UTF-8
+    # (LANG and LC_ALL above).
+    - localedef -i tr_TR -f UTF-8 tr_TR.UTF-8
+    - locale -a | grep -i '^tr_TR'
     - Rscript -e 'if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak", repos = "https://cloud.r-project.org")'
 
 # --------------------------------------------------------------------------

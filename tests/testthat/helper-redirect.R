@@ -73,11 +73,11 @@ local_redirect_server <- function(
     error_log_file = FALSE,
     ssl_certificate = if (tls) test_path("certs", "corpus.pem")
   )
-  webfakes::local_app_process(
+  local_app_server(
     app,
     port = if (tls) "0s" else NULL,
     opts = opts,
-    .local_envir = env
+    env = env
   )
 }
 

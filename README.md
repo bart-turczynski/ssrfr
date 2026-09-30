@@ -62,9 +62,12 @@ not a defense. `ssrf_vocabulary()` lists the reason codes, operational causes
 and error classes, which are a closed, versioned vocabulary you can log and
 match on.
 
-`vignette("introduction", package = "ssrfr")` walks through the policy, the
-guarded hop, redirects and testing against a local server. The documentation
-site is <https://bart-turczynski.gitlab.io/ssrfr/>.
+The
+[introduction](https://bart-turczynski.gitlab.io/ssrfr/articles/introduction.html)
+walks through the policy, the guarded hop, redirects and testing against a
+local server. It is also the package vignette, but `install_gitlab()` builds no
+vignettes unless you pass `build_vignettes = TRUE`. The documentation site is
+<https://bart-turczynski.gitlab.io/ssrfr/>.
 
 ## What it does not protect
 

@@ -3,8 +3,9 @@
 ## Supported versions
 
 Security fixes are made against the latest released version of `ssrfr` and the
-development version on `main`; please upgrade to the most recent release before
-reporting.
+development version on `main`. Until the first release, only `main` is
+supported. Once there is a release, please upgrade to the most recent one
+before reporting.
 
 | Version                        | Supported          |
 | ------------------------------ | ------------------ |
@@ -76,5 +77,7 @@ policy, and fetches it through a connection pinned to an address it validated.
   [v1 specification](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/specs/ssrfr-v1.md)
   documents as outside v1, such as the host's own public addresses when they
   are not listed in `deny_ranges`.
+- Certificate revocation. `ssrf_fetch()` verifies the certificate chain and
+  the hostname but checks revocation on no platform.
 - Egress control. A firewall or a separate network is the stronger boundary;
   `ssrfr` is defense in depth beside it.

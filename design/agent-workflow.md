@@ -47,11 +47,18 @@ hand at **Build > Pipelines > Run pipeline** and pick the ref.
 
 | Job | When | Does |
 |---|---|---|
-| `verify` | `main`, `web` | `scripts/verify.R` |
-| `coverage` | `main`, `web` | `covr`, reported as a GitLab coverage artifact |
-| `full-check` | schedule, `web` (manual) | `scripts/verify.R` on each R version in its matrix |
-| `pages` | `main` only | the pkgdown site, published to GitLab Pages |
-| `renovate` | schedule, `web` (manual) | CI image bumps (`renovate.json`) |
+| `verify` | `main` (a schedule too), `web` | `scripts/verify.R` |
+| `coverage` | `main` (a schedule too), `web` | `covr`, reported as a GitLab coverage artifact |
+| `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on each R version in its matrix |
+| `pages` | `main` only (a schedule too) | the pkgdown site, published to GitLab Pages |
+| `renovate` | a `deep-check` schedule, `web` (manual) | CI image bumps (`renovate.json`) |
+
+A schedule runs `full-check` and `renovate` only when it sets the variable
+`SCHEDULE_KIND=deep-check` on the schedule itself, as the weekly one must; any
+other schedule skips them. A schedule's pipeline is on `main`, so `verify`,
+`coverage` and `pages` run on every schedule, whatever its kind. Never set
+`SCHEDULE_KIND` as a project or group variable: every schedule would inherit
+it and run the deep checks.
 
 `pages` is pinned to `main` because it publishes rather than reports; a
 hand-started pipeline on a branch must not deploy unmerged code.

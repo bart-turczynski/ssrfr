@@ -1,5 +1,5 @@
 # ssrf_fetch() end to end (ssrfr-v1.md §2.2, §2.5, §5.3, §6.6, §12 steps
-# 9-12, §14, INV-5, INV-6, INV-9, INV-10, INV-12), and the behaviour tests of
+# 9-12, §14, INV-5, INV-6, INV-9, INV-10, INV-12), and the behavior tests of
 # r-binding.md §7 that need a server. Every server is on loopback, every
 # host a `.invalid` name the resolver mock maps to it, so a fetch that
 # arrives proves the pin was used.

@@ -19,7 +19,7 @@ V0017	ipv4-literal	http://169.254.0.1/	-	default	first	refuse	link-local	L0	acti
 V0018	ipv4-literal	http://169.254.255.255/	-	default	first	refuse	link-local	L0	active	RFC 3927	top of 169.254/16
 V0019	ipv4-literal	http://169.253.255.255/	-	default	first	admit	-	L0	active	RFC 3927	just below 169.254/16
 V0020	ipv4-literal	http://169.255.0.0/	-	default	first	admit	-	L0	active	RFC 3927	just above 169.254/16
-V0021	ipv4-literal	http://169.254.169.253/	-	default	first	refuse	link-local	L0	active	RFC 3927	IMDS neighbour is link-local, not a table row
+V0021	ipv4-literal	http://169.254.169.253/	-	default	first	refuse	link-local	L0	active	RFC 3927	IMDS neighbor is link-local, not a table row
 V0022	ipv4-literal	http://100.64.0.0/	-	default	first	refuse	shared	L0	active	RFC 6598	bottom of CGNAT
 V0023	ipv4-literal	http://100.127.255.255/	-	default	first	refuse	shared	L0	active	RFC 6598	top of CGNAT
 V0024	ipv4-literal	http://100.63.255.255/	-	default	first	admit	-	L0	active	RFC 6598	just below CGNAT
@@ -52,7 +52,7 @@ V0050	ipv4-literal	http://192.0.0.9/	-	default	first	admit	-	L0	active	RFC 7723 
 V0051	ipv4-literal	http://192.88.99.1/	-	default	first	refuse	reserved	L0	active	RFC 7526 ; ssrfr-v1.md §5.1	deprecated 6to4 relay anycast, reachability NA (tier 1)
 V0052	ipv4-literal	http://169.254.0.0/	-	default	first	refuse	link-local	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	bottom of 169.254.0.0/16
 V0053	ipv4-literal	http://169.254.169.254/	-	default	first	refuse	cloud-metadata	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	metadata address; gate 2 code beats link-local
-V0054	ipv4-literal	http://169.254.169.255/	-	default	first	refuse	link-local	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	neighbour above the metadata address
+V0054	ipv4-literal	http://169.254.169.255/	-	default	first	refuse	link-local	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	neighbor above the metadata address
 V0055	ipv4-literal	http://93.184.216.34/	-	default	first	admit	-	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	ordinary public address
 V0056	ipv4-literal	http://240.0.0.1/	-	default	first	refuse	reserved	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	class E future use (inherited known gap)
 V0057	ipv4-literal	http://198.18.0.1/	-	default	first	refuse	reserved	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R	benchmarking 198.18.0.0/15 (inherited known gap)
@@ -134,8 +134,8 @@ V0132	ipv6-spelling	http://[fd00:0ec2:0:0:0:0:0:0254]/	-	default	first	refuse	cl
 V0133	ipv6-spelling	http://[FD00:0EC2::254]/	-	default	first	refuse	cloud-metadata	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3 ; ssrfr-v1.md §5	a spelling of AWS IMDS fd00:ec2::254; gate 2 by value
 V0134	ipv6-spelling	http://[fd00:0ec2:ffff::1]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	inside fd00:ec2::/32 but not a gate 2 entry; ULA
 V0135	ipv6-spelling	http://[fd00:ec2:1::5]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	inside fd00:ec2::/32 but not a gate 2 entry; ULA
-V0136	ipv6-spelling	http://[fd00:ec3::254]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	neighbour of the AWS prefix; ULA
-V0137	ipv6-spelling	http://[fd01:ec2::254]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	neighbour of the AWS prefix; ULA
+V0136	ipv6-spelling	http://[fd00:ec3::254]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	neighbor of the AWS prefix; ULA
+V0137	ipv6-spelling	http://[fd01:ec2::254]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	neighbor of the AWS prefix; ULA
 V0138	ipv6-spelling	http://[fc00::1]/	-	default	first	refuse	private	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-3	unique-local fc00::/7 (inherited known gap)
 V0139	ipv6-spelling	http://[1:2:3]/	-	default	first	refuse	parse	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-11	malformed IPv6 literal fails the WHATWG parse; inherited expected admit
 V0140	ipv6-spelling	http://[::ffff::1]/	-	default	first	refuse	parse	L0	active	robotstxtr R/ssrf.R ; sitemapr R/ssrf.R ; ssrfr-v1.md INV-11	malformed IPv6 literal fails the WHATWG parse; inherited expected admit
@@ -225,8 +225,8 @@ V0223	embedding	http://[2600:1f00:64::a9fe:a9fe]/	-	default	first	admit	-	L0	act
 V0224	provider-endpoint	http://169.254.169.254/latest/meta-data/	-	default	first	refuse	cloud-metadata	L0	active	https://blog.appsecco.com/an-ssrf-privileged-aws-keys-and-the-capital-one-breach-4c3c2cded3af ; ssrfr-v1.md §5	AWS IMDS literal
 V0225	provider-endpoint	http://169.254.169.254:80/	-	default	first	refuse	cloud-metadata	L0	active	ssrfr-v1.md §5	IMDS with explicit port 80
 V0226	provider-endpoint	http://168.63.129.16/	-	default	first	refuse	cloud-metadata	L0	active	ssrfr-v1.md §5	Azure WireServer is public space; only gate 2 refuses it
-V0227	provider-endpoint	http://168.63.129.15/	-	default	first	admit	-	L0	active	ssrfr-v1.md §5	WireServer neighbour below is public
-V0228	provider-endpoint	http://168.63.129.17/	-	default	first	admit	-	L0	active	ssrfr-v1.md §5	WireServer neighbour above is public
+V0227	provider-endpoint	http://168.63.129.15/	-	default	first	admit	-	L0	active	ssrfr-v1.md §5	WireServer neighbor below is public
+V0228	provider-endpoint	http://168.63.129.17/	-	default	first	admit	-	L0	active	ssrfr-v1.md §5	WireServer neighbor above is public
 V0229	provider-endpoint	http://192.0.0.192/	-	default	first	refuse	cloud-metadata	L0	active	ssrfr-v1.md §5 ; RFC 6890	Oracle endpoint missed by ipaddress::is_global
 V0230	provider-endpoint	http://100.100.100.200/	-	default	first	refuse	cloud-metadata	L0	active	ssrfr-v1.md §5 ; RFC 6598	Alibaba endpoint inside CGNAT; gate 2 names it
 V0231	provider-endpoint	http://[fd00:ec2::254]/	-	default	first	refuse	cloud-metadata	L0	active	ssrfr-v1.md §5 ; ssrfr-v1.md §13 INV-3	AWS IMDS IPv6

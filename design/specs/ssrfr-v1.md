@@ -19,7 +19,7 @@ requirements. §10 maps every section of the retired document to its home here.
 | Document | Role |
 |---|---|
 | this file | **The contract.** Where anything else disagrees, this file wins and the other is a defect. |
-| [`r-binding.md`](r-binding.md) | R and libcurl evidence: option names, verified transport behaviour, test layers. States no policy of its own. |
+| [`r-binding.md`](r-binding.md) | R and libcurl evidence: option names, verified transport behavior, test layers. States no policy of its own. |
 | [`../adr/`](../adr/) | Why decisions were taken. Accepted ADRs are frozen; ADR 0003 records what in 0001 and 0002 is no longer accurate. |
 | [`../evidence/`](../evidence/) | Committed probe scripts behind `[verified]` claims dated 2026-09-24 or later (§7.1). |
 
@@ -742,7 +742,7 @@ DESCRIPTION states minimum versions only. *Ratified 2026-09-25* (§8 item 30,
 ## 5. The refusal rule **[ratified]**
 
 *Ratified 2026-09-24* (`SSRF-aqrgqdhi`), after revision against `raddr` 0.1.2
-behaviour and the `linklint` provider-endpoint data. Refusal is the default: a
+behavior and the `linklint` provider-endpoint data. Refusal is the default: a
 hop proceeds only when every address in the answer set passes every gate.
 
 Classification is delegated to `raddr`, which drives it from the IANA
@@ -794,7 +794,7 @@ was wrong. `multicast` remains a reason code (§6.5), and the ratified rule that
 **Gate 2 covers endpoints no registry can see.** Azure's WireServer
 `168.63.129.16` is a public address, so no IANA predicate refuses it. Endpoints
 inside special-purpose space — `169.254.169.254`, Oracle's `192.0.0.192`,
-Alibaba's `100.100.100.200` — are refused by gate 1a, but labelled by their
+Alibaba's `100.100.100.200` — are refused by gate 1a, but labeled by their
 category. Without an address table `ssrfr` cannot report the published
 `cloud-metadata` code for any of them. The table is
 vendor-sourced data with its own version stamp, separate from the IANA snapshot;
@@ -952,7 +952,7 @@ search suffixes never apply: `http://intranet/` cannot reach
 header, SNI, certificate verification (INV-9) and the pin key keep the dotless
 name, which the `connect_to` pin preserves naturally. There is no opt-out in v1;
 a caller who means an intranet name writes it fully qualified. Prior art: Sentry's
-`ensure_fqdn`. That the resolver honours the dot on every supported platform is
+`ensure_fqdn`. That the resolver honors the dot on every supported platform is
 an **[assumption]** until `SSRF-rcwugkqo` checks it under `--dns-search`.
 *Ratified 2026-09-24* (`SSRF-ighscodn`).
 
@@ -989,7 +989,7 @@ not depend on it.
 (INV-11). There is no path from "we could not determine this" to "proceed."
 
 **No allow rule overrides this** (§5.0, tier 1). An allow rule is a statement about
-a *known* range or name; it is not a licence to permit input the classifier could
+a *known* range or name; it is not a license to permit input the classifier could
 not decode. Reading it as one would reinstate exactly the malformed-literal
 fail-open that ADR 0001 §3 closed.
 
@@ -1430,7 +1430,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 3 | Limits: defaults, floors, decoding, per-hop header limits | **closed — ratified** (§5.3): finite and raisable, with no ceiling and no "unlimited" sentinel; `total_timeout` is chain-scoped and covers decoding. `curl::nslookup()` has no timeout of its own **[assumption]**, a documented residual — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution | **closed — ratified** (§5.0): names resolve as absolute, with no opt-out in v1 — `SSRF-ighscodn` |
 | 5 | Default User-Agent | **closed — ratified** (§5.3) — `SSRF-uitcvnif` |
-| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | **closed — verified** 2026-09-30 on macOS, Linux and Windows (below). **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own (item 34). Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code). HTTP/2 coalescing no longer applies: the transport speaks HTTP/1.1 only (`r-binding.md` §5; *amended 2026-09-26*, `SSRF-rgcijatt`). **Windows re-run 2026-09-29** through R-hub (Windows Server build 26100, R-devel, the CRAN `curl` 8.0.0 binary, libcurl 8.14.1 with IDN through WinIDN), under Schannel, the default, and again under `CURL_SSL_BACKEND=openssl`, with the same rows under both (`design/evidence/2026-09-29-windows-transport-results.txt`). Reproduced under both backends: everything reproduced on every Linux build above, with 26 compiled-in schemes refused on the first hop under `protocols_str` and under the bitmask. Differs: for a U-label URL the `curl_parse_url()` key **failed open**, as on the Ubuntu IDN builds (item 34); a dial to a closed loopback port traces `Connection timed out` within the 2-second connect timeout, where macOS and Linux trace `Connection refused` (`r-binding.md` §6); and the first progress call and the first `Trying` fall in one libcurl round, as on 8.5.0, not a round apart as on macOS's 8.14.1, so a progress callback that fails on its first call ends as `callback-error` there, not as `pin-mismatch` with check `absent` (`r-binding.md` §7). `CURLSSLOPT_NO_REVOKE` under Schannel verified by behaviour; the `NATIVE_CA` default under OpenSSL was not exercised, because `CURL_CA_BUNDLE` was set (`r-binding.md` §5). The same run found 28 failures in `ssrfr`'s own test suite on Windows (`design/evidence/2026-09-29-windows-testthat-output.txt`), none of them in `ssrfr`: R-hub's git checkout gave the corpus files CRLF endings; the Rtools libcurl ignores `cainfo` under Schannel, so the fixture CA cannot be trusted there, though a caller's https fetch, which sets no CA file, is unaffected (`r-binding.md` §5); Windows libcurl parses `file://HOST/` as a UNC path, so V0453 refuses as `scheme`, not `parse`, still at L0 (`r-binding.md` §2.3; superseded by V0538); and, under R-devel, a broken `gzcon()` trailer and a 10 ms timer (`r-binding.md` §7). Item 34's check is implemented (2026-09-29, `SSRF-afpkreyj`). **Suite on Windows 2026-09-30**: no failure, `R CMD check` status OK, under OpenSSL with only the two `SIGINT` tests skipped, and under Schannel with the fixture-CA tests skipped as well (`design/evidence/2026-09-30-windows-suite-results.txt`) — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo`; `SSRF-nfizdzxt` |
+| 6 | Cross-platform re-verification of every transport finding (macOS only; the INV-6 pin fail-open is libcurl-internal and MUST NOT be assumed portable) | **closed — verified** 2026-09-30 on macOS, Linux and Windows (below). **Linux re-run 2026-09-25** beside macOS (libcurl 8.14.1): Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1, `libcurl-minimal` and full), in Docker (`design/evidence/2026-09-25-linux-transport-results.txt`; `r-binding.md` §4–§6 carry the platform tags). Reproduced on every build: the `"HOST::IP:"` pin, the port-key fail-open, the empty-field and empty-`HOST` forms, failover, the reuse and DNS-cache leaks of a `resolve` pin, the `debugfunction` seam, the refused first-hop and redirect schemes under `protocols_str` or, on 7.76.1 and 7.81.0 where `protocols_str` is not settable, the `protocols` bitmask. Differs by build: the trace text, `maxfilesize` on a chunked body, and host-key matching. A key taken verbatim from `curl_parse_url()` engaged on every build for an ASCII host; for a U-label URL it **failed open** on Ubuntu 22.04 and 24.04 (IDN builds, UTF-8 locale), where libcurl matches the A-label (`r-binding.md` §4.2) — a decision of its own (item 34). Not run: the §4.1 disagreement refusal on numeric hosts (needs `ssrfr` code). HTTP/2 coalescing no longer applies: the transport speaks HTTP/1.1 only (`r-binding.md` §5; *amended 2026-09-26*, `SSRF-rgcijatt`). **Windows re-run 2026-09-29** through R-hub (Windows Server build 26100, R-devel, the CRAN `curl` 8.0.0 binary, libcurl 8.14.1 with IDN through WinIDN), under Schannel, the default, and again under `CURL_SSL_BACKEND=openssl`, with the same rows under both (`design/evidence/2026-09-29-windows-transport-results.txt`). Reproduced under both backends: everything reproduced on every Linux build above, with 26 compiled-in schemes refused on the first hop under `protocols_str` and under the bitmask. Differs: for a U-label URL the `curl_parse_url()` key **failed open**, as on the Ubuntu IDN builds (item 34); a dial to a closed loopback port traces `Connection timed out` within the 2-second connect timeout, where macOS and Linux trace `Connection refused` (`r-binding.md` §6); and the first progress call and the first `Trying` fall in one libcurl round, as on 8.5.0, not a round apart as on macOS's 8.14.1, so a progress callback that fails on its first call ends as `callback-error` there, not as `pin-mismatch` with check `absent` (`r-binding.md` §7). `CURLSSLOPT_NO_REVOKE` under Schannel verified by behavior; the `NATIVE_CA` default under OpenSSL was not exercised, because `CURL_CA_BUNDLE` was set (`r-binding.md` §5). The same run found 28 failures in `ssrfr`'s own test suite on Windows (`design/evidence/2026-09-29-windows-testthat-output.txt`), none of them in `ssrfr`: R-hub's git checkout gave the corpus files CRLF endings; the Rtools libcurl ignores `cainfo` under Schannel, so the fixture CA cannot be trusted there, though a caller's https fetch, which sets no CA file, is unaffected (`r-binding.md` §5); Windows libcurl parses `file://HOST/` as a UNC path, so V0453 refuses as `scheme`, not `parse`, still at L0 (`r-binding.md` §2.3; superseded by V0538); and, under R-devel, a broken `gzcon()` trailer and a 10 ms timer (`r-binding.md` §7). Item 34's check is implemented (2026-09-29, `SSRF-afpkreyj`). **Suite on Windows 2026-09-30**: no failure, `R CMD check` status OK, under OpenSSL with only the two `SIGINT` tests skipped, and under Schannel with the fixture-CA tests skipped as well (`design/evidence/2026-09-30-windows-suite-results.txt`) — `SSRF-fjgfnaaq`; `SSRF-rcwugkqo`; `SSRF-nfizdzxt` |
 | 7 | IPv6 pinning with a bracketed literal; the connection-reuse interaction in INV-7's corollary | **closed — verified** 2026-09-25 on macOS (8.14.1), Ubuntu 22.04 (7.81.0), Ubuntu 24.04 (8.5.0) and Rocky 9 (7.76.1), and 2026-09-29 on Windows (8.14.1, Schannel and OpenSSL): `"HOST::[::1]:"` dials `::1` and reaches an `httpuv` server there with `Host` intact; a `resolve` pin is bypassed by a pooled connection on the same or a fresh handle, a changed `connect_to` pin is not, and `forbid_reuse` closes the gap (`r-binding.md` §4.1, §4.4; `design/evidence/2026-09-25-linux-transport-results.txt`, `design/evidence/2026-09-29-windows-transport-results.txt`) — `SSRF-rcwugkqo`; `SSRF-fjgfnaaq` |
 | 8 | Chain-scoped redirect budget under per-hop policy (§2.5) | **closed — ratified**, and extended to `total_timeout` — `SSRF-pipbsrtr` |
 | 9 | Hostname rule normalization and suffix syntax (§5.0) | **closed — ratified** — `SSRF-pipbsrtr` |
@@ -1698,7 +1698,7 @@ insecure by construction regardless of how good its classification is.
 (a public address, allowed) while curl dials `127.0.0.1`. Silent bypass.
 
 **Corollary — the parse standard MUST NOT be caller-configurable.** Exposing it
-lets a caller select a mode whose output the transport does not honour.
+lets a caller select a mode whose output the transport does not honor.
 
 **Corollary — the parser is not portable.** Each implementation MUST bind to its
 own stack's parser and MUST NOT import a foreign one for "consistency." In `ssrfr`
@@ -1851,7 +1851,7 @@ An implementation MUST NOT disable or relax TLS certificate or hostname
 verification, and MUST NOT expose an option to do so. Verification here means
 the certificate chain to a trusted root and the hostname. Revocation checking
 (CRL, OCSP) is outside it: `ssrfr` checks revocation on no platform, so its
-behaviour is the same on each (`r-binding.md` §5). *Clarified 2026-09-25*
+behavior is the same on each (`r-binding.md` §5). *Clarified 2026-09-25*
 (`SSRF-nbcgyled`).
 
 **Rationale.** Pinning does **not** require it. **[verified]** by three

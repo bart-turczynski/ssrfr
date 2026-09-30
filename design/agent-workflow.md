@@ -49,9 +49,13 @@ hand at **Build > Pipelines > Run pipeline** and pick the ref.
 |---|---|---|
 | `verify` | `main`, `web` | `scripts/verify.R` |
 | `coverage` | `main`, `web` | `covr`, reported as a GitLab coverage artifact |
-| `full-check` | schedule, `web` (manual) | `scripts/verify.R` on each R version in its matrix |
+| `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on each R version in its matrix |
 | `pages` | `main` only | the pkgdown site, published to GitLab Pages |
-| `renovate` | schedule, `web` (manual) | CI image bumps (`renovate.json`) |
+| `renovate` | a `deep-check` schedule, `web` (manual) | CI image bumps (`renovate.json`) |
+
+A schedule runs `full-check` and `renovate` only when it sets the variable
+`SCHEDULE_KIND=deep-check` (schedule 4459714, the weekly one, does); any other
+schedule skips them.
 
 `pages` is pinned to `main` because it publishes rather than reports; a
 hand-started pipeline on a branch must not deploy unmerged code.

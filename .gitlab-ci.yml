@@ -160,8 +160,13 @@ workflow:
 .scheduled-or-manual:
   rules:
     # A scheduled run is BLOCKING: a detector that reports success when it
-    # fires is worthless.
+    # fires is worthless. Only a schedule that sets SCHEDULE_KIND=deep-check
+    # (a variable on the schedule itself, not in this file) runs these jobs;
+    # any other schedule falls to the explicit `when: never` below, so adding
+    # a schedule for another purpose cannot start them (SEOR-ihmntqzm).
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_KIND == "deep-check"
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     # Under `rules`, `when: manual` defaults to `allow_failure: false`, which
     # would leave a hand-started pipeline blocked on a job nobody meant to gate
     # on. Load-bearing.

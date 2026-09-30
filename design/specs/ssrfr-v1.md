@@ -45,8 +45,12 @@ unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
 items 32–33, two gaps a review of the implementation tickets found.
 **Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
 parsed host (§4.1, `SSRF-ljqshjmj`).
-The transport findings are verified on macOS and Linux (§8 item 7 closed);
-Windows is outstanding under §8 item 6 (`SSRF-fjgfnaaq`), a v1 release blocker.
+The transport findings are verified on macOS, Linux and Windows (§8 items 6
+and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
+without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
+Schannel the fixture-CA tests too, so under §7.2 Windows has not shown
+conformance yet. *Amended 2026-09-30* (was "Windows is outstanding under §8
+item 6, a v1 release blocker"; `SSRF-bsygustw`).
 
 **Evidence tags.** **[verified]** was tested empirically; **[sourced]** cites
 external evidence; **[assumption]** is neither. A tag is promoted only with new
@@ -952,9 +956,14 @@ search suffixes never apply: `http://intranet/` cannot reach
 header, SNI, certificate verification (INV-9) and the pin key keep the dotless
 name, which the `connect_to` pin preserves naturally. There is no opt-out in v1;
 a caller who means an intranet name writes it fully qualified. Prior art: Sentry's
-`ensure_fqdn`. That the resolver honors the dot on every supported platform is
-an **[assumption]** until `SSRF-rcwugkqo` checks it under `--dns-search`.
-*Ratified 2026-09-24* (`SSRF-ighscodn`).
+`ensure_fqdn`. That the resolver honors the dot is **[verified]** on Linux:
+under a DNS search list, `curl::nslookup()` gets no answer for `svc.` where
+`svc` resolves through the list (Ubuntu 22.04, Ubuntu 24.04 and Rocky 9, glibc,
+Docker `--dns-search`, 2026-09-25; `r-binding.md` §2.3,
+`design/evidence/2026-09-25-search-domain-probe.R`, `SSRF-rcwugkqo`). On macOS
+and Windows, where that probe has not been run, it remains an **[assumption]**.
+*Ratified 2026-09-24* (`SSRF-ighscodn`). *Amended 2026-09-30* (was an
+**[assumption]** on every platform; `SSRF-bsygustw`).
 
 #### The extension worth flagging
 
@@ -1544,6 +1553,15 @@ binding model (§2, §6.2); INV-12's tension is resolved by §6.4; the guard spe
 open decision 1 is closed (§3.1). The two `r-binding.md` amendments — the
 dependency reversal in its §1, and `resolve_url()` with the finding that `curl`
 cannot resolve references in its §2 — were applied to that file.
+
+Later amendments are marked inline, *Amended* with a date, where they apply.
+From 2026-09-30 they are also logged here:
+
+- **2026-09-30** (`SSRF-bsygustw`): the status summary under *Status markers*
+  records §8 item 6 as closed, the transport findings verified on Windows too;
+  §5.0 *Names resolve as absolute* tags the trailing-root-dot resolver behavior
+  **[verified]** on Linux, as the committed search-domain probe shows, and
+  **[assumption]** on macOS and Windows, where it has not been run.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

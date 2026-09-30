@@ -128,15 +128,25 @@ default:
       libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
       libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
       libpng-dev libtiff5-dev libjpeg-dev
-    # rocker/r-ver generates only C.UTF-8 and en_US.UTF-8, and
-    # tests/testthat/test-locale.R runs its Turkish leg (REQ-094) only where
-    # the machine has the locale. So build tr_TR.UTF-8, where glibc folds "I"
-    # to dotless "ı", and list it so the log shows the leg can run. The image
-    # ships the locales package that localedef reads; naming it in the install
-    # line above would upgrade glibc under R. The session locale stays C.UTF-8
-    # (LANG and LC_ALL above).
+    # rocker/r-ver (4.5.1 and 4.4.3, as probed) generates only C.UTF-8 and
+    # en_US.UTF-8, and tests/testthat/test-locale.R (REQ-094) runs a leg only
+    # for each of its Turkish, Azeri and Lithuanian locales the machine has.
+    # So build all four (tr_TR.ISO8859-9 and tr_TR.iso88599 name one), register
+    # them in /etc/locale.gen so a later locale-gen keeps them, and check that R can switch to each and that
+    # tr_TR.UTF-8 folds "I" to dotless "ı". The image ships the locales package
+    # that localedef reads; on the probed tags, naming it in the install line
+    # above upgraded glibc under R. The session locale stays C.UTF-8 (LANG and
+    # LC_ALL above).
     - localedef -i tr_TR -f UTF-8 tr_TR.UTF-8
-    - locale -a | grep -i '^tr_TR'
+    - localedef -i tr_TR -f ISO-8859-9 tr_TR.ISO8859-9
+    - localedef -i az_AZ -f UTF-8 az_AZ.UTF-8
+    - localedef -i lt_LT -f UTF-8 lt_LT.UTF-8
+    - >
+      printf '%s\n' 'tr_TR.UTF-8 UTF-8' 'tr_TR.ISO-8859-9 ISO-8859-9'
+      'az_AZ.UTF-8 UTF-8' 'lt_LT.UTF-8 UTF-8' >> /etc/locale.gen
+    - >
+      Rscript -e 'for (l in c("tr_TR.UTF-8", "tr_TR.ISO8859-9", "tr_TR.iso88599", "az_AZ.UTF-8", "lt_LT.UTF-8")) if (!nzchar(Sys.setlocale("LC_CTYPE", l))) stop("R cannot use locale ", l)'
+      -e 'invisible(Sys.setlocale("LC_CTYPE", "tr_TR.UTF-8")); stopifnot(tolower("I") == intToUtf8(0x131L)); cat("hostile locales usable in R\n")'
     - Rscript -e 'if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak", repos = "https://cloud.r-project.org")'
 
 # --------------------------------------------------------------------------

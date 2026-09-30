@@ -25,7 +25,8 @@ Alternatively, open a **confidential issue** on the GitLab project:
    **New issue**.
 2. Tick **This issue is confidential** before submitting.
 
-A confidential issue is visible only to project members.
+A confidential issue is visible only to you, its assignees and the project
+members whose role lets them see confidential issues.
 
 Email is listed first deliberately: it works whether or not you have a GitLab
 account, and it is the channel the maintainer monitors.

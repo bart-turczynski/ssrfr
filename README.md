@@ -6,10 +6,10 @@ crawlers following redirects.
 
 `ssrfr` guards one hop at a time. `ssrf_prepare_hop()` parses a URL, resolves
 its name once, classifies every address the name resolves to, and returns
-either a refusal with a stable reason code or a binding pinned to the validated
-addresses. `ssrf_fetch()` fetches through that binding and connects only to a
-validated address, so the name cannot be rebound between the check and the
-connection. A redirect is followed by preparing the next hop from the previous
+a refusal with a stable reason code, an operational failure, or a binding
+pinned to the validated addresses. `ssrf_fetch()` fetches through that binding
+and connects only to a validated address, so the name cannot be rebound between
+the check and the connection. A redirect is followed by preparing the next hop from the previous
 one, which checks it from the start, or by `ssrf_fetch_chain()`, which runs that
 loop for you.
 
@@ -88,6 +88,7 @@ the checks:
 
 ```sh
 Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+Rscript -e 'pak::pak(c("lintr", "rcmdcheck"))'
 ```
 
 Then run the checks:

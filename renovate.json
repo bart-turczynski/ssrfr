@@ -1,8 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "No schedule here: the pipeline schedule (SCHEDULE_KIND=deep-check, weekly, .gitlab-ci.yml) is the cadence, and a manual web run is a deliberate one. A window here was read in UTC and never overlapped the 08:43 UTC run, so Renovate skipped every scheduled run (SSRF-iyuaowff).",
+  "description": "Renovate follows the CI pipeline cadence, a SCHEDULE_KIND=deep-check pipeline schedule, and a manual web run is intentional; so no schedule window here, and no hourly PR limit. Why: design/agent-workflow.md.",
   "extends": ["config:recommended"],
   "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
   "labels": ["dependencies"],
   "customManagers": [
     {

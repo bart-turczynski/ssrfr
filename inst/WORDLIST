@@ -27,6 +27,7 @@ libcurl
 libcurl's
 loopback
 lowercased
+multicast
 parsers
 pkgdown
 pre

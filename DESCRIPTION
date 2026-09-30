@@ -10,10 +10,10 @@ Description: Protects R applications that fetch URLs an attacker can
     once, resolved once, and every resolved address is classified before the
     connection is pinned to a validated address, so a hostname cannot be
     rebound between check and connect. Refusals carry stable reason codes.
-    Under development: the policy, the result model, structural inspection
-    of a URL without network access, resolved inspection of every address a
-    name resolves to, and the guarded fetch of each hop of a redirect
-    chain are implemented.
+    Provides the guarded fetch of each hop of a redirect chain, a helper
+    that follows a whole chain, structural inspection of a URL without
+    network access, and resolved inspection of every address a name
+    resolves to.
 License: MIT + file LICENSE
 URL: https://bart-turczynski.gitlab.io/ssrfr/, https://gitlab.com/bart-turczynski/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items

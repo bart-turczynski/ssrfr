@@ -138,6 +138,37 @@ test_that("a binding carries the identity, the plan and the validated set", {
   expect_identical(b$origin$port, 443L)
 })
 
+# REQ-057 (§0 S4, §2.3, §6.2): a refusal and a binding for a U-label URL carry
+# the A-label host the decision used. The input is built with intToUtf8(): a
+# "\u" escape parsed in a C-locale session is unmarked and refuses as `parse`.
+test_that("a U-label URL's refusal and binding carry the A-label host", {
+  u_label <- paste0("b", intToUtf8(0xFC), "cher.example")
+  a_label <- "xn--bcher-kva.example"
+  url <- paste0("https://", u_label, "/")
+
+  # Refused by a hostname rule (step 6) and by the resolved address (step 8).
+  mock_answers("10.0.0.5")
+  r <- ssrf_prepare_hop(
+    url,
+    ssrf_policy(deny_hosts = u_label),
+    request = list()
+  )
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "host-denied")
+  expect_identical(r$host, a_label)
+  r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "private")
+  expect_identical(r$host, a_label)
+
+  seen <- mock_answers("93.184.216.34")
+  b <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
+  expect_s3_class(b, "ssrfr_binding")
+  expect_identical(seen$queries, paste0(a_label, "."))
+  expect_identical(b$origin$host, a_label)
+  expect_identical(b$tls$name, a_label)
+})
+
 # §2.5: a binding captures its policy by value, and a policy is a value: a
 # list of atomic fields, no environment or other reference among them. So no
 # edit to the caller's policy, or to any copy of it, reaches the binding's or

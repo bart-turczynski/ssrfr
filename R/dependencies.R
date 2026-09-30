@@ -160,7 +160,7 @@ dep_nslookup <- function(query) {
 # The write callback then ends the transfer, on the delivery that stopped it
 # or the first one after a stop elsewhere, by invoking R's `abort` restart.
 # curl evaluates the write callback through R_tryEval(), so the jump ends
-# there, with no condition signalled and no hook run, and curl returns a
+# there, with no condition signaled and no hook run, and curl returns a
 # short write, which libcurl fails as a write error without reading further
 # (design/evidence/2026-09-29-abort-post-stop-reads.txt). curl documents
 # none of this, so a test with a quitting hook checks it. curl evaluates its
@@ -172,7 +172,7 @@ dep_nslookup <- function(query) {
 # R acted on inside it, so it stays pending until curl or the loop checks for
 # it, outside any callback, and propagates, leaving the caller to find the
 # binding spent. However the call ends, an interrupt included, every handle
-# still in the pool is cancelled, which closes its connection.
+# still in the pool is canceled, which closes its connection.
 #
 # Returns a list: `aborted` (TRUE when a callback ended the transfer),
 # `failed` (the labels of the callbacks that raised an error, in the order
@@ -488,7 +488,7 @@ read_embeddings <- function(x) {
 
 # One transfer through dep_curl_transfer(), or NULL when the wrapper fails or
 # answers in the wrong shape. An interrupt is not an error: it propagates, and
-# the wrapper has already cancelled the transfer.
+# the wrapper has already canceled the transfer.
 read_transfer <- function(opts, on_body, debug, progress) {
   dep_call(
     dep_curl_transfer,

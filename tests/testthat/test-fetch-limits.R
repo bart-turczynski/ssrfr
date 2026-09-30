@@ -494,7 +494,7 @@ test_that("a redirect is returned with Location; two are a protocol error", {
 
 # r-binding.md §7, Rules: each proxy variable, with an http:// and a
 # socks5h:// value, set to a dead loopback port, for a pinned http:// and a
-# pinned https:// fetch. A variable libcurl honoured would send the fetch to
+# pinned https:// fetch. A variable libcurl honored would send the fetch to
 # the dead port.
 test_that("proxy variables have no effect", {
   skip_if_no_webfakes()
@@ -696,7 +696,7 @@ test_that("the transport refuses every scheme but http and https", {
 # one runs the user's options(error = ) hook, which may quit the process.
 # ssrfr raises none: a limit reached in the write callback, at the first
 # delivery or mid-body, or in the progress callback, is recorded and the
-# transfer cancelled, and the fetch returns a failure.
+# transfer canceled, and the fetch returns a failure.
 test_that("a stop at a limit never runs the error hook", {
   skip_if_not_installed("withr")
   mock_answers("127.0.0.1")

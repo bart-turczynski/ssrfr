@@ -1003,4 +1003,24 @@ Each script records its environment and expected output; run it with
 | [`2026-09-29-windows-followup-probe.R`](../evidence/2026-09-29-windows-followup-probe.R) | `gzcon()` and `gzfile()` writing the same bytes, checked by their gzip trailers, and `header_segments()` timed per call over sizes, each part in a child process under a time limit; output in [`2026-09-29-windows-followup-results.txt`](../evidence/2026-09-29-windows-followup-results.txt) (§7) |
 | [`2026-09-29-revocation-probe.R`](../evidence/2026-09-29-revocation-probe.R) | which `ssl_options` bits a new handle carries on Windows, read off by behavior against a valid and a revoked Let's Encrypt test host; needs outbound HTTPS (§5) |
 
+### Conformance results
+
+The published results that `ssrfr-v1.md` §7 declares conformance by, with
+the dependency versions of its component 4 (§4.3), are committed once per
+release as `design/evidence/<YYYY-MM-DD>-conformance-results.txt`. The file
+is generated, never hand-edited:
+
+```sh
+Rscript scripts/conformance-results.R [output]
+```
+
+It runs `tests/testthat/test-corpus.R` as
+`testthat::test_local(filter = "corpus")` does and writes today's file, or
+`output` if given. It exits 1, with the file still written and headed
+`result: FAIL`, when a corpus test fails, errors, skips or asserts nothing
+(`ssrfr-v1.md` §7.2), when a corpus file does not match its manifest, or when
+a component 4 field cannot be read. Commit only a `result: PASS` file. On
+Windows the publishing run is the one under `CURL_SSL_BACKEND=openssl` (§7,
+Rules).
+
 External sources for this file are in [`../references.md`](../references.md).

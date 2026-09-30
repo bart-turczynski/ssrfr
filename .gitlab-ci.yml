@@ -160,8 +160,14 @@ workflow:
 .scheduled-or-manual:
   rules:
     # A scheduled run is BLOCKING: a detector that reports success when it
-    # fires is worthless.
+    # fires is worthless. Only a schedule that sets SCHEDULE_KIND=deep-check
+    # (a variable on the schedule itself, never a project or group variable,
+    # which every schedule would inherit) runs these jobs;
+    # any other schedule falls to the explicit `when: never` below, so adding
+    # a schedule for another purpose cannot start them (SEOR-ihmntqzm).
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_KIND == "deep-check"
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     # Under `rules`, `when: manual` defaults to `allow_failure: false`, which
     # would leave a hand-started pipeline blocked on a job nobody meant to gate
     # on. Load-bearing.
@@ -280,8 +286,9 @@ pages:
 # maintenance — scheduled or on demand
 #
 # GitLab keeps pipeline schedules in project settings (CI/CD > Schedules), not
-# in this file. `needs: []` starts the job when the pipeline starts, so a red
-# full-check leg cannot skip it.
+# in this file. A schedule runs renovate only when it sets
+# SCHEDULE_KIND=deep-check (.scheduled-or-manual). `needs: []` starts the job
+# when the pipeline starts, so a red full-check leg cannot skip it.
 # --------------------------------------------------------------------------
 
 # Renovate bumps the CI images (renovate.json). Needs a RENOVATE_TOKEN CI/CD

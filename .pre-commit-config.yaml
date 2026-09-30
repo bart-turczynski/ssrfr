@@ -24,6 +24,32 @@ repos:
     hooks:
       - id: air-format
         exclude: ^design/evidence/
+  # British spellings in code, comments, string literals, test names, fixture
+  # notes, tooling and design prose, which spelling::spell_check_package() (the
+  # `spelling` hook below) never reads: it covers DESCRIPTION, roxygen,
+  # vignettes, README and NEWS only (SEOR-xtmnpmae; seor design/fleet.md
+  # "Prose language"). Only the en-GB_to_en-US dictionary is enabled, so this
+  # is not a general typo checker. codespell skips dotfiles unless given
+  # --check-hidden.
+  #
+  # Ignored word: mitre, since MITRE (CWE, CAPEC) is a proper name and its
+  # domain appears in source URLs.
+  #
+  # Excluded, each because its bytes are not ours to respell:
+  #   man/ -- roxygen output; fix the roxygen source in R/ and regenerate.
+  #   design/evidence/ -- recorded tool output and probes; editing them makes
+  #     the record disagree with the run it cites.
+  #   design/adr/0001-network-safety-policy.md, 0003-one-normative-spec.md --
+  #     accepted ADRs are frozen (scripts/check-design.py). A later status
+  #     change to `superseded` would otherwise trip this hook.
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        name: codespell (British spellings, en-GB_to_en-US; SEOR-xtmnpmae)
+        args: [--builtin, en-GB_to_en-US, --ignore-words-list, mitre]
+        stages: [pre-commit, pre-push]
+        exclude: '^(man/|design/evidence/|design/adr/0001-network-safety-policy\.md$|design/adr/0003-one-normative-spec\.md$)'
   - repo: local
     hooks:
       - id: check-design

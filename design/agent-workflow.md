@@ -18,7 +18,11 @@ pre-commit install && pre-commit install --hook-type pre-push
 
 **On every commit:** end-of-file and trailing-whitespace fixers, merge-conflict
 detection, YAML/TOML validation, mixed-line-ending and case-conflict guards, a
-5 MB `check-added-large-files` guard, and `air-format` on staged R files.
+5 MB `check-added-large-files` guard, `air-format` on staged R files, and
+`codespell` with only its en-GB_to_en-US dictionary, which rejects British
+spellings in the files `spelling` never reads: code, comments, test names,
+fixtures, tooling and design prose. It runs again on every push. Its
+exclusions, and why, are commented in the config.
 
 **On every push**, in order:
 

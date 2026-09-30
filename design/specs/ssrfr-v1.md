@@ -46,8 +46,10 @@ items 32–33, two gaps a review of the implementation tickets found.
 **Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
 parsed host (§4.1, `SSRF-ljqshjmj`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
-and 7 closed; on Windows 2026-09-29, with the suite passing there 2026-09-30,
-`SSRF-fjgfnaaq`). *Amended 2026-09-30* (was "Windows is outstanding under §8
+and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
+without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
+Schannel the fixture-CA tests too, so under §7.2 Windows has not shown
+conformance yet. *Amended 2026-09-30* (was "Windows is outstanding under §8
 item 6, a v1 release blocker"; `SSRF-bsygustw`).
 
 **Evidence tags.** **[verified]** was tested empirically; **[sourced]** cites

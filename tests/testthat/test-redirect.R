@@ -1644,7 +1644,7 @@ test_that("the documented redirect loops end on the chain's final outcome", {
 # public primitives.
 test_that("a redirect chain works through webfakes::httpbin_app()", {
   skip_if_no_webfakes()
-  web <- webfakes::local_app_process(
+  web <- local_app_server(
     webfakes::httpbin_app(),
     opts = webfakes::server_opts(num_threads = 2)
   )

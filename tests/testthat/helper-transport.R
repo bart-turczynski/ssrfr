@@ -108,6 +108,40 @@ skip_if_no_webfakes <- function() {
   skip_if_not_installed("callr")
 }
 
+# How long a webfakes app process may take to start, in milliseconds: 60 s
+# unless SSRFR_TEST_START_TIMEOUT says otherwise. The start waits twice, and
+# on a loaded machine either wait can outlast its default (SSRF-xounanjz):
+# for the R session to start (callr's `wait_timeout`, 3 s, which webfakes
+# does not pass on) and for the app to listen (webfakes' `process_timeout`,
+# 5 s).
+app_start_timeout <- function() {
+  as.integer(Sys.getenv("SSRFR_TEST_START_TIMEOUT", "60000"))
+}
+
+# webfakes::local_app_process(), with app_start_timeout() for both waits.
+# webfakes starts the session with callr::r_session$new(), so for as long as
+# `env` lasts that call gets the longer `wait_timeout`.
+local_app_server <- function(app, opts, port = NULL, env = parent.frame()) {
+  timeout <- app_start_timeout()
+  session <- callr::r_session
+  local_mocked_bindings(
+    r_session = list(
+      new = function(options, wait = TRUE, wait_timeout = timeout) {
+        session$new(options, wait = wait, wait_timeout = timeout)
+      }
+    ),
+    .package = "callr",
+    .env = env
+  )
+  webfakes::local_app_process(
+    app,
+    port = port,
+    opts = opts,
+    process_timeout = timeout,
+    .local_envir = env
+  )
+}
+
 # The app most L2 tests use.
 test_app <- function() {
   app <- webfakes::new_app()
@@ -211,11 +245,11 @@ local_test_server <- function(
     error_log_file = FALSE,
     ssl_certificate = if (tls) test_path("certs", "alpha.pem")
   )
-  webfakes::local_app_process(
+  local_app_server(
     app,
     port = if (tls) "0s" else NULL,
     opts = opts,
-    .local_envir = env
+    env = env
   )
 }
 

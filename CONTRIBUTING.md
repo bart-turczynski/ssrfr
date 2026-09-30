@@ -27,11 +27,11 @@ version. Before step 1, every `Imports` floor in `DESCRIPTION` (`curl`, `raddr`,
 
 Steps 1 and 2 change files the tarball carries. Land them on `main` through a
 merge request before step 4, so the tarball you check and the tarball you
-submit are built from the same package files. Steps 3, 8 and 9 touch only
-`cran-comments.md`, `design/` and `ARCHITECTURE.md`, which `.Rbuildignore`
-keeps out of the tarball, so they do not invalidate the checks before them.
-Land them on `main` too before step 10, so the commit you submit and tag is on
-`main` and carries all of them.
+submit are built from the same package files. Steps 3 and 8 touch only
+`cran-comments.md` and `design/`, which `.Rbuildignore` keeps out of the
+tarball, so they do not invalidate the checks before them. Land them on `main`
+too before step 9, so the commit you submit and tag is on `main` and carries
+both.
 
 1. **Set the release version** in `DESCRIPTION`: `Version: X.Y.Z`, with the
    `.9000` dropped.
@@ -44,7 +44,7 @@ Land them on `main` too before step 10, so the commit you submit and tag is on
    - Test environments: list only the ones steps 4 to 7 actually ran (OS, R
      version, and where it ran: local, win-builder, R-hub, the GitLab
      `full-check` job). There is no GitHub Actions CI. Finish the list once
-     step 7 reports, before step 10.
+     step 7 reports, before step 9.
    - The NOTEs: say what each one is. On a first submission that is "New
      submission". R's incoming check also flags the `BugReports` URL,
      `https://gitlab.com/bart-turczynski/ssrfr/-/work_items`. R 4.5 and 4.6
@@ -105,23 +105,26 @@ Land them on `main` too before step 10, so the commit you submit and tag is on
    where `design/specs/r-binding.md` says, before submission. Published results
    name the corpus version and the dependency versions (`ssrfr-v1.md` §7), and
    they are what backs a conformance claim (`ssrfr-v1.md` §15).
-9. **Mark the spec shipped**, per `design/README.md`. Distill the durable facts
-   into `ARCHITECTURE.md` and the load-bearing choices into an ADR. Then set
-   `status: shipped` in the front matter of `design/specs/ssrfr-v1.md`.
-   `python3 scripts/check-design.py` must still pass. A shipped spec is never
-   updated again, so do this last before you submit.
-10. **Submit to CRAN** with `devtools::submit_cran()` and confirm through the
-    link CRAN emails to the maintainer. `devtools::submit_cran()` writes
-    `CRAN-SUBMISSION`, which records the submitted commit. Do not commit it.
-11. Once CRAN accepts, **tag the released commit** and push the tag:
+9. **Submit to CRAN** with `devtools::submit_cran()` and confirm through the
+   link CRAN emails to the maintainer. `devtools::submit_cran()` writes
+   `CRAN-SUBMISSION`, which records the submitted commit. Do not commit it.
+10. Once CRAN accepts, **tag the released commit** and push the tag:
     `git tag -a vX.Y.Z <sha> -m "ssrfr X.Y.Z"`, then `git push origin vX.Y.Z`.
     Use the commit `CRAN-SUBMISSION` names, which must be on `main`:
     `git merge-base --is-ancestor vX.Y.Z main` exits 0. Then delete
     `CRAN-SUBMISSION`.
-12. **Create the GitLab release** from the tag:
+11. **Create the GitLab release** from the tag:
     `glab release create vX.Y.Z --notes-file <file>`, where the file holds that
     version's `NEWS.md` section. The GitHub repository is a read-only mirror;
     do not create a release there.
+12. **Mark the spec shipped**, per `design/README.md`, only now that CRAN has
+    accepted: a CRAN review can force changes, and a shipped spec is never
+    updated again. Distill the durable facts into `ARCHITECTURE.md` and the
+    load-bearing choices into an ADR, then set `status: shipped` in the front
+    matter of `design/specs/ssrfr-v1.md`. `python3 scripts/check-design.py`
+    must still pass. Land it on `main` through a merge request, its own or
+    step 13's. None of these files is in the tarball, so the tag still matches
+    what CRAN has.
 13. **Open a post-release merge request** that:
     - bumps `DESCRIPTION` to `X.Y.Z.9000`: the release just published plus a
       fourth component, not the next patch number;

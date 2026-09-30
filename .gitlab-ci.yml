@@ -20,6 +20,9 @@ stages:
 
 default:
   interruptible: true
+  # Every job names the runner pool it depends on, so none falls back to
+  # shared runners (seor-local-docker carries this tag; SEOR-hhtzaknn).
+  tags: [local-docker]
 
 # --------------------------------------------------------------------------
 # Shared R setup
@@ -282,7 +285,9 @@ pages:
 # --------------------------------------------------------------------------
 
 # Renovate bumps the CI images (renovate.json). Needs a RENOVATE_TOKEN CI/CD
-# variable: a project access token with `api` and `write_repository` scope.
+# variable: a personal access token with `api` and `write_repository` scope.
+# Project access tokens need GitLab Premium, and this namespace is Free
+# (SEOR-tzxuisnf).
 renovate:
   extends: .scheduled-or-manual
   stage: maintenance
@@ -301,7 +306,7 @@ renovate:
     - |
       if [ -z "${RENOVATE_TOKEN:-}" ]; then
         echo "RENOVATE_TOKEN is not set - skipping renovate."
-        echo "Add it under Settings > CI/CD > Variables: a project access token"
+        echo "Add it under Settings > CI/CD > Variables: a personal access token"
         echo "with 'api' and 'write_repository' scope."
         exit 0
       fi

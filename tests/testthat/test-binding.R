@@ -138,6 +138,76 @@ test_that("a binding carries the identity, the plan and the validated set", {
   expect_identical(b$origin$port, 443L)
 })
 
+# §2.5: a binding captures its policy by value, and a policy is a value: a
+# list of atomic fields, no environment or other reference among them. So no
+# edit to the caller's policy, or to any copy of it, reaches the binding's or
+# changes a decision already made, and the binding refuses edits to its own.
+test_that("a policy edited after prepare changes nothing already decided", {
+  skip_if_no_webfakes()
+  web <- local_test_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  policy <- loopback_policy(
+    port,
+    deny_hosts = "denied.example.invalid",
+    user_agent = "ua-at-prepare"
+  )
+  expect_type(policy, "list")
+  expect_true(all(vapply(policy, is.atomic, logical(1))))
+  b <- ssrf_prepare_hop(
+    pinned_url(port, "/echo-headers"),
+    policy,
+    request = list()
+  )
+  expect_s3_class(b, "ssrfr_binding")
+
+  # Every way R edits a value, on the caller's policy and on a copy of it.
+  edit <- function(p) {
+    p$user_agent <- "ua-edited"
+    p[["max_response_size"]] <- 1
+    p$deny_hosts <- character()
+    p$allow_ports <- 80L
+    attr(p, "class") <- NULL
+    p
+  }
+  copy <- policy
+  copy <- edit(copy)
+  policy$user_agent <- "ua-edited"
+  policy[["max_response_size"]] <- 1
+  attr(policy, "extra") <- TRUE
+
+  # Nor can the binding's own policy or budget be written.
+  expect_error(b$policy <- copy)
+  expect_error(b[["policy"]] <- copy)
+  expect_error(assign("policy", copy, envir = b))
+  expect_error(b$policy$user_agent <- "ua-edited")
+  expect_error(b[["policy"]][["max_response_size"]] <- 1)
+  expect_error(attr(b$policy, "class") <- NULL)
+  expect_error(b$budget$max_redirects <- 99)
+
+  expect_s3_class(b$policy, "ssrfr_policy")
+  expect_identical(b$policy$user_agent, "ua-at-prepare")
+  expect_identical(b$policy$max_response_size, 10 * 1024^2)
+  expect_identical(b$policy$deny_hosts, "denied.example.invalid")
+  expect_identical(b$policy$allow_ports, c(80L, 443L, as.integer(port)))
+  expect_identical(b$budget$max_redirects, 20)
+
+  # The fetch decides under the policy the binding captured: its user agent,
+  # and a body larger than the edited 1-byte limit.
+  r <- ssrf_fetch(b)
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$status, 200L)
+  expect_match(body_text(r), "User-Agent=ua-at-prepare", fixed = TRUE)
+
+  # A policy decides later as it did when built, whatever became of a copy.
+  built <- ssrf_policy(deny_hosts = "denied.example.invalid")
+  copy <- edit(built)
+  expect_identical(
+    ssrf_inspect_url("http://denied.example.invalid/", built)$code,
+    "host-denied"
+  )
+})
+
 test_that("a name is resolved once per hop, and never again by the fetch", {
   seen <- mock_answers(function(q) {
     if (length(seen$queries) == 1L) "127.0.0.1" else "10.9.9.9"

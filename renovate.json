@@ -1,8 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate follows the CI pipeline cadence, a SCHEDULE_KIND=deep-check pipeline schedule, and a manual web run is intentional; so no schedule window here, and no hourly PR limit. Why: design/agent-workflow.md.",
   "extends": ["config:recommended"],
-  "schedule": ["before 6am on monday"],
   "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
   "labels": ["dependencies"],
   "customManagers": [
     {

@@ -60,6 +60,13 @@ other schedule skips them. A schedule's pipeline is on `main`, so `verify`,
 `SCHEDULE_KIND` as a project or group variable: every schedule would inherit
 it and run the deep checks.
 
+Renovate follows that cadence alone: `renovate.json` sets no `schedule`, and
+`prHourlyLimit` is `0` so one weekly run can open every MR it is allowed to. A
+window there is read in UTC unless `timezone` is set, and a run outside it
+silently creates no branch, as happened to the weekly run under
+`"before 6am on monday"` (`SSRF-iyuaowff`). Renovate reads its config from `main`, so a manual run on a
+branch does not test a `renovate.json` change.
+
 `pages` is pinned to `main` because it publishes rather than reports; a
 hand-started pipeline on a branch must not deploy unmerged code.
 

@@ -69,7 +69,7 @@ commit <- if (length(sha) == 0L) {
 } else if (length(changed) == 0L) {
   sha
 } else {
-  paste(sha, "with uncommitted changes in", toString(decisive))
+  paste(sha, "with uncommitted changes to", toString(substring(changed, 4L)))
 }
 
 # A field is read when its reader returns one non-empty string.
@@ -148,6 +148,11 @@ run <- testthat::test_local(
 elapsed <- proc.time()[["elapsed"]] - started
 
 kinds <- c("success", "failure", "error", "skip", "warning")
+# Code that fails outside test_that(), such as the manifest guard in
+# test-corpus.R, is reported under no test name.
+test_name <- function(t) {
+  if (is.null(t$test) || is.na(t$test)) "(outside test_that())" else t$test
+}
 tests <- do.call(
   rbind,
   lapply(run, function(t) {
@@ -174,7 +179,7 @@ tests <- do.call(
       "PASS"
     }
     data.frame(
-      test = t$test,
+      test = test_name(t),
       outcome = outcome,
       t(counts),
       stringsAsFactors = FALSE
@@ -195,7 +200,7 @@ failures <- unlist(lapply(run, function(t) {
     bad,
     function(r) {
       msg <- strsplit(conditionMessage(r), "\n", fixed = TRUE)[[1L]]
-      paste0(t$test, ": ", c(msg, "")[[1L]])
+      paste0(test_name(t), ": ", c(msg, "")[[1L]])
     },
     character(1)
   )

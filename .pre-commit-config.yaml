@@ -59,6 +59,24 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      # DESCRIPTION's BugReports keeps the /-/issues form R's incoming check
+      # asks for, and every human-facing tracker link uses /-/work_items
+      # (SEOR-ocbtrrnl). Vendored from pslr; stdlib-only and offline. The
+      # script's docstring says why the two forms must differ.
+      - id: check-bugreports
+        name: BugReports split (DESCRIPTION vs human-facing tracker links)
+        entry: python3 scripts/check-bugreports.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: check-bugreports-self-test
+        name: check-bugreports self-test
+        entry: python3 scripts/check-bugreports.py --self-test
+        language: system
+        pass_filenames: false
+        files: ^scripts/check-bugreports\.py$
+        stages: [pre-push]
       # Offline and instant, and ahead of `verify` on purpose: toolchain drift
       # turns the gate red on an untouched tree, disguised as a code defect,
       # and this names the machine as the cause in one line (SEOR-tcytizic).

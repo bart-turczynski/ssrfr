@@ -160,47 +160,51 @@ v8_skipped <- "Skipping checking math rendering: package 'V8' unavailable"
 allowed_notes <- list(
   list(
     # Known paragraphs only; anything else R says here (a misspelling, a
-    # Title-case remark, an HTTP status for a URL) fails the gate. Wording
-    # from tools:::format.check_package_CRAN_incoming and
-    # tools:::format.check_url_db in R 4.6.0, and QC.R on R-4-5-branch and
-    # trunk. R 4.4 has no BugReports remark; up to 4.6 it suggests appending
-    # "/issues", trunk (future 4.7) suggests ".../-/issues". A URL paragraph
-    # passes only when every URL in it failed with Status "Error" and
-    # libcurl error 6 (could not resolve host) or 28 (timed out), in the
-    # serial check's "libcurl error code N:" form, with no other line in the
-    # paragraph. Status 0 fails: R prints it with no message, so a network
-    # blip and a broken server look the same. A dead domain also fails to
-    # resolve and would pass, as it does offline; read the NOTE before a
-    # submission.
+    # Title-case remark, a BugReports remark, an HTTP status for a URL) fails
+    # the gate. Wording from tools:::format.check_package_CRAN_incoming and
+    # tools:::format.check_url_db in R 4.6.0. A URL paragraph passes only when
+    # every URL in it is one of two kinds, with no other line in the
+    # paragraph:
+    # - DESCRIPTION's BugReports, exactly .../ssrfr/-/issues, answering 404.
+    #   That is the fleet's BugReports split (SEOR-ocbtrrnl;
+    #   scripts/check-bugreports.py holds it): R's incoming check wants a path
+    #   ending in /issues, and GitLab serves that as 404 to a signed-out
+    #   client since issues moved to /-/work_items. cran-comments.md explains
+    #   it to CRAN.
+    # - a URL that failed with Status "Error" and libcurl error 6 (could not
+    #   resolve host) or 28 (timed out), in the serial check's "libcurl error
+    #   code N:" form. Status 0 fails: R prints it with no message, so a
+    #   network blip and a broken server look the same. A dead domain also
+    #   fails to resolve and would pass, as it does offline; read the NOTE
+    #   before a submission.
     check = "CRAN incoming feasibility",
     paragraphs = c(
       "Maintainer: .+",
       "New submission",
       "Version contains large components \\([0-9.]+\\.9[0-9]{3}\\)",
       paste0(
-        "\\QThe BugReports field in DESCRIPTION has\n",
-        "  https://gitlab.com/bart-turczynski/ssrfr/-/work_items\n",
-        "which should likely be\n  https://gitlab.com/bart-turczynski/ssrfr/",
-        "\\E(?:-/work_items/issues|-/issues)\\Q\ninstead.\\E"
-      ),
-      paste0(
         "Found the following \\(possibly\\) invalid URLs?:",
-        "(?:\n  URL: \\S+(?: \\(moved to \\S+\\))?",
+        "(?:",
+        "\n  URL: https://gitlab\\.com/bart-turczynski/ssrfr/-/issues",
+        "\n    From: DESCRIPTION",
+        "\n    Status: 404",
+        "\n    Message: Not Found",
+        "|",
+        "\n  URL: \\S+(?: \\(moved to \\S+\\))?",
         "\n    From: \\S+(?:\n {10}\\S+)*",
         "\n    Status: Error",
         "\n    Message: libcurl error code (?:6|28):",
-        "\n {6}\t?\\S.*)+"
+        "\n {6}\t?\\S.*",
+        ")+"
       )
     ),
     reason = paste(
       "Only R's pre-first-release lines (Maintainer, New submission, a .9xxx",
-      "version), its BugReports remark on the /-/work_items URL and URLs that",
-      "timed out or did not resolve are allowed. R's BugReports heuristic",
-      "predates GitLab work items: it wants a path ending in /issues, but",
-      "/-/issues is 404 to anonymous clients as of 2026-09-29 and",
-      "/-/work_items/issues redirects to sign-in, so taking R's suggestion",
-      "would trade this remark for a real invalid-URL line. Any HTTP status,",
-      "status 0 or other libcurl error on a URL fails the gate."
+      "version), the 404 on BugReports' /-/issues URL and URLs that timed",
+      "out or did not resolve are allowed. BugReports keeps /-/issues because",
+      "R's incoming check flags any other path, and GitLab serves it as 404",
+      "to a signed-out client (SEOR-ocbtrrnl). Any other HTTP status, status",
+      "0 or other libcurl error on a URL fails the gate."
     )
   ),
   list(

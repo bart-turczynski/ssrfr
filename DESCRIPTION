@@ -16,7 +16,7 @@ Description: Protects R applications that fetch URLs an attacker can
     resolves to.
 License: MIT + file LICENSE
 URL: https://bart-turczynski.gitlab.io/ssrfr/, https://gitlab.com/bart-turczynski/ssrfr
-BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
+BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)

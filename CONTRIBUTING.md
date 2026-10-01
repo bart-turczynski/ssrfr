@@ -46,16 +46,16 @@ both.
      `full-check` job). There is no GitHub Actions CI. Finish the list once
      step 7 reports, before step 9.
    - The NOTEs: say what each one is. On a first submission that is "New
-     submission". R's incoming check also flags the `BugReports` URL,
-     `https://gitlab.com/bart-turczynski/ssrfr/-/work_items`. R 4.5 and 4.6
-     suggest `.../-/work_items/issues` and R-devel suggests `.../-/issues`.
-     Explain why the field stays as it is: `/-/work_items` returns 200 and is
-     where issues are filed. Anonymous `/-/issues` returns 404, and
-     `/-/issues/new` and `/-/work_items/issues` redirect to sign-in, so no
-     gitlab.com value both clears the remark and resolves. This is the same
-     reasoning as the `BugReports` entry in `allowed_notes` in
-     `scripts/verify.R`. Before you submit, check it again with
-     `curl -s -o /dev/null -w '%{http_code}\n' <url>` on each URL.
+     submission". R's URL check also reports the `BugReports` URL as possibly
+     invalid, Status 404. `DESCRIPTION` keeps the `/-/issues` form because R's
+     incoming check flags any other path, and a sibling package (pslr) was
+     archived at the pretest for declaring `/-/work_items`. GitLab serves
+     `/-/issues` as 404 to a signed-out client, and every file a person reads
+     links `/-/work_items` instead (SEOR-ocbtrrnl). Keep the `BugReports`
+     section of `cran-comments.md`, which says this; `allowed_notes` in
+     `scripts/verify.R` lets exactly that 404 through, and the
+     `check-bugreports` hook holds the split. Before you submit, check each
+     URL again with `curl -s -o /dev/null -w '%{http_code}\n' <url>`.
 4. **Run the verify gate** on the release commit: `Rscript scripts/verify.R`,
    then `Rscript scripts/check-spelling.R`. The gate runs lint, `news-version`,
    the tests with `NOT_CRAN=true` and `R CMD check --as-cran`. Its check stage

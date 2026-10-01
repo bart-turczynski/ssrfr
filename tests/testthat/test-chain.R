@@ -499,7 +499,7 @@ test_that("credentials are absent after a cross-origin hop in the raw bytes", {
   head <- recorded_head(landing)
   expect_identical(head[[1L]], "POST /landing HTTP/1.1")
   expect_setequal(
-    tolower(sub(":.*$", "", head[-1L])),
+    ascii_lower(sub(":.*$", "", head[-1L])),
     c("host", "user-agent", "accept-encoding", "content-length", "x-trace")
   )
   expect_true("Content-Length: 0" %in% head)

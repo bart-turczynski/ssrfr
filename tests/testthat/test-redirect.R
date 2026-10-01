@@ -1245,7 +1245,7 @@ test_that("credentials are absent after a cross-origin hop in the raw bytes", {
   # 307 keeps the method, and the body goes with the origin.
   expect_identical(head[[1L]], "POST /landing HTTP/1.1")
   expect_setequal(
-    tolower(sub(":.*$", "", head[-1L])),
+    ascii_lower(sub(":.*$", "", head[-1L])),
     c("host", "user-agent", "accept-encoding", "content-length", "x-trace")
   )
   expect_true("Content-Length: 0" %in% head)
@@ -1434,12 +1434,12 @@ test_that("a dropped body takes every field that describes it", {
     method = "POST",
     headers = c(content, `X-Trace` = "t1"),
     body = charToRaw("payload"),
-    carry = tolower(c(names(content), "X-Trace"))
+    carry = ascii_lower(c(names(content), "X-Trace"))
   )
   for (status in c(301L, 303L)) {
     out <- ssrfr:::redirect_plan(plan, status, cross_origin = FALSE)
     expect_named(out$plan$headers, "X-Trace", label = status)
-    expect_setequal(out$record$dropped, tolower(names(content)))
+    expect_setequal(out$record$dropped, ascii_lower(names(content)))
   }
   # Across origins, nomination does not keep them either.
   plan$method <- "PUT"

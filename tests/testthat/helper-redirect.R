@@ -30,9 +30,12 @@ redirect_app <- function() {
     res$send("")
   })
   app$all("/echo", function(req, res) {
-    fields <- sort(tolower(names(req$headers)))
+    # The app runs in another process, without ssrfr's ascii_lower().
+    lower <- "abcdefghijklmnopqrstuvwxyz"
+    upper <- "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    fields <- sort(chartr(upper, lower, names(req$headers)))
     body <- req$.body
-    res$set_header("X-Echo-Method", toupper(req$method))
+    res$set_header("X-Echo-Method", chartr(lower, upper, req$method))
     res$set_header("X-Echo-Fields", paste(fields, collapse = ","))
     res$set_header(
       "X-Echo-Body",

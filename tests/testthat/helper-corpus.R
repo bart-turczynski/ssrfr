@@ -121,7 +121,7 @@ same_host_value <- function(a, b) {
   if (!is.na(pa) && !is.na(pb)) {
     return(identical(raddr::addr_format(pa), raddr::addr_format(pb)))
   }
-  is.na(pa) && is.na(pb) && identical(tolower(a), tolower(b))
+  is.na(pa) && is.na(pb) && identical(ascii_lower(a), ascii_lower(b))
 }
 
 # Runs `code` with every network entry point of curl and raddr made to fail,

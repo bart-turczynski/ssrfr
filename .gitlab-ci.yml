@@ -68,6 +68,8 @@ default:
     # replaces it with this date plus a CRAN fallback. Pinned so rebuilding an
     # old commit resolves the same binaries; bump it when you bump R_VERSION.
     P3M_SNAPSHOT: "2026-09-01"
+    # The pslr commit .install-deps pins until CRAN serves the fixed pslr.
+    PSLR_SHA: "f322d57517c1dc5d070c0260648fa6cc58786c3f"
   cache:
     # Keyed on DESCRIPTION, the closest thing an R package has to a lockfile,
     # and on R_VERSION, because a compiled package only loads under the R it
@@ -195,6 +197,27 @@ workflow:
       allow_failure: true
 
 # --------------------------------------------------------------------------
+# install-deps — the dependency closure, shared by every job that installs it
+#
+# TEMPORARY pslr pin. pslr 1.2.1, the CRAN release, fails to load the public
+# suffix list under a Turkish or Azeri locale on glibc (tolower("ICANN") is
+# "ıcann"), so every rurl parse fails and test-locale.R goes red here
+# (SSRF-bglihtwb). The fix is pslr !67, merged as f322d57; it reaches CRAN no
+# earlier than 2026-11-14. Until then the jobs install pslr from that commit,
+# after the CRAN closure so nothing replaces it, and fail if another pslr is
+# what loads. DESCRIPTION is untouched: the pin is CI-only. Remove this block's
+# last two steps once CRAN serves the fixed pslr (SSRF-mspjpegk).
+# --------------------------------------------------------------------------
+
+.install-deps:
+  script: &install-deps
+    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - Rscript -e 'pak::pak(paste0("gitlab::bart-turczynski/pslr@", Sys.getenv("PSLR_SHA")))'
+    - >
+      Rscript -e 'd <- packageDescription("pslr"); cat("pslr", d$Version, "from", d$RemoteSha, "\n")'
+      -e 'if (!identical(d$RemoteSha, Sys.getenv("PSLR_SHA"))) stop("pslr is not the pinned commit")'
+
+# --------------------------------------------------------------------------
 # verify — the fast gate
 # --------------------------------------------------------------------------
 
@@ -207,7 +230,7 @@ verify:
   stage: verify
   script:
     - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
-    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - *install-deps
     - Rscript scripts/verify.R
 
 # --------------------------------------------------------------------------
@@ -223,7 +246,7 @@ coverage:
   stage: check
   script:
     - Rscript -e 'pak::pak(c("any::covr", "any::xml2"))'
-    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - *install-deps
     - Rscript -e 'cov <- covr::package_coverage(quiet = FALSE); print(cov); covr::to_cobertura(cov)'
   coverage: '/Coverage:\s*(\d+\.\d+)%/'
   artifacts:
@@ -245,7 +268,7 @@ full-check:
       - R_VERSION: ["4.5.1", "4.4.3"]
   script:
     - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
-    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - *install-deps
     - Rscript scripts/verify.R
 
 # --------------------------------------------------------------------------
@@ -271,7 +294,7 @@ pages:
   script:
     # build_site(install = FALSE) renders against the installed package.
     - Rscript -e 'pak::pak("any::pkgdown")'
-    - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
+    - *install-deps
     - R CMD INSTALL --library="$R_LIBS_USER" .
     # pkgdown renders EVERY top-level .md, so agent instruction files would be
     # published as AGENTS.html, CLAUDE.html and so on. KEEP is a keep-list, not

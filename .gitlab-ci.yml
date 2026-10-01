@@ -205,8 +205,11 @@ workflow:
 # (SSRF-bglihtwb). The fix is pslr !67, merged as f322d57; it reaches CRAN no
 # earlier than 2026-11-14. Until then the jobs install pslr from that commit,
 # after the CRAN closure so nothing replaces it, and fail if another pslr is
-# what loads. DESCRIPTION is untouched: the pin is CI-only. Remove this block's
-# last two steps once CRAN serves the fixed pslr (SSRF-mspjpegk).
+# what loads. DESCRIPTION is untouched: the pin is CI-only. So is the fix, for
+# the local gate: on glibc with these locales, install the same commit first,
+# or test-locale.R fails on an untouched tree. (macOS keeps "I" as "i", so the
+# bug never shows there.) Once CRAN serves the fixed pslr, remove this block's
+# last two steps, PSLR_SHA in .r and this comment (SSRF-mspjpegk).
 # --------------------------------------------------------------------------
 
 .install-deps:

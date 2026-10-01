@@ -60,6 +60,12 @@ Documented deviations from the goodpractice set:
   vignette setup chunks legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
   allow `:::`, which tests use to reach internal functions.
+- `case_folding_linter`: an addition. It bans `tolower()`, `toupper()` and
+  `casefold()`, which follow `LC_CTYPE`: a Turkish or Azeri locale maps `I` to
+  a dotless `ı`. Use `ascii_lower()` (`R/policy.R`), or `chartr()` over `a-z`
+  where it is out of reach, as in the webfakes apps, which run in another
+  process. Tests are not exempt: lintr 3.4 turns a directory key in
+  `exclusions` into a whole-file exclusion for every linter.
 
 `strings_as_factors_linter` is off, as in goodpractice, which dropped it in 1.2.0
 (ropensci-review-tools/goodpractice#321). The R >= 4.0 floor already defaults

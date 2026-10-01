@@ -194,7 +194,7 @@ test_that("ordinary HTTP still works through the guard", {
 
   for (method in c("POST", "PUT", "PATCH", "DELETE")) {
     r <- get(
-      paste0("/", tolower(method)),
+      paste0("/", ascii_lower(method)),
       list(
         method = method,
         headers = c(`Content-Type` = "application/json"),

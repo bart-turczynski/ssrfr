@@ -161,7 +161,7 @@ test_that("the transport sends no field the plan did not carry", {
     "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
   )
   fields <- function(head) {
-    tolower(sub(":.*$", "", head[-1L]))
+    ascii_lower(sub(":.*$", "", head[-1L]))
   }
   empty <- local_raw_server(ok)
   r <- guarded_get(

@@ -70,12 +70,15 @@ fetch protects a request.
 \details{
 The URL is parsed as the guarded fetch parses it: \code{rurl} under the WHATWG
 URL Standard, then libcurl's own parser on the string libcurl would be
-handed. A URL the two parsers read differently is reported as \code{"parse"}.
-Checks run in the order of a guarded hop, and the first one that applies
-names the reason code: the length limit and the parse, the scheme, embedded
-credentials, the port, an ambiguous numeric host spelling, the hostname
-rules, and the address rules. A relative reference, such as a redirect's
-\code{Location}, is resolved against \code{base} first.
+handed. A URL the two parsers read differently is reported as \code{"parse"},
+and so is a host with an \verb{xn--} label that is not a genuine A-label, such
+as \code{xn--a.example}, which \code{rurl} reports with its
+\code{domain-invalid-ace-label} diagnostic. Checks run in the order of a guarded
+hop, and the first one that applies names the reason code: the length limit
+and the parse, the scheme, embedded credentials, the port, an ambiguous
+numeric host spelling, the hostname rules, and the address rules. A
+relative reference, such as a redirect's \code{Location}, is resolved against
+\code{base} first.
 
 Layer \code{"L0"}, the default, is structural and does no network I/O: it
 resolves no name, so for a name it reports no address. Layer \code{"L1"} also

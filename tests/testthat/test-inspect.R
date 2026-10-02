@@ -291,6 +291,69 @@ counting_resolver <- function() {
   )
 }
 
+# §5.0: a host carrying an `xn--` label that is not a genuine A-label refuses
+# as `parse` at the parse boundary (§12 step 2), on rurl's
+# `domain-invalid-ace-label` diagnostic (rurl 3.1.0, ruling RUL-023), before
+# any resolver call. rurl and libcurl both pass such a host through, so no
+# other check refuses it.
+test_that("an xn-- label that is not an A-label refuses as parse", {
+  resolver <- counting_resolver()
+  local_mocked_bindings(dep_nslookup = resolver$fn)
+  urls <- c(
+    "http://xn--a.example/",
+    "http://xn--.example/",
+    "http://xn--ASCII-.example/",
+    "http://XN--a.example/",
+    "http://xn--xn---ooa.example/",
+    "https://api.xn--a.example:443/x?y#z"
+  )
+  for (url in urls) {
+    res <- ssrf_inspect_url(url, layer = "L1")
+    expect_identical(res$code, "parse", label = url)
+    expect_identical(res$step, 2L, label = url)
+    expect_identical(res$detail$check, "ace-label", label = url)
+  }
+  # A redirect's Location naming such a host, and a relative reference that
+  # takes one from `base`: the absolute URL is what the boundary reads.
+  res <- ssrf_inspect_url(
+    "//xn--a.example/",
+    base = "http://example.com/",
+    layer = "L1"
+  )
+  expect_identical(res$detail$check, "ace-label")
+  res <- ssrf_inspect_url("/x", base = "http://xn--a.example/", layer = "L1")
+  expect_identical(res$code, "parse")
+  expect_identical(res$detail$check, "base")
+  expect_identical(resolver$seen$calls, 0L)
+
+  # The guarded hop refuses it the same way, without resolving the name.
+  r <- ssrf_prepare_hop(
+    "http://xn--a.example/",
+    ssrf_policy(),
+    request = list()
+  )
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "parse")
+  expect_identical(resolver$seen$calls, 0L)
+})
+
+# The diagnostics are read for the absolute URL as well as for the string the
+# hop received: a reading that fails for the absolute URL alone refuses.
+test_that("unreadable diagnostics for the absolute URL refuse as parse", {
+  resolver <- counting_resolver()
+  local_mocked_bindings(
+    dep_nslookup = resolver$fn,
+    dep_rurl_diagnostics = function(url) {
+      if (identical(url, "http://example.com/x")) NULL else character()
+    }
+  )
+  res <- ssrf_inspect_url("/x", base = "http://example.com/", layer = "L1")
+  expect_identical(res$code, "parse")
+  expect_identical(res$step, 2L)
+  expect_identical(res$detail$check, "diagnostics")
+  expect_identical(resolver$seen$calls, 0L)
+})
+
 # §5.0: only an `xn--` label that is not a genuine A-label refuses as `parse`.
 # A genuine A-label, and the strict domain-to-ASCII failures WHATWG accepts (an
 # underscore, an edge hyphen, a label over 63 octets), reach the address gates

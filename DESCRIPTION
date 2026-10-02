@@ -25,7 +25,7 @@ Depends:
 Imports:
     curl (>= 7.0.0),
     raddr (>= 0.1.2),
-    rurl (>= 3.0.0)
+    rurl (>= 3.1.0)
 Suggests:
     callr,
     cucumber (>= 2.0.0),

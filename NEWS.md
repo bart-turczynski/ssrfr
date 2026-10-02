@@ -19,6 +19,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 
 * `ssrf_inspect_url()` reports what a URL is under a policy with no network I/O: the parse `rurl` and libcurl agree on, the scheme, host and port, the classification of an address-literal host, and the reason code of the first check that applies. It is a pre-filter and a configuration-linting aid, not a defense (SSRF-uxmxqufj).
 * A URL refuses as `"parse"` unless the string handed to libcurl, and the host libcurl reads from it, are printable ASCII, so a U-label host reaches libcurl only as its A-label. A string that is not valid UTF-8 refuses the same way rather than raising an error (SSRF-afpkreyj).
+* A host with an `xn--` label that is not a genuine A-label, such as `xn--a.example`, now refuses as `"parse"`, on `rurl`'s `domain-invalid-ace-label` diagnostic; `ssrfr` now requires `rurl` >= 3.1.0 (SSRF-imtdxdym).
 * `ssrf_inspect_url(layer = "L1")` also resolves the name once and classifies every address it resolves to, with each address's own facts in `addresses`. A resolver error, an empty answer or an answer that is not an address is the operational cause `"unresolvable"` (SSRF-ifldwmnc).
 
 ## Policy

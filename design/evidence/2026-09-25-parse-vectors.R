@@ -15,7 +15,7 @@
 # sent) only for an http or https URL whose libcurl host is a loopback or
 # unspecified address literal, which stays on this machine; otherwise it is "-".
 #
-# Recorded environment: R 4.6.0, rurl 3.0.1, curl 8.0.0 (bundled libcurl
+# Recorded environment: R 4.6.0, rurl 3.1.0, curl 8.0.0 (bundled libcurl
 # 8.14.1, built without IDN), raddr 0.1.2, macOS 26 (Darwin 25.6). A different
 # measurement on another platform or version is a finding, not a failure of
 # this script.

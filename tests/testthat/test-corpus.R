@@ -212,8 +212,9 @@ test_that("every active L0 verdict vector is decided at L0 with its code", {
 test_that("pending L0 verdict vectors keep their marker and still differ", {
   v <- read_corpus("verdict-vectors.tsv")
   rows <- v[v$layer == "L0" & startsWith(v$status, "pending:"), ]
-  expect_identical(rows$id, "V0350")
-  expect_identical(rows$status, "pending:RURL-vicyvlvh")
+  # None is pending since V0350 became active (rurl 3.1.0, SSRF-imtdxdym);
+  # a row marked pending later is named here.
+  expect_identical(rows$id, character())
   for (i in seq_len(nrow(rows))) {
     expect_false(
       identical(inspect_row(rows[i, ]), rows$code[i]),
@@ -400,8 +401,9 @@ test_that("every active parse vector meets its expectation, host by value", {
 test_that("pending parse vectors keep their marker and still differ", {
   p <- read_corpus("parse-vectors.tsv")
   rows <- p[startsWith(p$status, "pending:"), ]
-  expect_identical(rows$id, c("P0060", "P0061", "P0062"))
-  expect_true(all(rows$status == "pending:RURL-vicyvlvh"))
+  # None is pending since P0060-P0062 became active (rurl 3.1.0,
+  # SSRF-imtdxdym); a row marked pending later is named here.
+  expect_identical(rows$id, character())
   for (i in seq_len(nrow(rows))) {
     expect_false(
       identical(parse_row(rows$input[i])$outcome, rows$expect[i]),

@@ -4,7 +4,9 @@
 # rurl parses the string the hop received, under WHATWG, with ssrfr's fixed
 # bundle (R/dependencies.R). Its layered verdict is the gate: layer 1 `fail`
 # refuses as `parse`, layer 2 other than `admitted` as `scheme` (§6.5); a rurl
-# warning or parse_status never refuses (r-binding.md §2.2). rurl's
+# warning or parse_status never refuses (r-binding.md §2.2). Then rurl's
+# diagnostics of the same string: a host carrying an `xn--` label that is not
+# a genuine A-label refuses as `parse` (§5.0), as does a failed reading. rurl's
 # serialization, with the fragment removed (§2.3), is the wire string libcurl
 # is handed, and its host is the A-label (§4.1). That string, and the host
 # curl_parse_url() returns from it, must be printable ASCII, or the hop refuses
@@ -24,6 +26,13 @@ numeric_literal_shapes <- c(
   "ipv4-leading-zero",
   "ipv4-number-form"
 )
+
+# rurl's diagnostic for a label beginning `xn--`, in any ASCII case, that is
+# not a genuine A-label: its Punycode decode fails, is empty or all ASCII, or
+# fails the UTS #46 §4.1 Validity Criteria under WHATWG's non-strict flags,
+# each label read alone. rurl documents it as complete for that predicate
+# (rurl 3.1.0, ruling RUL-023), so its absence admits (§5.0).
+ace_label_failure <- "domain-invalid-ace-label"
 
 default_ports <- c(http = 80L, https = 443L)
 
@@ -99,10 +108,10 @@ parse_hop <- function(url, policy, base = NULL, base_scheme = NULL) {
   hop
 }
 
-# Parses one absolute URL at the boundary (§4.1, §4.2), with no policy. Returns
-# a list: `finding` (a `parse` or `scheme` finding, or NULL) and, when it is
-# NULL, `wire`, `scheme`, `host`, `port`, `userinfo`, `host_kind`, `name` and
-# `address` as parse_hop() describes them.
+# Parses one absolute URL at the boundary (§4.1, §4.2, §5.0), with no policy.
+# Returns a list: `finding` (a `parse` or `scheme` finding, or NULL) and, when
+# it is NULL, `wire`, `scheme`, `host`, `port`, `userinfo`, `host_kind`,
+# `name` and `address` as parse_hop() describes them.
 parse_boundary <- function(url) {
   refuse <- function(code, check) {
     list(
@@ -119,6 +128,16 @@ parse_boundary <- function(url) {
   }
   if (verdicts$layer2 != "admitted") {
     return(refuse("scheme", "scheme-verdict"))
+  }
+  # §5.0: a host carrying an `xn--` label that is not a genuine A-label has no
+  # A-label, and its input spelling must not stand in for one. rurl's
+  # diagnostic is the signal; ssrfr decodes no label itself (§4).
+  diagnostics <- read_diagnostics(url)
+  if (is.null(diagnostics)) {
+    return(refuse("parse", "diagnostics"))
+  }
+  if (ace_label_failure %in% diagnostics) {
+    return(refuse("parse", "ace-label"))
   }
   ours <- read_rurl_parse(url)
   wire <- read_serialization(url)

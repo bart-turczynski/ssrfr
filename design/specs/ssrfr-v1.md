@@ -593,9 +593,12 @@ tables" (ADR 0004).
 | `raddr` | address parsing, `addr_global_reachability()`, `addr_embeddings()`, `addr_within_any()`, IANA registry snapshots |
 
 As of 2026-09-24 all three are on CRAN: `rurl` 3.0.1 (2026-09-09) and `raddr`
-0.1.2 (2026-09-21) **[verified]**. Minimum versions: `rurl (>= 3.0.0)`, the
-first release with the parser in-tree, the layered verdicts §4.2 gates on and
-standard-aware `resolve_url()`; `raddr (>= 0.1.2)`, its first published release.
+0.1.2 (2026-09-21) **[verified]**. Minimum versions: `rurl (>= 3.1.0)`, the
+first release whose diagnostics report an `xn--` label that is not a genuine
+A-label (§5.0), and `raddr (>= 0.1.2)`, its first published release. `rurl`
+3.0.0 was the first with the parser in-tree, the layered verdicts §4.2 gates
+on and standard-aware `resolve_url()`. *Amended 2026-10-02* (was
+`rurl (>= 3.0.0)`; `rurl` 3.1.0 reached CRAN that day; `SSRF-imtdxdym`).
 `url_standard` still defaults to `NULL` in `rurl` 3.0.0, so `ssrfr` MUST pass
 `url_standard = "whatwg"` on every call **[verified]** (`rurl` `R/verdicts.R`,
 `R/resolve.R`).
@@ -681,8 +684,9 @@ already refuses, and every host `curl_parse_url()` returns for a string
 admitted today is printable ASCII. `rurl` decodes a percent-encoded host and
 serializes its A-label. The two rules therefore refuse nothing admitted today
 **[verified]** (`design/evidence/2026-09-29-wire-ascii.R`). ASCII is not IDNA
-validity: the §5.0 A-label rule and its `rurl` gap (`RURL-vicyvlvh`) are
-unchanged.
+validity: the §5.0 A-label rule is separate, and refuses on `rurl`'s
+diagnostic. *Amended 2026-10-02* (was "the §5.0 A-label rule and its `rurl`
+gap (`RURL-vicyvlvh`) are unchanged"; `SSRF-imtdxdym`).
 
 ### 4.2 INV-1 is preserved by construction, not by hope
 
@@ -917,16 +921,28 @@ dials (INV-1), in IDNA A-label form, **ASCII-lowercased**, with a single trailin
 root dot removed. `metadata.google.internal.`, `METADATA.google.internal` and
 their U-label spellings therefore all match the built-in entry.
 
-A host with no A-label refuses as `parse`: when domain-to-ASCII
-fails, including for a label beginning `xn--` that does not decode, the input
-spelling MUST NOT stand in for the A-label, whether in hostname rules, in the
-resolver query or in the URL handed to libcurl. The parse-vector table MUST carry
-such hosts. `rurl` 3.0.1 passes `xn--a.example` through unchanged, and so does
-libcurl, so today neither the layer-1 verdict nor §4.1's disagreement check
-refuses it **[verified]** (`design/evidence/2026-09-24-idna-fallback.R`).
-`ssrfr` takes the failure signal from `rurl` rather than decoding labels itself
-(§4), and raises its minimum `rurl` to the release that gives it
-(`RURL-vicyvlvh`).
+A host carrying a label that is not a genuine A-label refuses as `parse`: a
+label beginning `xn--` (in any ASCII case) whose Punycode decode fails, whose
+decode is empty or all ASCII, or whose decoded label fails the UTS #46 §4.1
+Validity Criteria under WHATWG's non-strict flags. The input spelling MUST NOT
+stand in for an A-label, whether in hostname rules, in the resolver query or in
+the URL handed to libcurl. The parse-vector table MUST carry such hosts.
+`ssrfr` takes this signal from `rurl`'s `domain-invalid-ace-label` diagnostic
+under `url_standard = "whatwg"`, which `rurl` documents as complete for that
+predicate (ruling RUL-023), rather than decoding labels itself (§4), and raises
+its minimum `rurl` to the release that ships it (3.1.0). Other strict
+domain-to-ASCII failures (`_dmarc.example`, edge hyphens, labels over 63
+octets) do not refuse: WHATWG accepts those hosts, and they reach the address
+gates like any other. `rurl` passes `xn--a.example` through unchanged, and so
+does libcurl, so neither the layer-1 verdict nor §4.1's disagreement check
+refuses it: under 3.0.1 nothing did **[verified]**
+(`design/evidence/2026-09-24-idna-fallback.R`), and under 3.1.0 only the
+diagnostic does **[verified]** (`design/evidence/2026-09-25-parse-vectors.R`,
+rows P0060–P0062). A label valid alone that fails Bidi only beside another
+label does not carry the diagnostic, and is not refused on that ground.
+*Amended 2026-10-02* (was "A host with no A-label refuses as `parse`: when
+domain-to-ASCII fails", pending `RURL-vicyvlvh`; narrowed by the maintainer on
+2026-09-30; `SSRF-imtdxdym`).
 
 Case folding MUST be ASCII-only, as WHATWG host processing is, and MUST NOT depend
 on the session locale. `rurl` shipped the Turkish-I defect (`RURL-ugfpuotu`), and
@@ -1456,7 +1472,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 20 | Freshness of `raddr`'s IANA registry snapshot | **closed — ratified** 2026-09-25: no runtime age check (§4.3). `raddr`'s stamp is IANA's editorial date, so `addr_registry_outdated()` measures how long IANA has been quiet (upstream `RADD-poetjkbw`). Conformance results record the snapshot (§7), and a new IANA entry reaches `ssrfr` by raising the minimum `raddr` version (§4) — `SSRF-nbcgyled` |
 | 21 | Retry lifecycle and response ownership (§2.2, §2.5) | **closed — ratified** 2026-09-25: `ssrf_fetch()` sends the request at most once; its only re-attempt is failover after a connection that never opened, and the cause when failover is exhausted is fixed in §6.6. A caller retry is a new `ssrf_prepare_hop()`. The response is read and decoded in full inside `ssrf_fetch()` and returned as a plain R value that owns no handle, connection or file. Streaming is beyond v1 — `SSRF-nbcgyled` |
 | 22 | Maximum URL length | **closed — ratified** 2026-09-25: `max_url_length`, default 8000 octets (RFC 9110 §4.1), checked on the URL string `ssrf_prepare_hop()` receives before any parse; a longer URL refuses as `parse`, with no new code. Independently, an error raised by either parser is a `parse` refusal (INV-11) (§5.3; upstream `RURL-tlmoybsl`) — `SSRF-nbcgyled` |
-| 23 | The local research-note findings brought in on 2026-09-24: the proposed passages in §2.2, §2.3, §2.5, §4.3, §5, §5.0, §5.3, §6.4, §7, §7.2, §9, S5, §13 (INV-10) and §14–§15 | **closed — ratified** 2026-09-25, with four amendments: INV-10's rule and rationale corrected (ADR 0006); INV-12 and §6.4's Shape bullet widened to operational failures; the failover cause fixed in §6.6; revocation placed outside INV-9. The §5.0 A-label rule waits on `rurl` (`RURL-vicyvlvh`) — `SSRF-nbcgyled` |
+| 23 | The local research-note findings brought in on 2026-09-24: the proposed passages in §2.2, §2.3, §2.5, §4.3, §5, §5.0, §5.3, §6.4, §7, §7.2, §9, S5, §13 (INV-10) and §14–§15 | **closed — ratified** 2026-09-25, with four amendments: INV-10's rule and rationale corrected (ADR 0006); INV-12 and §6.4's Shape bullet widened to operational failures; the failover cause fixed in §6.6; revocation placed outside INV-9. The §5.0 A-label rule waited on `rurl` (`RURL-vicyvlvh`) until `rurl` 3.1.0, and applies since 2026-10-02 (`SSRF-imtdxdym`) — `SSRF-nbcgyled` |
 | 24 | The 2026-09-25 alignment audit of the local research notes against this document | **closed — ratified** 2026-09-25: corrections to §4.1, §6.7, INV-11 and INV-13; additions to S5, §2.3, §2.5, §5 (four gate 2 rows), §5.3, §6.1, §6.6, §7, §7.2 and §9, and the §4.1 disagreement check made a named test (`r-binding.md` §7). Contested items, ruled by a three-model vote (unanimous unless noted): gate 2 reads only destination embeddings, with the ISATAP residual documented (§5; split vote, maintainer's ruling); metadata request headers need vendor documentation naming a gate 2 endpoint, and three are added (§2.3); steps 3–5 read libcurl's parse, with corpus columns for drift (§12, §7); no method field (§9); `path_as_is = 1L` (`r-binding.md` §5); `allow_ports` stays scheme-independent (§5.3) — `SSRF-qttneqxp` |
 | 25 | A loop helper that owns the redirect chain on top of `ssrf_prepare_hop()` and `ssrf_fetch()`, or a record that it comes after v1 | **closed — ratified** 2026-09-25 by a unanimous four-model vote: v1 ships `ssrf_fetch_chain()`, built only on the two primitives (§2.2) — `SSRF-cnljaaek` |
 | 26 | Where INV-14's single off switch lives: an argument of §2.2's primitives, or the consumer-side toggle of ADR 0002 as the only one | **closed — ratified** 2026-09-25 by a unanimous four-model vote: the consumer's toggle is the only one; no `ssrfr` function disables the guard (INV-14, ADR 0007) — `SSRF-cnljaaek` |
@@ -1562,6 +1578,12 @@ From 2026-09-30 they are also logged here:
   §5.0 *Names resolve as absolute* tags the trailing-root-dot resolver behavior
   **[verified]** on Linux, as the committed search-domain probe shows, and
   **[assumption]** on macOS and Windows, where it has not been run.
+- **2026-10-02** (`SSRF-imtdxdym`): §5.0 *Hostname matching* narrows the
+  A-label rule, as the maintainer decided on 2026-09-30, to a label beginning
+  `xn--` that is not a genuine A-label, read from `rurl`'s
+  `domain-invalid-ace-label` diagnostic; other strict domain-to-ASCII failures
+  do not refuse. §4 raises the minimum `rurl` to 3.1.0, the release that ships
+  the diagnostic; §4.1 and §8 item 23 no longer call the rule pending.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

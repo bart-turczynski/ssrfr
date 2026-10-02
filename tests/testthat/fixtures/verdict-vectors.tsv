@@ -348,7 +348,7 @@ V0346	idn	http://ⓛⓞⓒⓐⓛⓗⓞⓢⓣ/	127.0.0.1,::1	default	first	refuse
 V0347	idn	http://metadata。google。internal/	-	default	first	refuse	cloud-metadata	L0	active	https://unicode.org/reports/tr46/ ; ssrfr-v1.md §5.0	Unicode dots fold before the metadata hostname match
 V0348	idn	http://metadata.google.internal\u{200B}/	-	default	first	refuse	cloud-metadata	L0	active	https://unicode.org/reports/tr46/ ; ssrfr-v1.md §5.0	zero-width space is ignored by UTS-46 mapping
 V0349	idn	http://metadata.goo\u{00AD}gle.internal/	-	default	first	refuse	cloud-metadata	L0	active	https://unicode.org/reports/tr46/ ; ssrfr-v1.md §5.0	soft hyphen is ignored by UTS-46 mapping
-V0350	idn	http://xn--a.example/	-	default	first	refuse	parse	L0	pending:RURL-vicyvlvh	ssrfr-v1.md §5.0	xn-- label that does not decode has no A-label
+V0350	idn	http://xn--a.example/	-	default	first	refuse	parse	L0	active	ssrfr-v1.md §5.0	xn-- label that does not decode has no A-label
 V0351	idn	http://BÜCHER.example/	-	deny_hosts=bücher.example	first	refuse	host-denied	L0	active	ssrfr-v1.md §5.0	U-label host matches an A-label-normalized deny rule
 V0352	idn	http://exаmple.test/	93.184.216.34	deny_hosts=example.test	first	admit	-	L1	active	https://hacktricks.wiki/en/pentesting-web/unicode-injection/unicode-normalization.html ; ssrfr-v1.md §5.0	Cyrillic homograph is a different A-label; exact deny rule does not match
 V0353	idn	http://bücher.example/	93.184.216.34	default	first	admit	-	L1	active	ssrfr-v1.md §4.1	ordinary IDN with a public answer admits

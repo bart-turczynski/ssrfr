@@ -52,12 +52,15 @@ inspect_hop <- function(url, policy, base = NULL, resolve = FALSE) {
 #'
 #' The URL is parsed as the guarded fetch parses it: `rurl` under the WHATWG
 #' URL Standard, then libcurl's own parser on the string libcurl would be
-#' handed. A URL the two parsers read differently is reported as `"parse"`.
-#' Checks run in the order of a guarded hop, and the first one that applies
-#' names the reason code: the length limit and the parse, the scheme, embedded
-#' credentials, the port, an ambiguous numeric host spelling, the hostname
-#' rules, and the address rules. A relative reference, such as a redirect's
-#' `Location`, is resolved against `base` first.
+#' handed. A URL the two parsers read differently is reported as `"parse"`,
+#' and so is a host with an `xn--` label that is not a genuine A-label, such
+#' as `xn--a.example`, which `rurl` reports with its
+#' `domain-invalid-ace-label` diagnostic. Checks run in the order of a guarded
+#' hop, and the first one that applies names the reason code: the length limit
+#' and the parse, the scheme, embedded credentials, the port, an ambiguous
+#' numeric host spelling, the hostname rules, and the address rules. A
+#' relative reference, such as a redirect's `Location`, is resolved against
+#' `base` first.
 #'
 #' Layer `"L0"`, the default, is structural and does no network I/O: it
 #' resolves no name, so for a name it reports no address. Layer `"L1"` also

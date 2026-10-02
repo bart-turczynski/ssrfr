@@ -1,0 +1,116 @@
+# Bounded load test: re-verifying !57's start timeout (SSRF-xounanjz)
+# under scripts/load-test.sh (SSRF-azjgcwjt), 2026-10-02.
+#
+# Commands, run from the worktree root on branch chore/bounded-load-test
+# (scripts at 7ec5cdf, package tree at 874a27a):
+#
+#   scripts/load-test.sh --probe -n 1 -l 0 -t default --out tmp/load-test/probe3
+#   scripts/load-test.sh -n 10 -l 1,2 -t 3000,default --out tmp/load-test/evidence
+#   scripts/load-test.sh -n 3 -l 8,16 -t 3000,default --only binding,chain --out tmp/load-test/explore
+#   scripts/load-test.sh -n 10 -l 16 -t 3000,default --only binding,chain --out tmp/load-test/repro16x
+#   scripts/load-test.sh -n 3 -l 2 -t default --out tmp/load-test/interrupt   # then kill -INT
+#
+# "-t default" leaves SSRFR_TEST_START_TIMEOUT unset, so helper-transport.R's
+# app_start_timeout() default of 60000 ms applies. 3000 is callr's own
+# session-start wait, the one webfakes never raised before !57.
+
+## Machine
+
+  host: macOS (Darwin 25.6.0), arm64, 12 cores, shared with other sessions
+  docker: 29.8, VM with 12 CPUs and 7.7 GiB
+  container: ssrfr-loadtest:r4.5.1 (rocker/r-ver:4.5.1, the CI image), one
+             per invocation, --cpus=4 --memory=4g --init --rm
+  R 4.5.1, libcurl 8.5.0
+  packages: ssrfr 0.0.0.9000, testthat 3.3.2, webfakes 1.5.0, callr 3.8.0,
+            processx 3.9.0, curl 8.0.0, rurl 3.1.0, raddr 0.1.2
+  repos: P3M https://p3m.dev/cran/2026-09-01 (source: arm64), then CRAN
+  test files (discovered): binding chain corpus fetch-limits fetch-tls fetch
+                           helper-transport redirect (131 tests per run)
+  load: N x 4 `yes > /dev/null` processes inside the container, N = the
+        load level; the whole container, load included, cannot use more
+        than 4 CPUs
+
+## The classifier bites (--probe)
+
+One forced failure per class: SSRFR_TEST_START_TIMEOUT=1 for a webfakes app;
+a raw server whose process sleeps 25 s in a project .Rprofile before it
+listens; a plain failing expectation. The in-container selftest also passed
+(6 canned messages, each in its class).
+
+  cell                          runs  start-timeout     raw-server          other
+  probe-load0x-timeoutdefault      1        1/1 (1)        1/1 (1)        1/1 (1)
+
+  [start-timeout] load-test probe: start-timeout: ... ! Could not start R session, timed out
+  [raw-server]    load-test probe: raw-server: Expected `r$status` to be identical to 200L ...
+                  (raw ready wait: 20.02 s, recorded as a timeout)
+  [other]         load-test probe: other: Expected "load-test probe" to be identical to ...
+
+## Interrupt
+
+The run was started, and SIGINT was sent to the script (pid 84902) from a
+separate command 30 s after its 2x load started, with R, 8 `yes` and the test
+processes running in the container ssrfr-loadtest-84902:
+
+  19:24:51 kill -INT 84902
+  19:24:54 log: load-test: removed container ssrfr-loadtest-84902 (exit 130)
+           pgrep -fl load-test.sh                          -> nothing
+           docker ps -a --filter label=ssrfr-loadtest      -> no containers
+           docker ps -a --filter name=ssrfr-loadtest       -> no containers
+           pgrep -fl yes (host)                            -> nothing (exit 1)
+
+`docker ps -a --filter label=ssrfr-loadtest` was also empty before and after
+every batch below.
+
+## Results: 1x and 2x, 10 runs per cell (40 runs)
+
+A class column reads <runs with at least one failure of that class>/<runs>
+(<failing expectations of that class>). App starts are local_app_server()'s
+lazy start (callr session + webfakes listen), timed by the injected helper;
+raw ready is local_server_process()'s readiness wait.
+
+  cell                    runs  start-timeout  raw-server  other  secs/run  app starts (n, median s, max s, >3 s) | raw ready (n, max s, timeouts)
+  load1x-timeout3000        10     0/10 (0)     0/10 (0)  0/10 (0)    113  590, 0.26, 0.75, 0 | 540, 0.50, 0
+  load1x-timeoutdefault     10     0/10 (0)     0/10 (0)  0/10 (0)     97  590, 0.23, 0.33, 0 | 540, 0.30, 0
+  load2x-timeout3000        10     0/10 (0)     0/10 (0)  0/10 (0)    182  590, 0.40, 0.61, 0 | 540, 0.71, 0
+  load2x-timeoutdefault     10     0/10 (0)     0/10 (0)  0/10 (0)    186  590, 0.40, 0.71, 0 | 540, 0.47, 0
+
+At 1x and 2x of a 4-CPU cap no app start came near 3 s (slowest 0.75 s), so
+these cells cannot tell the fix from its absence: they neither confirm nor
+refute !57. The loads were raised, inside the same cap, until 3000 failed.
+
+## Results: 8x and 16x, binding and chain only (12 app starts a run, about 4 min a run at 16x)
+
+  cell                    runs  start-timeout  raw-server  other  secs/run  app starts (n, median s, max s, >3 s) | raw ready (n, max s, timeouts)
+  load8x-timeout3000         3      0/3 (0)      0/3 (0)   0/3 (0)    123  36, 2.25, 3.41, 3 | 6, 2.30, 0
+  load8x-timeoutdefault      3      0/3 (0)      0/3 (0)   0/3 (0)    125  36, 1.61, 3.28, 2 | 6, 2.40, 0
+  load16x-timeout3000       10     5/10 (10)    0/10 (0)  0/10 (0)    241  118, 3.60, 5.10, 104 | 19, 3.89, 0
+  load16x-timeoutdefault    10     0/10 (0)     0/10 (0)  0/10 (0)    248  120, 3.79, 5.50, 99 | 20, 4.11, 0
+
+(A 3-run 16x pass before the 10-run one gave the same picture: 3000 failed
+2/3 runs, default 0/3, slowest start 6.01 s.)
+
+All 10 failures at 16x/3000 are the flake !57 fixed, verbatim:
+"Could not start R session, timed out" (callr's rs_init), in 6 tests: 5 of
+test-chain.R, 1 of test-binding.R. With the default 60000, 0/10 runs failed
+although 99 of 120 starts took over 3 s and the slowest 5.50 s.
+
+## Host load (uptime, 1-minute average)
+
+  batch      before  during (n, min, median, max)       after   container CPU (median, max)
+  1x/2x       3.43   171 samples, 4.63, 8.96, 30.44     15.28    397.92%, 427.81%
+  8x/16x      11.18  67 samples, 4.23, 8.06, 23.72      7.95     399.55%, 412.83%
+  16x x10     5.18   147 samples, 4.33, 6.45, 12.03     9.31     396.68%, 407.33%
+
+The container stayed at its 4-CPU cap (about 400%) whatever the load level,
+so the protocol added at most about 4 to the host's load; the spikes to 30
+came from the other sessions sharing the host.
+
+## Conclusion
+
+!57's fix holds. Under the bounded protocol the start-timeout class fails
+with SSRFR_TEST_START_TIMEOUT=3000 (5/10 runs at 16x) and does not fail with
+the default (0/10 at 16x, 0/20 at 1x and 2x). 1x and 2x of the cap are too
+light to reproduce it: a proof of a start-timeout change needs about 16x.
+The raw-server class never appeared outside the probe: 0 readiness timeouts
+in 2,223 raw-server starts across the cells above, slowest 4.40 s (16x)
+against the 20 s wait (SSRF-ptkasofy).

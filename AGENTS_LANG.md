@@ -93,6 +93,15 @@ Documented deviations from the goodpractice set:
 - A skipped test, or one with no expectation, fails the gate
   (`ssrfr-v1.md` §7.2).
 - New code requires tests.
+- A proof under load, such as a timing fix, uses `scripts/load-test.sh`. It runs
+  the test files that start processes N times in one container capped below
+  the Docker VM's CPU count, under a load it generates inside that container,
+  and counts the failures by class; its header lists the options. 1x and 2x
+  are too light to reproduce the webfakes start timeout; 16x does
+  (`design/evidence/2026-10-02-load-test-results.txt`). Never start
+  load processes (`yes`, busy loops, parallel test runs) on the host by hand:
+  other sessions share the machine. Commit the summary under `design/evidence/`
+  with the command line at its top.
 
 ### Documentation
 

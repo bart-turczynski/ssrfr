@@ -57,5 +57,6 @@
 ^\.zenodo\.json$
 ^SECURITY-INSIGHTS\.yml$
 ^\.bestpractices\.json$
+^\.fossa\.yml$
 ^CODE_OF_CONDUCT\.md$
 ^\.gitlab$

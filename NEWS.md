@@ -4,7 +4,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 
 ## Requirements
 
-* `ssrfr` requires R >= 4.1.0 (was R >= 4.0.0). `rurl`, which it imports, needs `pslr`, which requires R 4.1, and `rurl` and `raddr` both declare R 4.1 on their development branches. The weekly `deep-check` pipeline checks the package on R 4.1.3 (SEOR-rcpzfhgx).
+* `ssrfr` requires R >= 4.1.0 (was R >= 4.0.0). `rurl`, which it imports, needs `pslr`, which requires R 4.1, and `rurl` and `raddr` both declare R 4.1 on their development branches. The weekly `deep-check` pipeline checks the package on R 4.1.3 (`SEOR-rcpzfhgx`).
 
 ## Guarded fetch
 

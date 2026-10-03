@@ -9,8 +9,9 @@
      CRAN with no GitLab Release and no concept DOI yet, so r-universe takes
      slot 1 and the CRAN, latest-release, DOI and dependencies badges are left
      out until each condition holds. The FOSSA pair is slot 17: ssrfr is one of
-     the three FOSSA packages, and its project is created by the first
-     `fossa analyze` run on main. -->
+     the three FOSSA packages. FOSSA keys the project under the account's
+     custom+62973/ prefix, and it appears after the first `fossa analyze` run
+     on main. -->
 
 [![r-universe](https://bart-turczynski.r-universe.dev/ssrfr/badges/version)](https://bart-turczynski.r-universe.dev/ssrfr)
 [![Pipeline](https://gitlab.com/bart-turczynski/ssrfr/badges/main/pipeline.svg)](https://gitlab.com/bart-turczynski/ssrfr/-/pipelines)
@@ -27,9 +28,9 @@ Practices](https://www.bestpractices.dev/projects/15191/badge)](https://www.best
 [![Last
 commit](https://img.shields.io/gitlab/last-commit/bart-turczynski%2Fssrfr)](https://gitlab.com/bart-turczynski/ssrfr/-/commits/main)
 [![FOSSA
-license](https://app.fossa.com/api/projects/git%2Bgitlab.com%2Fbart-turczynski%2Fssrfr.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgitlab.com%2Fbart-turczynski%2Fssrfr?ref=badge_shield&issueType=license)
+license](https://app.fossa.com/api/projects/custom%2B62973%2Fgit%2Bgitlab.com%2Fbart-turczynski%2Fssrfr.svg?type=shield&issueType=license)](https://app.fossa.com/projects/custom%2B62973%2Fgit%2Bgitlab.com%2Fbart-turczynski%2Fssrfr?ref=badge_shield&issueType=license)
 [![FOSSA
-security](https://app.fossa.com/api/projects/git%2Bgitlab.com%2Fbart-turczynski%2Fssrfr.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgitlab.com%2Fbart-turczynski%2Fssrfr?ref=badge_shield&issueType=security)
+security](https://app.fossa.com/api/projects/custom%2B62973%2Fgit%2Bgitlab.com%2Fbart-turczynski%2Fssrfr.svg?type=shield&issueType=security)](https://app.fossa.com/projects/custom%2B62973%2Fgit%2Bgitlab.com%2Fbart-turczynski%2Fssrfr?ref=badge_shield&issueType=security)
 <!-- badges: end -->
 
 Server-side request forgery (SSRF) protection for R applications that

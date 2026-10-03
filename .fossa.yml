@@ -1,0 +1,20 @@
+# .fossa.yml: FOSSA CLI configuration for ssrfr.
+#
+# Pins the project id so `fossa analyze` keys the FOSSA project as
+# `git+gitlab.com/bart-turczynski/ssrfr`, the form seor's
+# design/fleet-standard.md slot-17 badges expect (the CLI adds the account
+# prefix, custom+62973/). The first scan, run without this file (job
+# 16915219089), derived `gitlab.com/bart-turczynski/ssrfr` from the git
+# remote instead; that project was deleted. rurl and seor pin theirs the same way.
+version: 3
+
+project:
+  id: git+gitlab.com/bart-turczynski/ssrfr
+  name: ssrfr
+
+paths:
+  exclude:
+    # Rendered pkgdown site and R CMD check output: generated, never
+    # distributed as source.
+    - docs
+    - '**/*.Rcheck'

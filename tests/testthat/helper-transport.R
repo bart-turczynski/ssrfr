@@ -224,6 +224,12 @@ test_app <- function() {
     res$add_header("Location", "/b")
     res$send("")
   })
+  app$get("/repeated-location", function(req, res) {
+    res$set_status(302L)
+    res$add_header("Location", "/a")
+    res$add_header("Location", "/a")
+    res$send("")
+  })
   app$get("/redirect", function(req, res) {
     res$redirect("/next?x=1", 302L)
   })

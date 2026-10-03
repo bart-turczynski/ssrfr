@@ -59,7 +59,7 @@
       "@type": "SoftwareApplication",
       "identifier": "cucumber",
       "name": "cucumber",
-      "version": ">= 2.0.0",
+      "version": ">= 2.1.0",
       "provider": {
         "@id": "https://cran.r-project.org",
         "@type": "Organization",
@@ -169,6 +169,7 @@
       "@type": "SoftwareApplication",
       "identifier": "webfakes",
       "name": "webfakes",
+      "version": ">= 1.4.0",
       "provider": {
         "@id": "https://cran.r-project.org",
         "@type": "Organization",

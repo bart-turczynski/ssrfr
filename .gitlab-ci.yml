@@ -356,13 +356,29 @@ full-check:
 # - Packages come from one dated Posit Package Manager snapshot,
 #   FLOOR_SNAPSHOT, used in this job alone, so it cannot conflict with what
 #   full-check's release and devel legs install. 2025-04-10 is the day before
-#   R 4.5.0, when R 4.1 was still inside these dependencies' support window.
+#   R 4.5.0, when R 4.1 was still inside these dependencies' support window,
+#   and before bit64 4.8.0, which gcc 9 cannot build (raddr's floor leg);
+#   nothing here installs bit64 anyway.
 # - What postdates the snapshot comes from CRAN itself, without dependencies,
 #   after its own dependencies came from the snapshot: the fleet packages
-#   (rurl, raddr, pslr, punycoder), curl (ssrfr needs >= 7.0.0; the snapshot
-#   has 6.2.2), and rlang and vctrs (raddr needs rlang >= 1.1.7 and vctrs >=
-#   0.7.0). Measured 2026-10-03 against both repositories: that closure has
-#   no version conflict, and no package in it declares an R floor above 4.1.3.
+#   (raddr, pslr, punycoder), curl (ssrfr needs >= 7.0.0; the snapshot has
+#   6.2.2), rlang and vctrs (raddr needs rlang >= 1.1.7 and vctrs >= 0.7.0),
+#   webfakes (the TLS fixtures need >= 1.4.0; the snapshot has 1.3.2) and
+#   cucumber (>= 2.1.0 has cucumber::run(); the snapshot has 2.0.0).
+#   Measured 2026-10-03 against both repositories: that closure has no
+#   version conflict, and no package in it declares an R floor above 4.1.3.
+# - curl, the binary, is in the apt line because every R curl since 7.0.0
+#   wants libcurl >= 7.73, and focal has 7.68.0: its configure then fetches
+#   a static libcurl (8.14.1) with that binary, and without it the build
+#   falls through to `CURLINFO_EFFECTIVE_METHOD undeclared` (pipeline
+#   2909642350). The static libcurl meets `SystemRequirements: libcurl (>=
+#   7.73.0)`, so the transport tests run against it, not focal's.
+# - TEMPORARY rurl pin. rurl 3.1.0, the CRAN release, zero-pads IPv6 pieces
+#   under R < 4.2 ([64:ff9b::5db8:d822] serializes as [0064:ff9b::...]), and
+#   test-dependencies.R fails here on it. rurl's main has the fix (c659973,
+#   SEOR-nxycpzlk), so this job installs rurl from RURL_SHA, a commit on that
+#   main, in place of the CRAN release. Once CRAN serves the fixed rurl, put
+#   rurl back in the CRAN list, drop RURL_SHA and this item.
 # - Only what the check needs is installed: the hard dependencies, the test
 #   and vignette Suggests, and rcmdcheck. oysteR and rosv serve the scheduled
 #   audits, whose tests skip without them, so _R_CHECK_FORCE_SUGGESTS_=false
@@ -374,21 +390,20 @@ full-check:
 # floor to a current R. Its own before_script and cache: the shared `.r`
 # setup rewrites repos for the release image, which this job must not use.
 #
-# BEST EFFORT. Nothing here could be run before it merged. rocker/r-ver:4.1.3
-# is Ubuntu focal, whose libcurl is 7.68.0, below DESCRIPTION's
-# `SystemRequirements: libcurl (>= 7.73.0)`, so a transport test may fail
-# here for libcurl, not R. The leg is allow_failure until its first green run
-# on the deep-check schedule; drop allow_failure then, as seor's floor-check
-# says (SEOR-kqcbgsfc).
+# BLOCKING, like every deep-check leg: a scheduled detector that cannot go red
+# is worthless. The leg was allow_failure until its first green run; a docker
+# run of this job in rocker/r-ver:4.1.3 passed on 2026-10-04 (SEOR-rcpzfhgx),
+# standing in for that run, as seor's floor-check asks (SEOR-kqcbgsfc).
 floor-check:
   extends: .scheduled-or-manual
   stage: check
   needs: []
   image: rocker/r-ver:$R_FLOOR_VERSION
-  allow_failure: true
   variables:
     R_FLOOR_VERSION: "4.1.3"
     FLOOR_SNAPSHOT: "https://packagemanager.posit.co/cran/2025-04-10"
+    # A commit on rurl's main carrying its R 4.1 IPv6 fix (comment above).
+    RURL_SHA: "6c6a1d26f060506311cdfa205baa02235889be72"
     LANG: C.UTF-8
     LC_ALL: C.UTF-8
     R_CRAN_SRC: "https://cloud.r-project.org"
@@ -403,18 +418,24 @@ floor-check:
   before_script:
     - mkdir -p "$R_LIBS_USER"
   script:
-    - apt-get update -qq && apt-get install -y --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev
+    - apt-get update -qq && apt-get install -y --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev curl
     - >
       Rscript -e 'snap <- c("cli", "glue", "lifecycle", "stringi", "digest", "Rcpp", "cpp11",
       "callr", "cucumber", "httpuv", "knitr", "pkgload", "processx", "rmarkdown",
       "testthat", "webfakes", "withr", "rcmdcheck");
       need <- setdiff(snap, rownames(installed.packages()));
       if (length(need)) install.packages(need, repos = Sys.getenv("FLOOR_SNAPSHOT"), Ncpus = 4L);
-      install.packages(c("rlang", "vctrs", "curl", "punycoder", "pslr", "rurl", "raddr"),
+      install.packages(c("rlang", "vctrs", "curl", "punycoder", "pslr", "raddr",
+      "webfakes", "cucumber"),
       repos = "https://cloud.r-project.org", dependencies = FALSE, Ncpus = 4L);
-      stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck"), requireNamespace, NA, quietly = TRUE)));
-      stopifnot(packageVersion("curl") >= "7.0.0");
-      print(R.version.string); print(curl::curl_version()$version)'
+      sha <- Sys.getenv("RURL_SHA"); tgz <- file.path(tempdir(), "rurl.tar.gz");
+      download.file(paste0("https://gitlab.com/bart-turczynski/rurl/-/archive/", sha, "/rurl-", sha, ".tar.gz"), tgz, mode = "wb");
+      install.packages(tgz, repos = NULL, type = "source");
+      stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck", "webfakes", "cucumber"),
+      requireNamespace, NA, quietly = TRUE)));
+      stopifnot(packageVersion("curl") >= "7.0.0", packageVersion("webfakes") >= "1.4.0",
+      packageVersion("cucumber") >= "2.1.0", packageVersion("rurl") > "3.1.0");
+      print(R.version.string); print(curl::curl_version()$version); print(packageVersion("rurl"))'
     # rcmdcheck reads a check that halted partway as 0/0/0 and returns
     # normally, so error_on never fires; the guard also fails on R CMD check's
     # own exit status (SEOR-maavnxdm).

@@ -568,7 +568,7 @@ renovate:
   extends: .scheduled-or-manual
   stage: maintenance
   needs: []
-  image: renovate/renovate:41
+  image: renovate/renovate:44
   variables:
     RENOVATE_PLATFORM: gitlab
     RENOVATE_ENDPOINT: $CI_API_V4_URL

@@ -13,13 +13,18 @@
 #                 DESCRIPTION Version.
 #   tests         testthat with NOT_CRAN=true. A skipped test fails the stage,
 #                 and testthat reports a test with no expectation as skipped,
-#                 so that fails it too (ssrfr-v1.md §7.2).
-#   check         R CMD check --as-cran with NOT_CRAN=false, as CRAN runs it.
-#                 An ERROR, a WARNING or a NOTE not in `allowed_notes` fails
-#                 the stage; an allowed NOTE's first line is printed with its
-#                 reason. CRAN incoming feasibility stays ON: it is what
-#                 finds dead URL/BugReports links (seor ADR 0004), so do not
-#                 switch it off to turn the gate green.
+#                 so that fails it too (ssrfr-v1.md §7.2). The dependency
+#                 audits (test-osv.R, test-security.R) are left out: they need
+#                 the network and OSS Index credentials, so they would skip,
+#                 and the scheduled `osv-audit` and `security-audit` CI jobs
+#                 run them. The check stage still runs their offline tests.
+#   check         R CMD check --as-cran with NOT_CRAN=false, as CRAN runs it,
+#                 through rcmdcheck with error_on = "warning" (the fleet
+#                 standard). An ERROR, a WARNING or a NOTE not in
+#                 `allowed_notes` fails the stage; an allowed NOTE's first
+#                 line is printed with its reason. CRAN incoming feasibility
+#                 stays ON: it is what finds dead URL/BugReports links (seor
+#                 ADR 0004), so do not switch it off to turn the gate green.
 #
 # Every stage runs even after an earlier one fails, and one VERDICT line names
 # all failures, so one run says everything five separate runs would (seor ADR
@@ -96,12 +101,17 @@ stage_news_version <- function(root) {
   FALSE
 }
 
+# The dependency-audit test files, by testthat's filter (see the header).
+audit_tests <- "(osv|security)$"
+
 stage_tests <- function(root) {
   res <- with_env(
     "NOT_CRAN",
     "true",
     as.data.frame(testthat::test_local(
       root,
+      filter = audit_tests,
+      invert = TRUE,
       reporter = "summary",
       stop_on_failure = FALSE
     ))
@@ -323,9 +333,12 @@ stage_check <- function(root) {
   res <- rcmdcheck::rcmdcheck(
     root,
     args = "--as-cran",
-    error_on = "never",
+    error_on = "warning",
     env = c(callr::rcmd_safe_env(), NOT_CRAN = "false")
   )
+  # rcmdcheck reads a check that halted partway as 0/0/0 and returns
+  # normally, so error_on never fires; this guard fails on R CMD check's own
+  # exit status (SEOR-maavnxdm).
   if (res$status != 0L) {
     cat(
       "R CMD check halted before finishing (exit status ",

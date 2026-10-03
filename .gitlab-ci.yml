@@ -5,12 +5,13 @@
 # 0003 (cache), 0004 (CRAN incoming) and 0005 (one gate job). Read
 # design/agent-workflow.md before reshaping this file.
 #
-# The fast gate is ONE job, `verify`, running scripts/verify.R: the same file
-# the pre-push hook runs, so CI and the local gate cannot drift apart. The
-# cheap checks a sibling runs as separate jobs (lint, news-version) are stages
-# of that script, not jobs of their own. There is no README.Rmd, CITATION.cff
-# or codemeta.json here, and no OSV or OSS Index test, so the sibling jobs that
-# guard those are not ported.
+# The fast gate is `verify`, running scripts/verify.R: the same file the
+# pre-push hook runs, so CI and the local gate cannot drift apart. lint and
+# news-version are stages of that script. The other cheap gates of seor's
+# design/fleet-standard.md run in `gates` (README drift, spelling) and
+# `citation-version` (CITATION.cff and .zenodo.json against DESCRIPTION, and
+# the BugReports split). The deep checks and the dependency audits run only on
+# their own pipeline schedules, and `fossa` on every push to main.
 
 stages:
   - verify
@@ -149,7 +150,14 @@ default:
     - >
       Rscript -e 'for (l in c("tr_TR.UTF-8", "tr_TR.ISO8859-9", "tr_TR.iso88599", "az_AZ.UTF-8", "lt_LT.UTF-8")) if (!nzchar(Sys.setlocale("LC_CTYPE", l))) stop("R cannot use locale ", l)'
       -e 'invisible(Sys.setlocale("LC_CTYPE", "tr_TR.UTF-8")); stopifnot(tolower("I") == intToUtf8(0x131L)); cat("hostile locales usable in R\n")'
-    - Rscript -e 'if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak", repos = "https://cloud.r-project.org")'
+    # pak from r-lib's own binary repository, not CRAN: rocker/r-ver:devel has
+    # no binaries, so a CRAN install builds pak from source and can fail with
+    # only a warning (punycoder's full-check R-devel, pipeline 2894951198).
+    - >
+      Rscript -e 'if (!requireNamespace("pak", quietly = TRUE))
+      install.packages("pak", repos = sprintf(
+      "https://r-lib.github.io/p/pak/stable/%s/%s/%s",
+      .Platform$pkgType, R.Version()$os, R.Version()$arch))'
 
 # --------------------------------------------------------------------------
 # workflow — keep only the pipeline on main
@@ -196,6 +204,18 @@ workflow:
       when: manual
       allow_failure: true
 
+# The two dependency audits (osv-audit, security-audit) run only on a schedule
+# that sets SCHEDULE_KIND=dependency-audit, or by hand from a `web` pipeline,
+# never otherwise (seor SEOR-fftbjnpl). A schedule pipeline on main is
+# admitted by the `workflow:` rules through the default-branch rule.
+.dependency-audit:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_KIND == "dependency-audit"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+      allow_failure: true
+    - when: never
+
 # --------------------------------------------------------------------------
 # install-deps — the dependency closure, shared by every job that installs it
 #
@@ -236,6 +256,42 @@ verify:
     - *install-deps
     - Rscript scripts/verify.R
 
+# README drift and spelling, run by scripts/gates.sh, which runs both and then
+# names every failure in one VERDICT line. Neither needs the package's
+# dependency closure: README.Rmd evaluates no package code, and
+# spelling::spell_check_package() reads the sources.
+#
+# pandoc is PINNED, as in punycoder and pagerankr: its markdown writer reflows
+# text between versions, so README.md is byte-stable only under the pandoc that
+# knit it, 3.10. The apt pandoc (3.1.x) would report drift that is not there.
+# Bump it only together with a re-knit of README.md.
+gates:
+  extends:
+    - .r
+    - .on-main
+  stage: verify
+  script:
+    - PANDOC_VERSION=3.10
+    - curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-$(dpkg --print-architecture).deb"
+    - dpkg -i /tmp/pandoc.deb
+    - pandoc --version | head -n1
+    - Rscript -e 'pak::pak(c("any::rmarkdown", "any::knitr", "any::spelling"))'
+    - sh scripts/gates.sh
+
+# CITATION.cff and .zenodo.json each duplicate the version and the project URLs
+# out of DESCRIPTION; scripts/check-citation.py, vendored from seor, holds them
+# to it. The BugReports split rides along (SEOR-ocbtrrnl). Offline,
+# stdlib-only Python, so it runs on a small python image rather than the R one.
+citation-version:
+  extends: .on-main
+  stage: verify
+  image: python:3.13-alpine
+  script:
+    - python3 scripts/check-citation.py --self-test
+    - python3 scripts/check-citation.py
+    - python3 scripts/check-bugreports.py --self-test
+    - python3 scripts/check-bugreports.py
+
 # --------------------------------------------------------------------------
 # check — the slower passes
 # --------------------------------------------------------------------------
@@ -250,9 +306,19 @@ coverage:
   script:
     - Rscript -e 'pak::pak(c("any::covr", "any::xml2"))'
     - *install-deps
-    - Rscript -e 'cov <- covr::package_coverage(quiet = FALSE); print(cov); covr::to_cobertura(cov)'
+    # Fails below 95% total coverage, the fleet minimum (seor
+    # design/fleet-standard.md, ADR 0007). cobertura.xml is written first, so
+    # a failing run still annotates the diff. The threshold is never lowered:
+    # a package under it adds tests.
+    - >
+      Rscript -e 'cov <- covr::package_coverage(quiet = FALSE);
+      print(cov);
+      covr::to_cobertura(cov);
+      pct <- covr::percent_coverage(cov);
+      if (pct < 95) stop(sprintf("total coverage %.2f%% is below the fleet minimum of 95%%; add tests, never lower the threshold", pct), call. = FALSE)'
   coverage: '/Coverage:\s*(\d+\.\d+)%/'
   artifacts:
+    when: always
     reports:
       coverage_report:
         coverage_format: cobertura
@@ -261,18 +327,107 @@ coverage:
 # The R-version axis, on Linux only: GitLab.com's macOS and Windows runners are
 # paid tiers, so the rest moves to R-hub (`rhub::rc_submit()`) before a CRAN
 # submission.
+#
+# The legs are the fleet standard's deep-check set (seor
+# design/fleet-standard.md): R release, oldrel and devel here, plus the R
+# floor in `floor-check` below. Bump the pinned release and oldrel tags when a
+# new minor R version ships. `needs: []` starts every deep-check job when the
+# pipeline starts, so a red `verify` on the same schedule cannot skip them.
 full-check:
   extends:
     - .r
     - .scheduled-or-manual
   stage: check
+  needs: []
   parallel:
     matrix:
-      - R_VERSION: ["4.5.1", "4.4.3"]
+      - R_VERSION: ["4.6.1", "4.5.1", "devel"]
   script:
     - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
     - *install-deps
     - Rscript scripts/verify.R
+
+# The deep-check leg at the declared R floor, `Depends: R (>= 4.1.0)`.
+#
+# 4.1 is the floor rurl (through pslr) and raddr need, and the oldest minor
+# with an arm64 rocker/r-ver image (4.1.3). pagerankr's `floor-check` is the
+# model:
+#
+# - Packages come from one dated Posit Package Manager snapshot,
+#   FLOOR_SNAPSHOT, used in this job alone, so it cannot conflict with what
+#   full-check's release and devel legs install. 2025-04-10 is the day before
+#   R 4.5.0, when R 4.1 was still inside these dependencies' support window.
+# - What postdates the snapshot comes from CRAN itself, without dependencies,
+#   after its own dependencies came from the snapshot: the fleet packages
+#   (rurl, raddr, pslr, punycoder), curl (ssrfr needs >= 7.0.0; the snapshot
+#   has 6.2.2), and rlang and vctrs (raddr needs rlang >= 1.1.7 and vctrs >=
+#   0.7.0). Measured 2026-10-03 against both repositories: that closure has
+#   no version conflict, and no package in it declares an R floor above 4.1.3.
+# - Only what the check needs is installed: the hard dependencies, the test
+#   and vignette Suggests, and rcmdcheck. oysteR and rosv serve the scheduled
+#   audits, whose tests skip without them, so _R_CHECK_FORCE_SUGGESTS_=false
+#   lets --as-cran report them as a NOTE instead of stopping.
+# - Vignettes are neither built nor checked, as in pagerankr and punycoder.
+# - No hostile locales are built, so test-locale.R skips its legs here.
+#
+# The image tag is a variable so Renovate's gitlabci manager cannot bump the
+# floor to a current R. Its own before_script and cache: the shared `.r`
+# setup rewrites repos for the release image, which this job must not use.
+#
+# BEST EFFORT. Nothing here could be run before it merged. rocker/r-ver:4.1.3
+# is Ubuntu focal, whose libcurl is 7.68.0, below DESCRIPTION's
+# `SystemRequirements: libcurl (>= 7.73.0)`, so a transport test may fail
+# here for libcurl, not R. The leg is allow_failure until its first green run
+# on the deep-check schedule; drop allow_failure then, as seor's floor-check
+# says (SEOR-kqcbgsfc).
+floor-check:
+  extends: .scheduled-or-manual
+  stage: check
+  needs: []
+  image: rocker/r-ver:$R_FLOOR_VERSION
+  allow_failure: true
+  variables:
+    R_FLOOR_VERSION: "4.1.3"
+    FLOOR_SNAPSHOT: "https://packagemanager.posit.co/cran/2025-04-10"
+    LANG: C.UTF-8
+    LC_ALL: C.UTF-8
+    R_CRAN_SRC: "https://cloud.r-project.org"
+    R_CRAN_WEB: "https://cloud.r-project.org"
+    _R_CHECK_FORCE_SUGGESTS_: "false"
+    R_LIBS_USER: "$CI_PROJECT_DIR/.cache/R-floor"
+    R_LIBS: "$CI_PROJECT_DIR/.cache/R-floor:/usr/local/lib/R/site-library:/usr/local/lib/R/library"
+  cache:
+    key: floor-r41-2025-04-10
+    paths:
+      - .cache/R-floor
+  before_script:
+    - mkdir -p "$R_LIBS_USER"
+  script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev
+    - >
+      Rscript -e 'snap <- c("cli", "glue", "lifecycle", "stringi", "digest", "Rcpp", "cpp11",
+      "callr", "cucumber", "httpuv", "knitr", "pkgload", "processx", "rmarkdown",
+      "testthat", "webfakes", "withr", "rcmdcheck");
+      need <- setdiff(snap, rownames(installed.packages()));
+      if (length(need)) install.packages(need, repos = Sys.getenv("FLOOR_SNAPSHOT"), Ncpus = 4L);
+      install.packages(c("rlang", "vctrs", "curl", "punycoder", "pslr", "rurl", "raddr"),
+      repos = "https://cloud.r-project.org", dependencies = FALSE, Ncpus = 4L);
+      stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck"), requireNamespace, NA, quietly = TRUE)));
+      stopifnot(packageVersion("curl") >= "7.0.0");
+      print(R.version.string); print(curl::curl_version()$version)'
+    # rcmdcheck reads a check that halted partway as 0/0/0 and returns
+    # normally, so error_on never fires; the guard also fails on R CMD check's
+    # own exit status (SEOR-maavnxdm).
+    - >
+      Rscript -e 'res <- rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran", "--ignore-vignettes"),
+      build_args = c("--no-manual", "--no-build-vignettes"),
+      error_on = "warning", check_dir = "check");
+      if (!identical(as.integer(res$status), 0L)) stop("R CMD check exited with status ", res$status, "; the run did not complete.", call. = FALSE)'
+  artifacts:
+    when: always
+    paths:
+      - check/
+    expire_in: 1 week
 
 # --------------------------------------------------------------------------
 # pages — the pkgdown site
@@ -332,9 +487,78 @@ pages:
 #
 # GitLab keeps pipeline schedules in project settings (CI/CD > Schedules), not
 # in this file. A schedule runs renovate only when it sets
-# SCHEDULE_KIND=deep-check (.scheduled-or-manual). `needs: []` starts the job
-# when the pipeline starts, so a red full-check leg cannot skip it.
+# SCHEDULE_KIND=deep-check (.scheduled-or-manual), and the two audits only when
+# it sets SCHEDULE_KIND=dependency-audit (.dependency-audit). `needs: []`
+# starts each job when the pipeline starts, so a red earlier job cannot skip
+# it. `fossa` is the one job here that runs on a push to main.
 # --------------------------------------------------------------------------
+
+# Dependency vulnerability audit against the OSV database (https://osv.dev) via
+# {rosv}. Needs no account, token or CI/CD variable. Runs
+# tests/testthat/test-osv.R against the runtime dependency closure at the
+# installed versions. NOT_CRAN=true so skip_on_cran() in the test cannot skip
+# the audit silently.
+osv-audit:
+  extends:
+    - .r
+    - .dependency-audit
+  stage: maintenance
+  needs: []
+  variables:
+    NOT_CRAN: "true"
+  script:
+    - Rscript -e 'pak::pak(c("any::rosv", "any::testthat"))'
+    - *install-deps
+    - Rscript -e 'testthat::test_local(filter = "osv", stop_on_failure = TRUE)'
+
+# Dependency vulnerability audit against the Sonatype OSS Index via {oysteR}.
+# Runs tests/testthat/test-security.R, which audits the hard dependencies
+# (Depends + Imports) and judges every reported advisory against the
+# allow-list in tests/testthat/helper-security.R. OSS Index rejects anonymous
+# requests with HTTP 401, so this job needs two CI/CD variables, both set on
+# this project:
+#   OSSINDEX_USER   - the literal placeholder `x`, NOT the account email
+#   OSSINDEX_TOKEN  - a Sonatype Guide personal access token (`sonatype_pat_*`)
+#
+# THIS JOB FAILS WHEN THEY ARE ABSENT, ON PURPOSE (seor SEOR-fkvlzltx):
+# OSSINDEX_AUDIT_REQUIRED turns each precondition the test would otherwise
+# skip on into a failure naming what is missing, so the job cannot report
+# success having audited nothing. It is set here and nowhere else.
+security-audit:
+  extends:
+    - .r
+    - .dependency-audit
+  stage: maintenance
+  needs: []
+  variables:
+    NOT_CRAN: "true"
+    OSSINDEX_AUDIT_REQUIRED: "true"
+  script:
+    - Rscript -e 'pak::pak(c("any::oysteR", "any::testthat"))'
+    - *install-deps
+    - Rscript -e 'testthat::test_local(filter = "security", stop_on_failure = TRUE)'
+
+# FOSSA license and security scan (seor design/fleet-standard.md, "FOSSA":
+# ssrfr is one of the three FOSSA packages). Runs on a push to main, uploads to
+# FOSSA and feeds the README's slot-17 badges; the first run creates the
+# project. FOSSA_API_KEY is a masked CI/CD variable only the owner holds, so
+# the job fails, rather than skipping green, when it is missing. The CLI comes
+# from FOSSA's official install script, which ships linux/arm64 builds for
+# this runner. The pipeline is a detached checkout, so the branch and revision
+# are passed rather than inferred. Copied from seor's `fossa` job.
+fossa:
+  stage: maintenance
+  image: debian:bookworm-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - test -n "${FOSSA_API_KEY:-}" || { echo "FOSSA_API_KEY is not set on this project; fossa analyze cannot upload."; exit 1; }
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends curl ca-certificates git
+    - >
+      curl -fsSL -H 'Cache-Control: no-cache'
+      https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | sh
+    - fossa analyze --branch "$CI_COMMIT_BRANCH" --revision "$CI_COMMIT_SHA"
 
 # Renovate bumps the CI images (renovate.json). Needs a RENOVATE_TOKEN CI/CD
 # variable: a personal access token with `api` and `write_repository` scope.

@@ -31,11 +31,14 @@ exclusions, and why, are commented in the config.
 | `check-design` | `python3 scripts/check-design.py` | frozen ADRs, frontmatter, `ARCHITECTURE.md` naming every source directory, citations of git-ignored working space |
 | `check-bugreports` | `python3 scripts/check-bugreports.py` | the BugReports split: `DESCRIPTION` on `/-/issues`, human-facing tracker links on `/-/work_items` (SEOR-ocbtrrnl); its `--self-test` runs when the script changes |
 | `check-toolchain` | `Rscript scripts/check-toolchain.R` | the machine: roxygen2 against `Config/roxygen2/version`, packages built under a newer R |
+| `check-citation` | `python3 scripts/check-citation.py` | `CITATION.cff` and `.zenodo.json` name the version `DESCRIPTION` points at, and only URLs it declares |
+| `check-urls` | `Rscript scripts/check-urls.R` | every URL the package declares answers; a dead one fails, an unreachable host only warns, and the only exemption is `BugReports`' `/-/issues` 404 |
 | `spelling` | `Rscript scripts/check-spelling.R` | spelling of `DESCRIPTION`, `man/`, vignettes, README and NEWS against en-US and `inst/WORDLIST` |
 | `verify` | `Rscript scripts/verify.R` | the package; stages listed in the script's header |
 
-`verify` is the same file the CI `verify` job runs. `check-design`,
-`check-bugreports`, `check-toolchain` and `spelling` run only locally.
+`verify` is the same file the CI `verify` job runs. CI also runs
+`check-bugreports`, `check-citation` and `spelling` (see below);
+`check-design`, `check-toolchain` and `check-urls` run only locally.
 
 ## CI
 
@@ -49,17 +52,25 @@ hand at **Build > Pipelines > Run pipeline** and pick the ref.
 | Job | When | Does |
 |---|---|---|
 | `verify` | `main` (a schedule too), `web` | `scripts/verify.R` |
-| `coverage` | `main` (a schedule too), `web` | `covr`, reported as a GitLab coverage artifact |
-| `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on each R version in its matrix |
+| `gates` | `main` (a schedule too), `web` | `scripts/gates.sh`: README drift against a fresh knit of `README.Rmd` (pandoc pinned), and spelling |
+| `citation-version` | `main` (a schedule too), `web` | `check-citation.py` and `check-bugreports.py`, each with its self-test |
+| `coverage` | `main` (a schedule too), `web` | `covr`, reported as a GitLab coverage artifact; fails below 95% |
+| `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on R release, oldrel and devel |
+| `floor-check` | a `deep-check` schedule, `web` (manual) | `R CMD check --as-cran` on R 4.1.3, the declared floor, with dependencies from a dated package snapshot |
 | `pages` | `main` only (a schedule too) | the pkgdown site, published to GitLab Pages |
 | `renovate` | a `deep-check` schedule, `web` (manual) | CI image bumps (`renovate.json`) |
+| `osv-audit` | a `dependency-audit` schedule, `web` (manual) | `tests/testthat/test-osv.R`: OSV advisories against the runtime closure |
+| `security-audit` | a `dependency-audit` schedule, `web` (manual) | `tests/testthat/test-security.R`: OSS Index advisories, each needing a row in `helper-security.R` |
+| `fossa` | a push to `main` | `fossa analyze`, for the README's FOSSA badges |
 
-A schedule runs `full-check` and `renovate` only when it sets the variable
-`SCHEDULE_KIND=deep-check` on the schedule itself, as the weekly one must; any
-other schedule skips them. A schedule's pipeline is on `main`, so `verify`,
-`coverage` and `pages` run on every schedule, whatever its kind. Never set
+A schedule runs `full-check`, `floor-check` and `renovate` only when it sets
+the variable `SCHEDULE_KIND=deep-check` on the schedule itself, and
+`osv-audit` and `security-audit` only when it sets
+`SCHEDULE_KIND=dependency-audit`; any other schedule skips them. A schedule's
+pipeline is on `main`, so `verify`, `gates`, `citation-version`, `coverage`
+and `pages` run on every schedule, whatever its kind. Never set
 `SCHEDULE_KIND` as a project or group variable: every schedule would inherit
-it and run the deep checks.
+it.
 
 Renovate follows that cadence alone: `renovate.json` sets no `schedule`, and
 `prHourlyLimit` is `0` so one weekly run can open every MR it is allowed to. A

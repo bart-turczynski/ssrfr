@@ -108,14 +108,40 @@ skip_if_no_webfakes <- function() {
   skip_if_not_installed("callr")
 }
 
-# How long a webfakes app process may take to start, in milliseconds: 60 s
-# unless SSRFR_TEST_START_TIMEOUT says otherwise. The start waits twice, and
-# on a loaded machine either wait can outlast its default (SSRF-xounanjz):
-# for the R session to start (callr's `wait_timeout`, 3 s, which webfakes
-# does not pass on) and for the app to listen (webfakes' `process_timeout`,
-# 5 s).
+# How long a test's background process may take to start, in milliseconds:
+# 60 s unless SSRFR_TEST_START_TIMEOUT says otherwise. A webfakes app start
+# waits twice, and on a loaded machine either wait can outlast its default
+# (SSRF-xounanjz): for the R session to start (callr's `wait_timeout`, 3 s,
+# which webfakes does not pass on) and for the app to listen (webfakes'
+# `process_timeout`, 5 s). A raw server's readiness wait, wait_for_ready(),
+# uses it too (SSRF-ptkasofy).
 app_start_timeout <- function() {
   as.integer(Sys.getenv("SSRFR_TEST_START_TIMEOUT", "60000"))
+}
+
+# Waits until the background `process` has created the file `ready`, for as
+# long as app_start_timeout() allows. A wait that runs out, or a process that
+# exits first, is an error naming the wait, not a return that leaves the test
+# to fail later on a refused connection (SSRF-ptkasofy).
+wait_for_ready <- function(ready, process, what = "the raw server") {
+  secs <- app_start_timeout() / 1000
+  t0 <- Sys.time()
+  while (!file.exists(ready)) {
+    if (!process$is_alive() && !file.exists(ready)) {
+      stop(what, " exited before it was ready", call. = FALSE)
+    }
+    if (difftime(Sys.time(), t0, units = "secs") >= secs) {
+      stop(
+        what,
+        "'s readiness wait ran out after ",
+        secs,
+        " s (SSRFR_TEST_START_TIMEOUT)",
+        call. = FALSE
+      )
+    }
+    Sys.sleep(0.05)
+  }
+  invisible()
 }
 
 # webfakes::local_app_process(), with app_start_timeout() for both waits.
@@ -418,8 +444,9 @@ raw_server_io <- list(
 
 # Runs `serve(socket, io, ...)` in a background process, where `socket`
 # listens on a free port, `io` is raw_server_io and `...` is `args`, and
-# returns once the socket listens. The process is killed when the calling
-# test ends. Returns the port and the callr process.
+# returns once the socket listens, or fails as wait_for_ready() does. The
+# process is killed when the calling test ends. Returns the port and the
+# callr process.
 local_server_process <- function(serve, args = list(), env = parent.frame()) {
   skip_if_not_installed("callr")
   shipped <- function(f) {
@@ -444,10 +471,7 @@ local_server_process <- function(serve, args = list(), env = parent.frame()) {
     )
   )
   withr::defer(server$kill(), envir = env)
-  t0 <- Sys.time()
-  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
-    Sys.sleep(0.05)
-  }
+  wait_for_ready(ready, server)
   list(port = port, process = server)
 }
 

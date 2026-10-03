@@ -15,8 +15,9 @@ test_that("load-test probe: start-timeout", {
 
 test_that("load-test probe: raw-server", {
   # callr starts its sessions with user_profile = "project", so a .Rprofile
-  # in the working directory delays the server process past
-  # local_server_process()'s 20 s readiness wait.
+  # in the working directory delays the server process by 25 s: past the
+  # readiness wait at the 20000 ms --probe runs with by default, and within
+  # it at the 60000 default (SSRF-ptkasofy).
   dir <- withr::local_tempdir()
   writeLines("Sys.sleep(25)", file.path(dir, ".Rprofile"))
   withr::local_dir(dir)

@@ -24,8 +24,8 @@
 #   callr's session start wait or webfakes' own (helper-transport.R,
 #   app_start_timeout(); SSRF-xounanjz).
 # - raw-server: a test whose local_server_process() readiness wait ran out
-#   (the injected helper records it), or a failure that names a refused
-#   connection (SSRF-ptkasofy).
+#   (the injected helper records it, and the failure names the wait), or a
+#   failure that names a refused connection (SSRF-ptkasofy).
 # - other: everything else.
 start_timeout_pattern <- paste(
   "Could not start R session",
@@ -33,6 +33,7 @@ start_timeout_pattern <- paste(
   sep = "|"
 )
 connect_pattern <- paste(
+  "readiness wait ran out",
   "connect-failed",
   "Couldn't connect",
   "Could not connect",
@@ -253,6 +254,11 @@ selftest <- function() {
     list("webfakes app subprocess did not start :(", FALSE, "start-timeout"),
     list("r$status (`actual`) not identical to 200L.", TRUE, "raw-server"),
     list("Failed to connect to 127.0.0.1 port 4000", FALSE, "raw-server"),
+    list(
+      "the raw server's readiness wait ran out after 20 s",
+      FALSE,
+      "raw-server"
+    ),
     list("`out$cause` is \"connect-failed\"", FALSE, "raw-server"),
     list("r$status (`actual`) not identical to 200L.", FALSE, "other")
   )

@@ -636,12 +636,18 @@ values, names as A-labels), the hop is refused as `parse`: disagreement between
 two parsers is the ambiguity INV-2 forbids.
 
 The check is a named test (`r-binding.md` §7), not only a corpus property.
-`rurl` 3.0.1 maps a fullwidth `＃`, `／`, `？` or `：` (U+FF03, U+FF0F, U+FF1F,
-U+FF1A) in a host to its ASCII form and keeps it there, where WHATWG refuses the
-host; libcurl then reads `http://127.0.0.1＃.evil.com/` as host `127.0.0.1`, and
-only this check (or libcurl's parse failure, for the colon) refuses the hop
+`rurl` 3.0.1 mapped a fullwidth `＃`, `／`, `？` or `：` (U+FF03, U+FF0F, U+FF1F,
+U+FF1A) in a host to its ASCII form and kept it there, where WHATWG refuses the
+host; libcurl then read `http://127.0.0.1＃.evil.com/` as host `127.0.0.1`, and
+only this check (or libcurl's parse failure, for the colon) refused the hop
 **[verified]** (`design/evidence/2026-09-25-fullwidth-separators.R`; upstream
-`RURL-crsrkcoh`). *Ratified 2026-09-25* (`SSRF-qttneqxp`).
+`RURL-crsrkcoh`). *Ratified 2026-09-25* (`SSRF-qttneqxp`). `rurl` 3.1.0 fails
+these hosts itself: its layer-1 verdict is `fail` and it returns no host, so the
+hop refuses as `parse` at the layer-1 check before the two hosts are compared
+**[verified]** (the same script, rerun on 3.1.0; parse-vector rows
+P0054–P0057). The check stays, and its named test still drives it, with
+`rurl`'s 3.0.1 answers mocked. *Amended 2026-10-03* (was present tense: "`rurl`
+3.0.1 maps … only this check … refuses the hop"; `SSRF-ugcleomt`).
 
 *Replaced 2026-09-24* (was **[suspended]**). The ratified text said `rurl`
 supplies the parse INV-1 requires, because its `whatwg` mode was
@@ -677,11 +683,12 @@ so the key misses and libcurl resolves the name itself (INV-6) **[verified]**
 and a parser that returned the A-label for a U-label string would pass it. The
 rule on the string reads the string itself, because finding its host component
 would take a third parser; the rule on the host reads libcurl's own parse. Past
-`rurl`'s syntax and scheme verdicts, every string `rurl` 3.0.1 serializes from
-the parse-vector and verdict corpora and from generated non-ASCII inputs is
+`rurl`'s syntax and scheme verdicts, every string `rurl` 3.0.1 serialized from
+the parse-vector and verdict corpora and from generated non-ASCII inputs was
 printable ASCII, except a host holding a space, which the agreement check
-already refuses, and every host `curl_parse_url()` returns for a string
-admitted today is printable ASCII. `rurl` decodes a percent-encoded host and
+already refuses; under 3.1.0 the syntax verdict fails those hosts too, so every
+such string is printable ASCII. Every host `curl_parse_url()` returns for a
+string admitted today is printable ASCII. `rurl` decodes a percent-encoded host and
 serializes its A-label. The two rules therefore refuse nothing admitted today
 **[verified]** (`design/evidence/2026-09-29-wire-ascii.R`). ASCII is not IDNA
 validity: the §5.0 A-label rule is separate, and refuses on `rurl`'s
@@ -1157,9 +1164,11 @@ octets of the URL string `ssrf_prepare_hop()` receives, before either parser
 runs. A longer URL refuses as `parse`, and operator detail names the limit. A
 condition raised by `rurl` or `curl_parse_url()`
 while parsing is a `parse` refusal, never an R error to the caller (INV-11):
-`rurl` 3.0.1 raises one for non-ASCII inputs under the default **[verified]**
+`rurl` 3.0.1 raised one for non-ASCII inputs under the default, and 3.1.0 no
+longer does (`RURL-tlmoybsl`) **[verified]**
 (`design/evidence/2026-09-24-content-fetches.R`), and libcurl refuses any URL
-over 8,000,000 bytes.
+over 8,000,000 bytes. *Amended 2026-10-03* (was "`rurl` 3.0.1 raises one";
+`SSRF-ugcleomt`).
 
 ---
 
@@ -1584,6 +1593,12 @@ From 2026-09-30 they are also logged here:
   `domain-invalid-ace-label` diagnostic; other strict domain-to-ASCII failures
   do not refuse. §4 raises the minimum `rurl` to 3.1.0, the release that ships
   the diagnostic; §4.1 and §8 item 23 no longer call the rule pending.
+- **2026-10-03** (`SSRF-ugcleomt`): three `rurl` 3.0.1 observations are put in
+  the past tense, each beside what 3.1.0 does, rerun in its evidence script. In
+  §4.1, 3.1.0 fails the fullwidth-separator hosts at layer 1, before the
+  disagreement check, and its syntax verdict fails the two hosts holding a space
+  that the wire-string rule's measurement excepted. In §5.3, 3.1.0 no longer
+  raises an error on a long non-ASCII URL. No rule changes, and no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

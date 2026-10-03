@@ -10,9 +10,10 @@
 #   app-start  <secs>  ok|error    <test>   local_app_server()'s start
 #   raw-ready  <secs>  ok|timeout  <test>   local_server_process()
 #
-# local_server_process() waits up to 20 s for its server to listen and
-# returns either way (SSRF-ptkasofy), so a start that took 20 s or more is a
-# readiness timeout.
+# local_server_process() waits for its server as long as app_start_timeout()
+# allows, and fails naming the wait when it runs out (wait_for_ready(),
+# SSRF-ptkasofy); any failure of that start is recorded as a readiness
+# timeout.
 
 load_test_event <- function(kind, t0, status) {
   path <- Sys.getenv("SSRFR_LOAD_TEST_EVENTS")
@@ -64,8 +65,10 @@ local_app_server <- function(app, opts, port = NULL, env = parent.frame()) {
 load_test_server_process <- local_server_process
 local_server_process <- function(serve, args = list(), env = parent.frame()) {
   t0 <- Sys.time()
-  out <- load_test_server_process(serve, args = args, env = env)
-  waited <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-  load_test_event("raw-ready", t0, if (waited >= 20) "timeout" else "ok")
+  out <- withCallingHandlers(
+    load_test_server_process(serve, args = args, env = env),
+    error = function(e) load_test_event("raw-ready", t0, "timeout")
+  )
+  load_test_event("raw-ready", t0, "ok")
   out
 }

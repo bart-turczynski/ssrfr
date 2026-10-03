@@ -15,11 +15,14 @@
 #   -t, --start-timeout LIST SSRFR_TEST_START_TIMEOUT values, comma-separated,
 #                            passed through to the tests; "default" leaves it
 #                            unset (helper-transport.R's 60000). Default: the
-#                            caller's SSRFR_TEST_START_TIMEOUT, else "default"
+#                            caller's SSRFR_TEST_START_TIMEOUT, else "default";
+#                            with --probe, 20000 (the old raw-server wait)
 #       --only LIST          run only these of the discovered files (names
 #                            without test- and .R, comma-separated)
 #       --probe              run the forced-failure probe (load-test-probe.R)
-#                            instead of the suite: one failure per class
+#                            instead of the suite: one failure per class; its
+#                            raw-server test passes once the start timeout is
+#                            25000 or more
 #       --out DIR            where run logs go (default
 #                            tmp/load-test/<timestamp>, git-ignored)
 #       --rebuild            rebuild the image first
@@ -78,7 +81,7 @@ runs=10
 loads=1
 cpus=4
 memory=4g
-timeouts=${SSRFR_TEST_START_TIMEOUT:-default}
+timeouts=
 only=
 probe=0
 out=
@@ -96,7 +99,7 @@ while [ $# -gt 0 ]; do
     -l | --load) loads=$2; shift 2 ;;
     -c | --cpus) cpus=$2; shift 2 ;;
     -m | --memory) memory=$2; shift 2 ;;
-    -t | --start-timeout) timeouts=$2; shift 2 ;;
+    -t | --start-timeout) timeouts=$2; [ -n "$2" ] || die "--start-timeout needs a value"; shift 2 ;;
     --only) only=$2; shift 2 ;;
     --probe) probe=1; shift ;;
     --out) out=$2; shift 2 ;;
@@ -110,6 +113,13 @@ done
 case "$runs" in '' | *[!0-9]*) die "--runs must be a positive integer" ;; esac
 [ "$runs" -ge 1 ] || die "--runs must be a positive integer"
 case "$cpus" in '' | *[!0-9]*) die "--cpus must be a whole number" ;; esac
+if [ -z "$timeouts" ]; then
+  if [ "$probe" -eq 1 ]; then
+    timeouts=20000
+  else
+    timeouts=${SSRFR_TEST_START_TIMEOUT:-default}
+  fi
+fi
 loads=${loads//,/ }
 timeouts=${timeouts//,/ }
 for l in $loads; do

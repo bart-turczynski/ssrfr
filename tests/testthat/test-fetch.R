@@ -1140,10 +1140,7 @@ test_that("an interrupt leaves the binding spent and no handle open", {
   )
   withr::defer(interrupter$kill())
   # Wait for the server to listen before preparing the hop.
-  t0 <- Sys.time()
-  while (!file.exists(ready) && difftime(Sys.time(), t0, units = "secs") < 20) {
-    Sys.sleep(0.05)
-  }
+  wait_for_ready(ready, server)
   expect_true(file.exists(ready))
   mock_answers("127.0.0.1")
   b <- ssrf_prepare_hop(

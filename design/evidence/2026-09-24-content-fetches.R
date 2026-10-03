@@ -59,6 +59,9 @@ try_parse(ascii(9914))
 # "error: variable names are limited to 10000 bytes"
 try_parse(paste0("http://example.com/", strrep("é", 1700)))
 # "error: variable names are limited to 10000 bytes"
+# Rerun 2026-10-03 with rurl 3.1.0: the two calls that raised above return
+# "ok", as does a 20,000-character URL of either kind. 3.1.0 skips the cache for a key past the
+# cap (rurl NEWS.md 3.1.0, RURL-tlmoybsl).
 
 # 4. libcurl refuses any URL longer than 8,000,000 bytes (CURL_MAX_INPUT_LENGTH).
 tryCatch(curl::curl_parse_url(paste0("http://example.com/", strrep("a", 8e6)))$host,

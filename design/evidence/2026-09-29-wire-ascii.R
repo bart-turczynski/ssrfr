@@ -102,3 +102,11 @@ cat(
 )
 # curl_parse_url() host of http://b%C3%BCcher.invalid/ : bücher.invalid | wire string today: http://xn--bcher-kva.invalid/
 # admitted today: 558 | parsed host not printable ASCII: 0
+#
+# Rerun 2026-10-03 with rurl 3.1.0, everything else as recorded (the corpus
+# had grown by one row):
+# inputs: 677 | past the syntax and scheme gates: 559 | wire not printable ASCII: 0 | of those admitted today: 0
+# curl_parse_url() host of http://b%C3%BCcher.invalid/ : bücher.invalid | wire string today: http://xn--bcher-kva.invalid/
+# admitted today: 555 | parsed host not printable ASCII: 0
+# rurl 3.1.0's syntax verdict now fails the two hosts holding a space, so no
+# string past the gates has a wire string that is not printable ASCII.

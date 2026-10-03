@@ -36,7 +36,7 @@ Pinned revisions used throughout:
 | OWASP WSTG | `ea174034f91439a17a1595e57d51e5b461820273` |
 | OWASP API Security | `33cea37b2ffde3e2e62f6b5d79a029a22a846633` |
 | `linklint` | `8830901a6c9e95a69b110b06db01bd97fa2aabb9` |
-| `rurl` | tag v3.0.1, `0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35` |
+| `rurl` | tag v3.0.1, `0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35`; tag v3.1.0, `a7fafd66fa06e8741ba2ba73c1a0442dfa054cdc` where a row names 3.1.0 |
 
 ---
 
@@ -91,12 +91,12 @@ Pinned revisions used throughout:
 | Gate 2: Linode `fd00:a9fe:a9fe::1` and `fe80::a9fe:a9fe`. Quote: "the Metadata API is accessible via link-local addresses, specifically: **IPv4**: `169.254.169.254` **IPv6**: `fd00:a9fe:a9fe::1`, `fe80::a9fe:a9fe`" | Akamai TechDocs, *Metadata service API* | <http://web.archive.org/web/20260925003924/https://techdocs.akamai.com/cloud-computing/docs/metadata-service-api> | 2026-09-25 |
 | Two independent implementations missed Oracle's `192.0.0.192` | `[verified]`, not sourced: [`evidence/2026-09-24-oracle-metadata-miss.R`](evidence/2026-09-24-oracle-metadata-miss.R) | — | — |
 | §5.0: the host parser returns failure when domain-to-ASCII fails | WHATWG URL, host parsing | <https://url.spec.whatwg.org/commit-snapshots/8e14777cfa145b08a9fb735fe580ec0c366564c3/#concept-host-parser> | 2026-09-24 |
-| §5.0: under `whatwg`, `rurl` keeps the pre-encode host when domain-to-ASCII fails, and its layer-1 verdict does not depend on it | `rurl` 3.0.1 `R/parse-phases.R`, `R/verdicts.R` | <https://gitlab.com/bart-turczynski/rurl/-/blob/0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35/R/parse-phases.R#L2126-2146>, <https://gitlab.com/bart-turczynski/rurl/-/blob/0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35/R/verdicts.R#L149-161> | 2026-09-24 |
+| §5.0: under `whatwg`, `rurl` keeps the pre-encode host when domain-to-ASCII fails, and its layer-1 verdict does not depend on it; unchanged from 3.0.1 | `rurl` 3.1.0 `R/parse-phases.R`, `R/verdicts.R` | <https://gitlab.com/bart-turczynski/rurl/-/blob/a7fafd66fa06e8741ba2ba73c1a0442dfa054cdc/R/parse-phases.R#L2132-2152>, <https://gitlab.com/bart-turczynski/rurl/-/blob/a7fafd66fa06e8741ba2ba73c1a0442dfa054cdc/R/verdicts.R#L149-161> | 2026-10-03 |
 | §5.0: `curl::nslookup()` calls `getaddrinfo()` without `AI_CANONNAME` and returns address strings only | R `curl` 8.0.0 `src/nslookup.c` (CRAN mirror; `jeroen/curl` has no 8.x tag) | <https://github.com/cran/curl/blob/60797e1d9330605cb5ab185ceb192c196d62da5b/src/nslookup.c> | 2026-09-24 |
 | §5.0: `AI_CANONNAME` yields one canonical name, not the alias chain | POSIX.1-2024, `getaddrinfo()` | <https://pubs.opengroup.org/onlinepubs/9799919799/functions/getaddrinfo.html> | 2026-09-24 |
 | §5.3: RFC 9110 recommends supporting URIs of at least 8000 octets | RFC 9110 §4.1 | <https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1> | 2026-09-24 |
 | §5.3: libcurl refuses a URL part longer than `CURL_MAX_INPUT_LENGTH` (8,000,000) | libcurl `lib/urldata.h`, `lib/urlapi.c` | <https://github.com/curl/curl/blob/curl-8_14_1/lib/urldata.h>, <https://github.com/curl/curl/blob/curl-8_14_1/lib/urlapi.c> | 2026-09-24 |
-| §5.3: `rurl`'s parse cache looks keys up with `mget()`, which R limits to 10,000-byte names | `rurl` 3.0.1 `R/zzz.R` | <https://gitlab.com/bart-turczynski/rurl/-/blob/0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35/R/zzz.R#L233-L246> | 2026-09-24 |
+| §5.3: `rurl` 3.0.1's parse cache looks keys up with `mget()`, which R limits to 10,000-byte names; 3.1.0 skips the cache for a key past the cap (`RURL-tlmoybsl`) | `rurl` 3.0.1 `R/zzz.R`; `rurl` 3.1.0 `NEWS.md` | <https://gitlab.com/bart-turczynski/rurl/-/blob/0ca8f0966e1fd9e03cb145fd0c3bb20fcdd44f35/R/zzz.R#L233-L246>, <https://gitlab.com/bart-turczynski/rurl/-/blob/a7fafd66fa06e8741ba2ba73c1a0442dfa054cdc/NEWS.md#L13> | 2026-10-03 |
 | §5.3: libcurl passes at most `CURL_MAX_WRITE_SIZE` (16384) body bytes per write callback | libcurl `CURLOPT_WRITEFUNCTION`; `include/curl/curl.h` | <https://github.com/curl/curl/blob/curl-8_14_1/docs/libcurl/opts/CURLOPT_WRITEFUNCTION.md>, <https://github.com/curl/curl/blob/curl-8_14_1/include/curl/curl.h> | 2026-09-24 |
 | §5.3: R `curl`'s `multi_add(data = )` passes each delivery straight to the R function | R `curl` 8.0.0 `src/multi.c`, `src/utils.c` | <https://github.com/cran/curl/blob/60797e1d9330605cb5ab185ceb192c196d62da5b/src/multi.c#L89-L93>, <https://github.com/cran/curl/blob/60797e1d9330605cb5ab185ceb192c196d62da5b/src/utils.c#L169-L180> | 2026-09-24 |
 

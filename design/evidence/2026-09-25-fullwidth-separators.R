@@ -33,3 +33,13 @@ print(data.frame(cp = sprintf("U+%X", cps), layer1 = v$layer1_syntax_verdict,
 # libcurl reads the host as 127.0.0.1 (or fails to parse the port, for the
 # colon). Only §4.1's host disagreement check, or the parse failure, stops the
 # hop. Node 26.3.1's `new URL()` throws ERR_INVALID_URL for all four.
+#
+# Rerun 2026-10-03 with rurl 3.1.0, everything else as recorded:
+#       cp layer1 rurl wire curl
+# 1 U+FF03   fail <NA> <NA> <NA>
+# 2 U+FF0F   fail <NA> <NA> <NA>
+# 3 U+FF1F   fail <NA> <NA> <NA>
+# 4 U+FF1A   fail <NA> <NA> <NA>
+# rurl 3.1.0 fails each host itself (RURL-crsrkcoh), so ssrfr refuses at the
+# layer-1 check, and the disagreement check is reached only with rurl's 3.0.1
+# answers mocked (tests/testthat/test-inspect.R).

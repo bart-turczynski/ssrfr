@@ -2,6 +2,10 @@
 
 First release: an SSRF guard for R code that fetches URLs an attacker can influence.
 
+## Requirements
+
+* `ssrfr` requires R >= 4.1.0 (was R >= 4.0.0). `rurl`, which it imports, needs `pslr`, which requires R 4.1, and `rurl` and `raddr` both declare R 4.1 on their development branches. The weekly `deep-check` pipeline checks the package on R 4.1.3 (`SEOR-rcpzfhgx`).
+
 ## Guarded fetch
 
 * `ssrf_prepare_hop()` decides one hop. It parses the URL, checks it against the policy, resolves the name once with a trailing root dot (so that no DNS search domain applies) and classifies every address, then returns a refusal with a reason code, an operational failure, or a binding pinned to the validated addresses. One refused address refuses the whole answer (SSRF-rgcijatt, SSRF-ifldwmnc).

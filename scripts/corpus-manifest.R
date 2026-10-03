@@ -4,7 +4,7 @@
 #   Rscript scripts/corpus-manifest.R
 #
 # MD5 guards against accidental edits and truncation, which is the threat here;
-# tools::sha256sum() needs R 4.5.0, above the package's R (>= 4.0.0) floor
+# tools::sha256sum() needs R 4.5.0, above the package's R (>= 4.1.0) floor
 # (r-binding.md §7, Corpora).
 
 corpus_dir <- file.path("tests", "testthat", "fixtures")

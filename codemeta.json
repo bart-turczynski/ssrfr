@@ -1,0 +1,259 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "identifier": "ssrfr",
+  "description": "Protects R applications that fetch URLs an attacker can influence from server-side request forgery. Each redirect hop is parsed once, resolved once, and every resolved address is classified before the connection is pinned to a validated address, so a hostname cannot be rebound between check and connect. Refusals carry stable reason codes. Provides the guarded fetch of each hop of a redirect chain, a helper that follows a whole chain, structural inspection of a URL without network access, and resolved inspection of every address a name resolves to.",
+  "name": "ssrfr: Server-Side Request Forgery Guard for Outbound Requests",
+  "relatedLink": ["https://bart-turczynski.gitlab.io/ssrfr/", "https://bart-turczynski.r-universe.dev/ssrfr"],
+  "codeRepository": "https://gitlab.com/bart-turczynski/ssrfr",
+  "issueTracker": "https://gitlab.com/bart-turczynski/ssrfr/-/work_items",
+  "license": "https://spdx.org/licenses/MIT",
+  "version": "0.0.0.9000",
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "R",
+    "url": "https://r-project.org"
+  },
+  "runtimePlatform": "R version 4.6.0 (2026-04-24)",
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Bart",
+      "familyName": "Turczynski",
+      "email": "bartek@turczynski.pl",
+      "@id": "https://orcid.org/0000-0002-8788-7980"
+    }
+  ],
+  "copyrightHolder": [
+    {
+      "@type": "Person",
+      "givenName": "Bart",
+      "familyName": "Turczynski",
+      "email": "bartek@turczynski.pl",
+      "@id": "https://orcid.org/0000-0002-8788-7980"
+    }
+  ],
+  "maintainer": [
+    {
+      "@type": "Person",
+      "givenName": "Bart",
+      "familyName": "Turczynski",
+      "email": "bartek@turczynski.pl",
+      "@id": "https://orcid.org/0000-0002-8788-7980"
+    }
+  ],
+  "softwareSuggestions": [
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "callr",
+      "name": "callr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=callr"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "cucumber",
+      "name": "cucumber",
+      "version": ">= 2.0.0",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=cucumber"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "httpuv",
+      "name": "httpuv",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=httpuv"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "knitr",
+      "name": "knitr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=knitr"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "oysteR",
+      "name": "oysteR",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=oysteR"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "pkgload",
+      "name": "pkgload",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=pkgload"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "processx",
+      "name": "processx",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=processx"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "rmarkdown",
+      "name": "rmarkdown",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rmarkdown"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "rosv",
+      "name": "rosv",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rosv"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "testthat",
+      "name": "testthat",
+      "version": ">= 3.0.0",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=testthat"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "webfakes",
+      "name": "webfakes",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=webfakes"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "withr",
+      "name": "withr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=withr"
+    }
+  ],
+  "softwareRequirements": {
+    "1": {
+      "@type": "SoftwareApplication",
+      "identifier": "R",
+      "name": "R",
+      "version": ">= 4.1.0"
+    },
+    "2": {
+      "@type": "SoftwareApplication",
+      "identifier": "curl",
+      "name": "curl",
+      "version": ">= 7.0.0",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=curl"
+    },
+    "3": {
+      "@type": "SoftwareApplication",
+      "identifier": "raddr",
+      "name": "raddr",
+      "version": ">= 0.1.2",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=raddr"
+    },
+    "4": {
+      "@type": "SoftwareApplication",
+      "identifier": "rurl",
+      "name": "rurl",
+      "version": ">= 3.1.0",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rurl"
+    },
+    "SystemRequirements": "libcurl (>= 7.73.0)"
+  },
+  "fileSize": "828.672KB",
+  "citation": [
+    {
+      "@type": "SoftwareSourceCode",
+      "datePublished": "2026",
+      "author": [
+        {
+          "@type": "Person",
+          "givenName": "Bart",
+          "familyName": "Turczynski",
+          "@id": "https://orcid.org/0000-0002-8788-7980"
+        }
+      ],
+      "name": "{ssrfr}: Server-Side Request Forgery Guard for Outbound Requests",
+      "url": "https://gitlab.com/bart-turczynski/ssrfr",
+      "description": "R package version 0.0.0.9000"
+    }
+  ]
+}

@@ -926,7 +926,7 @@ one submission every five minutes.
   beside it, so a truncated or emptied file fails instead of passing vacuously.
   `linklint` pins the 6,391-row IdnaTestV2 corpus this way **[sourced]**.
   `tools::sha256sum()` arrived in R 4.5.0 **[sourced]**; under the
-  `R (>= 4.0.0)` floor, `tools::md5sum()` guards against accidental edits,
+  `R (>= 4.1.0)` floor, `tools::md5sum()` guards against accidental edits,
   which is the threat here.
   The manifest is `tests/testthat/fixtures/corpus-manifest.tsv`, rewritten
   by `scripts/corpus-manifest.R`.

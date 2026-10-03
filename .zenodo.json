@@ -1,0 +1,31 @@
+{
+  "upload_type": "software",
+  "title": "ssrfr: Server-Side Request Forgery Guard for Outbound Requests",
+  "version": "0.0.0.9000",
+  "language": "eng",
+  "access_right": "open",
+  "license": "MIT",
+  "description": "<p>Protects R applications that fetch URLs an attacker can influence from server-side request forgery. Each redirect hop is parsed once, resolved once, and every resolved address is classified before the connection is pinned to a validated address, so a hostname cannot be rebound between check and connect. Refusals carry stable reason codes.</p>",
+  "creators": [
+    {
+      "name": "Turczynski, Bart",
+      "orcid": "0000-0002-8788-7980"
+    }
+  ],
+  "keywords": [
+    "R",
+    "rstats",
+    "security",
+    "SSRF",
+    "server-side request forgery",
+    "URL fetching"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://bart-turczynski.gitlab.io/ssrfr/",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-softwaredocumentation",
+      "scheme": "url"
+    }
+  ]
+}

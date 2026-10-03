@@ -87,6 +87,32 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      # CITATION.cff's `version:` and .zenodo.json's `"version"` must name the
+      # release DESCRIPTION's Version points at; a package that never released
+      # carries the development version verbatim and no DOI. Vendored from
+      # seor (its design/adr/0001); offline and stdlib-only. CI runs it in the
+      # `citation-version` job.
+      - id: check-citation
+        name: citation metadata vs DESCRIPTION
+        entry: python3 scripts/check-citation.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      # Fetches every URL the package declares (DESCRIPTION, man/,
+      # inst/CITATION, NEWS, README.md) and fails on a dead one, in seconds
+      # rather than after `verify`'s full check. A URL that cannot be reached
+      # at all only warns, so a network blip never rejects a push; zero URLs
+      # checked fails; the only exemption is BugReports' /-/issues URL
+      # answering exactly 404 (SEOR-ocbtrrnl). The fleet standard's URL check,
+      # copied from punycoder's.
+      - id: check-urls
+        name: declared URLs resolve
+        entry: Rscript scripts/check-urls.R
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       # R CMD check skips DESCRIPTION spelling on a machine with no English
       # dictionary; `spelling` bundles its own (SEOR-mtbzfroz). Genuine terms
       # go in inst/WORDLIST. Seconds, so it runs ahead of `verify`.

@@ -73,9 +73,9 @@ Documented deviations from the goodpractice set:
 
 ### Code style
 
-- `DESCRIPTION` sets the floor at R 4.0.0, so neither the base pipe `|>` nor
-  the `\(x)` lambda (both R 4.1) is available; write `function(x)` and nest
-  calls until the floor moves.
+- `DESCRIPTION` sets the floor at R 4.1.0, the floor `rurl` and `raddr`
+  need. The weekly `deep-check` pipeline's `floor-check` job checks on R
+  4.1.3, so nothing newer than R 4.1 may be used.
 - `snake_case` for functions and arguments; explicit `pkg::fn()` prefixes.
 - Layout is automated by Air (see [Formatting](#formatting)).
 

@@ -1,0 +1,113 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-10-03'
+  last-reviewed: '2026-10-03'
+  url: https://gitlab.com/bart-turczynski/ssrfr/-/raw/main/SECURITY-INSIGHTS.yml
+  comment: |
+    OpenSSF Security Insights self-report. Maintained alongside SECURITY.md
+    (human-readable policy) and .bestpractices.json (OpenSSF Best Practices
+    badge self-assessment). Refresh both header dates whenever anything below
+    is re-measured, not only when it changes -- a self-report that claims a
+    review date it never had is the failure mode this file exists to avoid.
+
+project:
+  name: ssrfr
+  homepage: https://bart-turczynski.gitlab.io/ssrfr/
+  administrators:
+    - name: Bart Turczynski
+      email: bartek@turczynski.pl
+      primary: true
+  documentation:
+    quickstart-guide: https://bart-turczynski.gitlab.io/ssrfr/
+    detailed-guide: https://bart-turczynski.gitlab.io/ssrfr/reference/index.html
+    release-process: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/CONTRIBUTING.md
+  repositories:
+    - name: ssrfr
+      url: https://gitlab.com/bart-turczynski/ssrfr
+      comment: |
+        Sole repository for the ssrfr package.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: Bart Turczynski
+      email: bartek@turczynski.pl
+      primary: true
+    policy: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/SECURITY.md
+    comment: |
+      Please do not report vulnerabilities through public GitLab issues. Open
+      a **confidential** issue instead (tick "This issue is confidential" when
+      creating it), or email the maintainer. GitLab Free has no equivalent to
+      GitHub private vulnerability reporting; a confidential issue is the
+      closest supported channel.
+
+repository:
+  url: https://gitlab.com/bart-turczynski/ssrfr
+  status: active
+  bug-fixes-only: false
+  accepts-change-request: true
+  accepts-automated-change-request: false
+  no-third-party-packages: false
+  core-team:
+    - name: Bart Turczynski
+      email: bartek@turczynski.pl
+      primary: true
+  documentation:
+    contributing-guide: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/CONTRIBUTING.md
+    security-policy: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/SECURITY.md
+  license:
+    url: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/LICENSE
+    expression: MIT
+  release:
+    changelog: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/NEWS.md
+    automated-pipeline: false
+    distribution-points:
+      - uri: https://bart-turczynski.r-universe.dev/ssrfr
+        comment: Development builds of main, until the first CRAN release.
+      - uri: https://gitlab.com/bart-turczynski/ssrfr
+        comment: Source; install with remotes::install_gitlab("bart-turczynski/ssrfr").
+  security:
+    tools:
+      - name: rosv (OSV)
+        type: SCA
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+        comment: |
+          The osv-audit job in .gitlab-ci.yml audits the runtime dependency
+          closure against the OSV database (osv.dev). No account or secrets
+          required. It runs on the weekly pipeline schedule that sets
+          SCHEDULE_KIND=dependency-audit, or by hand from a web pipeline.
+      - name: oysteR (Sonatype OSS Index)
+        type: SCA
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+        comment: |
+          The security-audit job in .gitlab-ci.yml audits the hard
+          dependencies against the Sonatype OSS Index, and judges every
+          reported advisory against the allow-list in
+          tests/testthat/helper-security.R. It runs on the same
+          dependency-audit schedule as osv-audit, and needs the OSSINDEX_USER
+          (the literal `x`) and OSSINDEX_TOKEN CI/CD variables; it fails,
+          rather than skipping, when they are missing.
+      - name: FOSSA
+        type: SCA
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+        comment: |
+          The fossa job in .gitlab-ci.yml runs `fossa analyze` on every push
+          to main, for the license and security badges in the README.

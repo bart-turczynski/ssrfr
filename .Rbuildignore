@@ -46,3 +46,16 @@
 ^CONTRIBUTING\.md$
 ^SECURITY\.md$
 ^\.DS_Store$
+# Publication, citation and policy metadata: served from the repository, not
+# part of the installable package. inst/CITATION is NOT listed, so it ships.
+# LICENSE.md is the full MIT text for the forge license detector; the tarball
+# needs only the two-line LICENSE stub.
+^LICENSE\.md$
+^README\.Rmd$
+^codemeta\.json$
+^CITATION\.cff$
+^\.zenodo\.json$
+^SECURITY-INSIGHTS\.yml$
+^\.bestpractices\.json$
+^CODE_OF_CONDUCT\.md$
+^\.gitlab$

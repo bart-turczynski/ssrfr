@@ -1,0 +1,31 @@
+# Citation File Format (https://citation-file-format.github.io/). GitLab does
+# not render a "Cite this repository" panel the way GitHub does, but the format
+# is forge-independent: cffconvert, Zenodo and the R package cffr all read it,
+# which is why it still ships. Kept out of the CRAN tarball via .Rbuildignore.
+# Once the package has a Zenodo DOI, add `doi:` and an `identifiers:` block.
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ssrfr: Server-Side Request Forgery Guard for Outbound Requests"
+abstract: >-
+  Protects R applications that fetch URLs an attacker can influence from
+  server-side request forgery. Each redirect hop is parsed once, resolved once,
+  and every resolved address is classified before the connection is pinned to
+  a validated address, so a hostname cannot be rebound between check and
+  connect. Refusals carry stable reason codes.
+version: 0.0.0.9000
+authors:
+  - family-names: Turczynski
+    given-names: Bart
+    email: bartek@turczynski.pl
+    orcid: "https://orcid.org/0000-0002-8788-7980"
+repository-code: "https://gitlab.com/bart-turczynski/ssrfr"
+url: "https://bart-turczynski.gitlab.io/ssrfr/"
+license: MIT
+keywords:
+  - R
+  - rstats
+  - security
+  - SSRF
+  - server-side request forgery
+  - URL fetching

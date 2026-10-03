@@ -3,7 +3,7 @@ Type: Package
 Title: Server-Side Request Forgery Guard for Outbound Requests
 Version: 0.0.0.9000
 Authors@R:
-    person("Bart", "Turczynski", email = "bartek@turczynski.pl", role = c("aut", "cre"),
+    person("Bart", "Turczynski", email = "bartek@turczynski.pl", role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0002-8788-7980"))
 Description: Protects R applications that fetch URLs an attacker can
     influence from server-side request forgery. Each redirect hop is parsed
@@ -15,13 +15,15 @@ Description: Protects R applications that fetch URLs an attacker can
     network access, and resolved inspection of every address a name
     resolves to.
 License: MIT + file LICENSE
-URL: https://bart-turczynski.gitlab.io/ssrfr/, https://gitlab.com/bart-turczynski/ssrfr
+URL: https://bart-turczynski.gitlab.io/ssrfr/,
+    https://gitlab.com/bart-turczynski/ssrfr,
+    https://bart-turczynski.r-universe.dev/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)
 Depends:
-    R (>= 4.0.0)
+    R (>= 4.1.0)
 Imports:
     curl (>= 7.0.0),
     raddr (>= 0.1.2),
@@ -31,9 +33,11 @@ Suggests:
     cucumber (>= 2.0.0),
     httpuv,
     knitr,
+    oysteR,
     pkgload,
     processx,
     rmarkdown,
+    rosv,
     testthat (>= 3.0.0),
     webfakes,
     withr

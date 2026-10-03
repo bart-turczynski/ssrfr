@@ -307,7 +307,7 @@ pages:
     # A kept file that goes missing fails the job.
     - |
       set -eu
-      KEEP="README.md NEWS.md CONTRIBUTING.md SECURITY.md"
+      KEEP="README.md NEWS.md LICENSE.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md"
       for f in $KEEP; do
         if [ ! -f "$f" ]; then
           echo "ERROR: expected top-level file '$f' is missing -- update KEEP in .gitlab-ci.yml or restore the file." >&2

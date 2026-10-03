@@ -482,14 +482,30 @@ test_that("a redirect is returned with Location; two are a protocol error", {
   expect_identical(b$state$location_count, 1L)
   expect_true(b$state$fetched)
 
-  r <- guarded_get(pinned_url(port, "/two-locations"), loopback_policy(port))
-  expect_s3_class(r, "ssrfr_failure")
-  expect_identical(r$cause, "protocol-error")
-  expect_identical(r$detail$check, "location")
-  b <- attr(r, "binding")
-  expect_identical(b$state$location_count, 2L)
-  expect_null(b$state$location)
-  expect_false(b$state$fetched)
+  # libcurl 8.17.0 and later fail a transfer whose second Location differs
+  # from the first themselves (CURLE_WEIRD_SERVER_REPLY, "Multiple Location
+  # headers"; curl commit 9596c4a), before the header is whole. ssrfr then
+  # records no response, and the transport error ends the fetch: the cause
+  # is the same `protocol-error`, but no Location is counted. An exact
+  # repeat is ignored by libcurl (curl commit 4be9db7) and reaches ssrfr's
+  # own check on every libcurl.
+  libcurl <- sub("[^0-9.].*$", "", curl::curl_version()$version)
+  libcurl_refuses <- numeric_version(libcurl) >= "8.17.0"
+  for (path in c("/two-locations", "/repeated-location")) {
+    r <- guarded_get(pinned_url(port, path), loopback_policy(port))
+    expect_s3_class(r, "ssrfr_failure")
+    expect_identical(r$cause, "protocol-error", label = path)
+    b <- attr(r, "binding")
+    if (path == "/two-locations" && libcurl_refuses) {
+      expect_identical(r$detail$check, "transport", label = path)
+      expect_null(b$state$location_count, label = path)
+    } else {
+      expect_identical(r$detail$check, "location", label = path)
+      expect_identical(b$state$location_count, 2L, label = path)
+    }
+    expect_null(b$state$location, label = path)
+    expect_false(b$state$fetched, label = path)
+  }
 })
 
 # r-binding.md §7, Rules: each proxy variable, with an http:// and a

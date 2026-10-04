@@ -68,7 +68,9 @@ tried and reverted (`19f08fb`).
 - `tests/testthat/` — testthat tests and cucumber feature specs;
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.
-- `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/`.
+- `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/` and
+  regenerate with `devtools::document()`.
+- `DESCRIPTION` — package metadata and dependencies.
 - `inst/WORDLIST` — the genuine terms the spelling check accepts.
 - `design/` — specs, ADRs, evidence (above). Not built into the package.
 - `scripts/check-design.py` — design-doc hygiene: frontmatter, frozen ADRs, this

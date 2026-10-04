@@ -26,7 +26,7 @@ run_gate() {
 # README.md is knit from README.Rmd, so a hand-edit to the markdown is lost on
 # the next render. Rendered with rmarkdown directly, as pagerankr does: the Rmd
 # evaluates no package code, so nothing needs installing first. pandoc's
-# markdown writer reflows text between versions, so the job pins the pandoc
+# markdown writer reflows text between versions, so CI pins the pandoc
 # that knit README.md. Blank-line-only differences don't count, and the test
 # is on the diff's output, since git 2.43 still exits 1 on a blank-only diff
 # under --ignore-blank-lines (seor SEOR-oaqnafzs, SEOR-kaqtnovh).

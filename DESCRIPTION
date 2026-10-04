@@ -19,6 +19,8 @@ URL: https://bart-turczynski.gitlab.io/ssrfr/,
     https://gitlab.com/bart-turczynski/ssrfr,
     https://bart-turczynski.r-universe.dev/ssrfr
 BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
+X-schema.org-keywords: ssrf, server-side-request-forgery, url-validation,
+    ip-address, dns-rebinding, cloud-metadata, redirects, libcurl, security
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)

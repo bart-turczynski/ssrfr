@@ -411,7 +411,7 @@ floor-check:
     R_LIBS_USER: "$CI_PROJECT_DIR/.cache/R-floor"
     R_LIBS: "$CI_PROJECT_DIR/.cache/R-floor:/usr/local/lib/R/site-library:/usr/local/lib/R/library"
   cache:
-    key: floor-r41-2025-04-10
+    key: floor-r41-2025-04-10-v2
     paths:
       - .cache/R-floor
   before_script:

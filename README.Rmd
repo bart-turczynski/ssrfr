@@ -57,6 +57,17 @@ libcurl, address classification from
 
 ## Installation
 
+`ssrfr` is not on CRAN yet. Install it from r-universe:
+
+```r
+install.packages(
+  "ssrfr",
+  repos = c("https://bart-turczynski.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+Or install the development version from GitLab:
+
 ```r
 # install.packages("remotes")
 remotes::install_gitlab("bart-turczynski/ssrfr")
@@ -110,37 +121,3 @@ The contract `ssrfr` implements is its
 [v1 specification](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/specs/ssrfr-v1.md).
 To report a vulnerability, see
 [`SECURITY.md`](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/SECURITY.md).
-
-## Development
-
-Install package dependencies (from `DESCRIPTION`) plus the dev tooling used by
-the checks:
-
-```sh
-Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
-Rscript -e 'pak::pak(c("lintr", "rcmdcheck"))'
-```
-
-Then run the checks:
-
-```sh
-Rscript scripts/verify.R
-python3 scripts/check-design.py
-```
-
-`scripts/verify.R` runs `lintr`, a NEWS heading check, the testthat and
-cucumber specs with `NOT_CRAN=true`, failing on any skipped test or one with no
-expectation, and `R CMD check --as-cran`, then prints one verdict. Both run as
-pre-push hooks, and CI runs `scripts/verify.R` on `main`; see
-[`design/agent-workflow.md`](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/agent-workflow.md).
-[`ARCHITECTURE.md`](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/ARCHITECTURE.md)
-maps the source, the design documents and the evidence.
-
-- `R/` contains the package source.
-- `man/` contains generated help pages (regenerate with `devtools::document()`).
-- `NAMESPACE` and `man/` are roxygen2-generated — edit the roxygen comments in `R/`, not these.
-- `tests/testthat/` contains testthat tests and the cucumber feature specs.
-- `vignettes/` contains long-form documentation.
-- `DESCRIPTION` declares package metadata and dependencies.
-- `design/` contains the specification, ADRs and committed evidence; `ARCHITECTURE.md` maps them.
-- `site/` is the local pkgdown build, ignored by git; CI publishes it to GitLab Pages.

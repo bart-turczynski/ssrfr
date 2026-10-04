@@ -36,3 +36,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 * `ssrf_public_reason()` projects a refusal or failure to the one value an untrusted party may see (SSRF-upyqnwmv).
 * Refusals, failures and conditions print and format without userinfo, request header values, bodies or proxy values. A failure's `detail` lists the addresses a fetch tried and how each attempt ended and, when one of its own callbacks ended the fetch, every callback that failed (SSRF-upyqnwmv, SSRF-rgcijatt, SSRF-dmmcitul).
 * `ssrf_vocabulary()` lists the closed, versioned vocabularies: reason codes, operational causes, condition classes, and the policy data refused by default (provider metadata endpoints by address, metadata hostnames by name, and metadata-service request headers), each data row citing the vendor documentation that names it (SSRF-upyqnwmv, SSRF-uxmxqufj, SSRF-rgcijatt).
+
+## Documentation
+
+* `README.md` now shows how to install `ssrfr` from r-universe, before the GitLab development install, and its development notes moved to `CONTRIBUTING.md` and `ARCHITECTURE.md`. `DESCRIPTION` declares `X-schema.org-keywords`, which r-universe search reads (`SEOR-kqmqosji`, `SEOR-nplcfbib`).

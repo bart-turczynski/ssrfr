@@ -1,0 +1,28 @@
+<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1.732in" height="2in" viewBox="0 0 1732 2000" role="img" aria-labelledby="ssrfr-title">
+<title id="ssrfr-title">ssrfr</title>
+<desc id="ssrfr-desc">SSRF protection library for R</desc>
+<metadata id="ssrfr-metadata"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#">
+<cc:Work rdf:about="">
+<dc:title>ssrfr</dc:title>
+<dc:description>SSRF protection library for R</dc:description>
+<dc:creator><cc:Agent><dc:title>Bart Turczynski</dc:title></cc:Agent></dc:creator>
+<dc:rights><cc:Agent><dc:title>&#169; 2026 Bart Turczynski. MIT License.</dc:title></cc:Agent></dc:rights>
+<cc:license>https://opensource.org/license/mit</cc:license>
+<dc:date>2026-10-04</dc:date>
+<dc:format>image/svg+xml</dc:format>
+<dc:language>en</dc:language>
+<dc:identifier>ssrfr</dc:identifier>
+<dc:source>https://github.com/bart-turczynski/ssrfr</dc:source>
+<dc:relation>https://github.com/bart-turczynski/ssrfr</dc:relation>
+<dc:relation>https://gitlab.com/bart-turczynski/ssrfr</dc:relation>
+<dc:relation>https://CRAN.R-project.org/package=ssrfr</dc:relation>
+<dc:relation>https://bart-turczynski.r-universe.dev/ssrfr</dc:relation>
+<dc:subject><rdf:Bag><rdf:li>R</rdf:li><rdf:li>rstats</rdf:li><rdf:li>R package</rdf:li><rdf:li>SEO</rdf:li><rdf:li>SSRF</rdf:li><rdf:li>server-side request forgery</rdf:li><rdf:li>security</rdf:li></rdf:Bag></dc:subject>
+<dc:contributor>Name set in IBM Plex Mono (SIL Open Font License 1.1), converted to outlines.</dc:contributor>
+</cc:Work>
+</rdf:RDF></metadata>
+<path id="ssrfr-border" fill="#F5F5F5" d="M866 0L1732 500L1732 1500L866 2000L0 1500L0 500Z"></path>
+<path id="ssrfr-background" fill="#000000" d="M866 69.3L1672 534.6L1672 1465.4L866 1930.7L60 1465.4L60 534.6Z"></path>
+<path id="ssrfr-name-bold" fill="#F5F5F5" d="M606.6 1078.0L606.6 1078.0Q587.6 1078.0 573.5 1071.7Q559.5 1065.4 550.9 1054.6L550.9 1054.6L569.6 1033.9Q577.9 1043.0 587.7 1047.3Q597.5 1051.6 607.7 1051.6L607.7 1051.6Q619.3 1051.6 625.4 1046.4Q631.4 1041.3 631.4 1031.5L631.4 1031.5Q631.4 1023.5 626.8 1019.4Q622.1 1015.3 611.1 1013.6L611.1 1013.6L595.4 1011.0Q575.0 1007.6 566.0 996.0Q556.9 984.4 556.9 967.8L556.9 967.8Q556.9 946 571.2 934.0Q585.4 922.0 611.1 922.0L611.1 922.0Q628.6 922.0 641.6 927.4Q654.5 932.8 662.5 942.1L662.5 942.1L644.2 962.6Q638.1 955.9 629.9 952.2Q621.7 948.4 611.3 948.4L611.3 948.4Q589.5 948.4 589.5 966.3L589.5 966.3Q589.5 974.1 594.4 978.0Q599.2 981.9 610.3 983.8L610.3 983.8L626.0 986.6Q644.4 989.8 654.3 1000.4Q664.3 1011.0 664.3 1028.9L664.3 1028.9Q664.3 1039.5 660.6 1048.5Q656.9 1057.5 649.6 1064.0Q642.2 1070.6 631.5 1074.3Q620.8 1078.0 606.6 1078.0ZM736.2 1078.0L736.2 1078.0Q717.2 1078.0 703.1 1071.7Q689.1 1065.4 680.5 1054.6L680.5 1054.6L699.2 1033.9Q707.5 1043.0 717.3 1047.3Q727.1 1051.6 737.3 1051.6L737.3 1051.6Q748.9 1051.6 755.0 1046.4Q761.0 1041.3 761.0 1031.5L761.0 1031.5Q761.0 1023.5 756.4 1019.4Q751.7 1015.3 740.7 1013.6L740.7 1013.6L725.0 1011.0Q704.6 1007.6 695.6 996.0Q686.5 984.4 686.5 967.8L686.5 967.8Q686.5 946 700.8 934.0Q715.0 922.0 740.7 922.0L740.7 922.0Q758.2 922.0 771.2 927.4Q784.1 932.8 792.1 942.1L792.1 942.1L773.8 962.6Q767.7 955.9 759.5 952.2Q751.3 948.4 740.9 948.4L740.9 948.4Q719.1 948.4 719.1 966.3L719.1 966.3Q719.1 974.1 724.0 978.0Q728.8 981.9 739.9 983.8L739.9 983.8L755.6 986.6Q774.0 989.8 783.9 1000.4Q793.9 1011.0 793.9 1028.9L793.9 1028.9Q793.9 1039.5 790.2 1048.5Q786.5 1057.5 779.2 1064.0Q771.8 1070.6 761.1 1074.3Q750.4 1078.0 736.2 1078.0ZM851.7 1019.4L851.7 1075.4L819.8 1075.4L819.8 924.6L878.1 924.6Q889.1 924.6 897.8 928.0Q906.4 931.3 912.3 937.6Q918.3 943.8 921.3 952.7Q924.3 961.6 924.3 972.6L924.3 972.6Q924.3 988.6 917.4 1000Q910.5 1011.4 897.8 1015.1L897.8 1015.1L927.3 1075.4L891.9 1075.4L866.6 1019.4L851.7 1019.4ZM851.7 994.4L870.3 994.4Q881.8 994.4 886.2 990.1Q890.6 985.7 890.6 975.8L890.6 975.8L890.6 969.3Q890.6 959.4 886.2 955.1Q881.8 950.8 870.3 950.8L870.3 950.8L851.7 950.8L851.7 994.4ZM982.6 1075.4L950.2 1075.4L950.2 924.6L1050.2 924.6L1050.2 951.2L982.6 951.2L982.6 985.7L1043.1 985.7L1043.1 1012.3L982.6 1012.3L982.6 1075.4Z"></path>
+<path id="ssrfr-name-regular" fill="#F5F5F5" d="M1100.1 1011.0L1100.1 1075.4L1082 1075.4L1082 924.6L1136.9 924.6Q1157.8 924.6 1168.8 936.1Q1179.8 947.5 1179.8 968.0L1179.8 968.0Q1179.8 986.4 1170.3 997.4Q1160.8 1008.4 1142.7 1010.2L1142.7 1010.2L1181.1 1075.4L1160.8 1075.4L1124.1 1011.0L1100.1 1011.0ZM1100.1 995.7L1136.4 995.7Q1147.9 995.7 1154.3 990.0Q1160.6 984.2 1160.6 973.6L1160.6 973.6L1160.6 962.4Q1160.6 951.8 1154.3 946.1Q1147.9 940.4 1136.4 940.4L1136.4 940.4L1100.1 940.4L1100.1 995.7Z"></path>
+</svg>

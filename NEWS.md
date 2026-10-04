@@ -39,4 +39,4 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 
 ## Documentation
 
-* The README now shows how to install `ssrfr` from r-universe, before the GitLab development install, and its development notes moved to `CONTRIBUTING.md` and `ARCHITECTURE.md`. `DESCRIPTION` declares `X-schema.org-keywords`, which r-universe search reads (SEOR-kqmqosji, SEOR-nplcfbib).
+* `README.md` now shows how to install `ssrfr` from r-universe, before the GitLab development install, and its development notes moved to `CONTRIBUTING.md` and `ARCHITECTURE.md`. `DESCRIPTION` declares `X-schema.org-keywords`, which r-universe search reads (`SEOR-kqmqosji`, `SEOR-nplcfbib`).

@@ -362,9 +362,8 @@ full-check:
 # - What postdates the snapshot comes from CRAN itself, without dependencies,
 #   after its own dependencies came from the snapshot: the fleet packages
 #   (raddr, pslr, punycoder), curl (ssrfr needs >= 7.0.0; the snapshot has
-#   6.2.2), rlang and vctrs (raddr needs rlang >= 1.1.7 and vctrs >= 0.7.0),
-#   webfakes (the TLS fixtures need >= 1.4.0; the snapshot has 1.3.2) and
-#   cucumber (>= 2.1.0 has cucumber::run(); the snapshot has 2.0.0).
+#   6.2.2), rlang and vctrs (raddr needs rlang >= 1.1.7 and vctrs >= 0.7.0)
+#   and webfakes (the TLS fixtures need >= 1.4.0; the snapshot has 1.3.2).
 #   Measured 2026-10-03 against both repositories: that closure has no
 #   version conflict, and no package in it declares an R floor above 4.1.3.
 # - curl, the binary, is in the apt line because every R curl since 7.0.0
@@ -421,20 +420,20 @@ floor-check:
     - apt-get update -qq && apt-get install -y --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev curl
     - >
       Rscript -e 'snap <- c("cli", "glue", "lifecycle", "stringi", "digest", "Rcpp", "cpp11",
-      "callr", "cucumber", "httpuv", "knitr", "pkgload", "processx", "rmarkdown",
+      "callr", "httpuv", "knitr", "pkgload", "processx", "rmarkdown",
       "testthat", "webfakes", "withr", "rcmdcheck");
       need <- setdiff(snap, rownames(installed.packages()));
       if (length(need)) install.packages(need, repos = Sys.getenv("FLOOR_SNAPSHOT"), Ncpus = 4L);
       install.packages(c("rlang", "vctrs", "curl", "punycoder", "pslr", "raddr",
-      "webfakes", "cucumber"),
+      "webfakes"),
       repos = "https://cloud.r-project.org", dependencies = FALSE, Ncpus = 4L);
       sha <- Sys.getenv("RURL_SHA"); tgz <- file.path(tempdir(), "rurl.tar.gz");
       download.file(paste0("https://gitlab.com/bart-turczynski/rurl/-/archive/", sha, "/rurl-", sha, ".tar.gz"), tgz, mode = "wb");
       install.packages(tgz, repos = NULL, type = "source");
-      stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck", "webfakes", "cucumber"),
+      stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck", "webfakes"),
       requireNamespace, NA, quietly = TRUE)));
       stopifnot(packageVersion("curl") >= "7.0.0", packageVersion("webfakes") >= "1.4.0",
-      packageVersion("cucumber") >= "2.1.0", packageVersion("rurl") > "3.1.0");
+      packageVersion("rurl") > "3.1.0");
       print(R.version.string); print(curl::curl_version()$version); print(packageVersion("rurl"))'
     # rcmdcheck reads a check that halted partway as 0/0/0 and returns
     # normally, so error_on never fires; the guard also fails on R CMD check's

@@ -187,6 +187,19 @@ test_that("print, format and conditions omit planted secrets", {
   }
 })
 
+test_that("a printed refusal names its code and URL, never the credentials", {
+  r <- new_ssrf_refusal(
+    "loopback",
+    hop = 1,
+    url = "https://alice:s3cretPW@internal.example/path"
+  )
+  out <- paste(capture.output(print(r)), collapse = "\n")
+  expect_match(out, "code: loopback", fixed = TRUE)
+  expect_match(out, "internal.example/path", fixed = TRUE)
+  expect_no_match(out, "s3cretPW", fixed = TRUE)
+  expect_identical(ssrf_public_reason(r), "refused")
+})
+
 test_that("a URL rurl cannot parse is withheld whole", {
   f <- new_ssrf_failure(
     "protocol-error",

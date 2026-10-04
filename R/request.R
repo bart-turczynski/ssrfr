@@ -90,7 +90,7 @@ check_request <- function(request, policy, label = plan_label("request")) {
   if (anyDuplicated(given)) {
     request_argument_error(paste0(label(), " names a field more than once."))
   }
-  method <- check_method(request$method %||% "GET", label)
+  method <- check_method(default_if_null(request$method, "GET"), label)
   headers <- check_headers(request$headers, policy, label)
   body <- check_body(request$body, method, label)
   carry <- check_carry(request$carry, headers, label)

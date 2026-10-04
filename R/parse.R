@@ -191,7 +191,8 @@ parse_boundary <- function(url) {
     scheme = scheme,
     host = host,
     port = port,
-    userinfo = nzchar(theirs$user %||% "") || nzchar(theirs$password %||% ""),
+    userinfo = nzchar(default_if_null(theirs$user, "")) ||
+      nzchar(default_if_null(theirs$password, "")),
     host_kind = kind,
     name = if (identical(kind, "name")) normalize_host_name(host),
     address = if (!is.na(kind) && kind != "name") unbracket(host)

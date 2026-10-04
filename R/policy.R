@@ -107,15 +107,13 @@ ssrf_policy <- function(
 # that, the first URL entry.
 default_user_agent <- function() {
   desc <- utils::packageDescription("ssrfr")
-  urls <- strsplit(desc$URL %||% "", "[,[:space:]]+")[[1L]]
+  urls <- strsplit(default_if_null(desc$URL, ""), "[,[:space:]]+")[[1L]]
   urls <- urls[nzchar(urls)]
-  bugs <- desc$BugReports %||% ""
+  bugs <- default_if_null(desc$BugReports, "")
   repo <- urls[startsWith(bugs, paste0(urls, "/"))]
   repo <- if (length(repo)) repo[[1L]] else urls[1L]
   paste0("ssrfr/", desc$Version, " (+", repo, ")")
 }
-
-`%||%` <- function(x, y) if (is.null(x)) y else x
 
 policy_error <- function(message) {
   abort_ssrfr("invalid_policy", message, fn = "ssrf_policy")

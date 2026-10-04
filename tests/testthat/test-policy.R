@@ -100,6 +100,7 @@ test_that("a range raddr cannot parse is a construction error", {
   expect_invalid_policy(deny_ranges = "10.0.0.1")
   expect_invalid_policy(deny_ranges = "192.168.1.1/24")
   expect_invalid_policy(deny_ranges = "10.0.0.0/33")
+  expect_invalid_policy(allow_ranges = "10.0.0.1")
   expect_invalid_policy(allow_ranges = "010.0.0.0/8")
   expect_invalid_policy(allow_ranges = "fe80::%eth0/64")
   expect_invalid_policy(allow_ranges = "example.com/8")
@@ -202,6 +203,7 @@ test_that("hostname rules are stored normalized", {
     )
   )
   expect_identical(p$allow_hosts, "metadata.google.internal")
+  expect_identical(ssrf_policy(deny_hosts = ".Corp.")$deny_hosts, ".corp")
   expect_identical(ssrf_policy(deny_hosts = NULL)$deny_hosts, character())
 })
 

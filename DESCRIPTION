@@ -32,7 +32,6 @@ Imports:
     rurl (>= 3.1.0)
 Suggests:
     callr,
-    cucumber (>= 2.1.0),
     httpuv,
     knitr,
     oysteR,

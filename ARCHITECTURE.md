@@ -65,7 +65,7 @@ tried and reverted (`19f08fb`).
   hop: the request plan (`request.R`), the binding (`binding.R`), the
   transport's option builder and trace matcher (`transport.R`) and the fetch
   (`fetch.R`), redirect hops (`redirect.R`) and the loop helper (`chain.R`).
-- `tests/testthat/` — testthat tests and cucumber feature specs;
+- `tests/testthat/` — testthat tests;
   `fixtures/` holds the conformance corpus (`ssrfr-v1.md` §7).
 - `vignettes/` — long-form documentation.
 - `man/`, `NAMESPACE` — roxygen2 output; edit roxygen comments in `R/` and

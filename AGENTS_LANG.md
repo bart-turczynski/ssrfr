@@ -50,14 +50,14 @@ confusing `sprintf()` failure instead of the real message.
 Documented deviations from the goodpractice set:
 
 - `object_name_linter` / `object_usage_linter`: not part of the goodpractice set
-  and deliberately NOT added. The cucumber DSL (`when`/`then`/`context`) and the
-  testthat helpers read as undefined globals to `object_usage_linter`.
+  and deliberately NOT added. The testthat helpers read as undefined globals to
+  `object_usage_linter`.
 - `expect_identical_linter`: off. `expect_equal()`'s numeric tolerance and
   string-encoding normalization are routinely relied on.
 - `implicit_assignment_linter`: off. Tests use the standard
   `expect_warning(res <- f(), "msg")` idiom.
-- `library_require_linter`: off. `tests/testthat.R`, the cucumber steps and
-  vignette setup chunks legitimately call `library()`.
+- `library_require_linter`: off. `tests/testthat.R` and vignette setup chunks
+  legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
   allow `:::`, which tests use to reach internal functions.
 - `case_folding_linter`: an addition. It bans `tolower()`, `toupper()` and
@@ -87,9 +87,6 @@ Documented deviations from the goodpractice set:
 - Prefer specific expectations over `expect_true()` / `expect_false()`.
 - Use `expect_snapshot()` for printed output and `expect_snapshot(error = TRUE)`
   for errors.
-- Behavior specs are Cucumber `.feature` files under `tests/testthat/`, with
-  steps in `setup-steps.R` run via `test-cucumber.R`; `R CMD check` exercises
-  them, so there is no separate BDD step.
 - A skipped test, or one with no expectation, fails the gate
   (`ssrfr-v1.md` §7.2).
 - New code requires tests.

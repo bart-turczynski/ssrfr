@@ -946,7 +946,11 @@ test_that("a transfer stopped at a 3xx needs its statuses to agree too", {
     stopped <- do.call(outcome, c(case$args, in_flight = TRUE))
     completed <- do.call(outcome, c(case$args, in_flight = FALSE))
     expect_identical(stopped, case$want, label = label)
-    expect_identical(completed, case$completed %||% case$want, label = label)
+    expect_identical(
+      completed,
+      default_if_null(case$completed, case$want),
+      label = label
+    )
   }
 })
 

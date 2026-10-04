@@ -17,11 +17,11 @@ caps_old <- list(
 # A binding for `url`, with the resolver answering `answers`.
 binding_for <- function(url, answers = "93.184.216.34", policy = NULL) {
   local_mocked_bindings(dep_nslookup = function(query) answers)
-  policy <- policy %||% ssrf_policy(allow_ports = c(80, 443, 8080))
+  if (is.null(policy)) {
+    policy <- ssrf_policy(allow_ports = c(80, 443, 8080))
+  }
   ssrf_prepare_hop(url, policy, request = list())
 }
-
-`%||%` <- function(x, y) if (is.null(x)) y else x
 
 # r-binding.md §7, Rules: every handle carries the pin; TLS is never
 # weakened; the "never set" options are absent. Each scheme, with explicit,

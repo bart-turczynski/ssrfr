@@ -105,7 +105,7 @@ redirect_limit_refusal <- function(binding) {
     "redirect-limit",
     binding$hop,
     host = binding$origin$host,
-    address = binding$state$pin_used %||% NA_character_,
+    address = default_if_null(binding$state$pin_used, NA_character_),
     url = binding$url,
     detail = list(step = 13L, check = "redirect", limit = "max_redirects")
   )

@@ -273,7 +273,7 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
   # An outcome records the URL the hop resolved to (§3.2): on a redirect hop,
   # not a Location that may be relative, which would display as withheld.
   # Only a hop whose Location did not resolve records the Location.
-  shown <- hop$url %||% url
+  shown <- default_if_null(hop$url, url)
   redirect <- NULL
   if (!is.null(from) && is.null(hop$finding)) {
     origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
@@ -439,7 +439,7 @@ state_field <- function(store, field) {
 set_state <- function(binding, ...) {
   values <- list(...)
   store <- parent.env(binding$state)
-  fields <- names(values) %||% rep("", length(values))
+  fields <- default_if_null(names(values), rep("", length(values)))
   if (!all(fields %in% names(store))) {
     internal_error("set_state() names a field a binding's state lacks.")
   }
@@ -498,7 +498,7 @@ format.ssrfr_binding <- function(x, ...) {
     ),
     paste0("  url: ", redact_url(x$url)),
     paste0("  validated: ", toString(x$validated)),
-    paste0("  pin: ", state$pin_used %||% x$pin),
+    paste0("  pin: ", default_if_null(state$pin_used, x$pin)),
     paste0("  method: ", plan$method),
     paste0("  headers: ", headers),
     paste0("  body: ", body),

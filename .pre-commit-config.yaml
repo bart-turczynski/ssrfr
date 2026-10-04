@@ -77,7 +77,9 @@ repos:
         pass_filenames: false
         files: ^scripts/check-bugreports\.py$
         stages: [pre-push]
-      # Offline and instant, and ahead of `verify` on purpose: toolchain drift
+      # Quick (one request, for CRAN's package index, which the check for a
+      # dependency older than CRAN's reads: SEOR-hxxxkmws), and ahead of
+      # `verify` on purpose: toolchain drift
       # turns the gate red on an untouched tree, disguised as a code defect,
       # and this names the machine as the cause in one line (SEOR-tcytizic).
       - id: check-toolchain

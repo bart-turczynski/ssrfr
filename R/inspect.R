@@ -171,20 +171,19 @@ ssrf_inspect_url <- function(
     resolve = identical(layer, "L1")
   )
   finding <- hop$finding
-  str_or_na <- function(x) if (is.null(x)) NA_character_ else x
   structure(
     list(
-      code = str_or_na(finding$code),
-      cause = str_or_na(finding$cause),
+      code = default_if_null(finding$code, NA_character_),
+      cause = default_if_null(finding$cause, NA_character_),
       step = if (is.null(finding)) NA_integer_ else finding$detail$step,
       detail = if (is.null(finding)) list() else finding$detail[-1L],
       layer = layer,
       url = redact_url(url),
-      scheme = str_or_na(hop$scheme),
-      host = str_or_na(hop$host),
-      port = if (is.null(hop$port)) NA_integer_ else hop$port,
+      scheme = default_if_null(hop$scheme, NA_character_),
+      host = default_if_null(hop$host, NA_character_),
+      port = default_if_null(hop$port, NA_integer_),
       userinfo = isTRUE(hop$userinfo),
-      host_kind = if (is.null(hop$host_kind)) NA_character_ else hop$host_kind,
+      host_kind = default_if_null(hop$host_kind, NA_character_),
       address = hop$address_facts,
       answers = hop$resolution$answers,
       addresses = address_records(hop$resolution$addresses)

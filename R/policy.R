@@ -115,9 +115,6 @@ default_user_agent <- function() {
   paste0("ssrfr/", desc$Version, " (+", repo, ")")
 }
 
-# `x`, or `default` when `x` is NULL. Base R has no such operator below 4.4.0.
-default_if_null <- function(x, default) if (is.null(x)) default else x
-
 policy_error <- function(message) {
   abort_ssrfr("invalid_policy", message, fn = "ssrf_policy")
 }

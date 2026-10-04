@@ -17,6 +17,7 @@
 suppressMessages(pkgload::load_all(".", quiet = TRUE, export_all = TRUE))
 test_path <- function(...) file.path("tests/testthat", ...)
 source("tests/testthat/helper-corpus.R")
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # Every input of the parse-vector and verdict corpora.
 corpus <- c(

@@ -71,6 +71,17 @@ default:
     P3M_SNAPSHOT: "2026-09-01"
     # The pslr commit .install-deps pins until CRAN serves the fixed pslr.
     PSLR_SHA: "f322d57517c1dc5d070c0260648fa6cc58786c3f"
+    # The pandoc every R job runs, installed in before_script below.
+    # scripts/check-toolchain.R reads this line and fails the pre-push gate
+    # when the local pandoc differs; seor's scripts/check-fleet-standard.py
+    # checks it against the fleet's version (seor design/fleet-standard.md,
+    # "CI on every push to `main`"; SEOR-egfbijyi). A bump moves these
+    # together, in one change:
+    #   - this PANDOC_VERSION;
+    #   - both sha256 digests in before_script below (amd64, arm64), the
+    #     release's own published values;
+    #   - README.md, re-knit under the new pandoc.
+    PANDOC_VERSION: "3.10"
   cache:
     # Keyed on DESCRIPTION, the closest thing an R package has to a lockfile,
     # and on R_VERSION, because a compiled package only loads under the R it
@@ -131,6 +142,38 @@ default:
       libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
       libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
       libpng-dev libtiff5-dev libjpeg-dev
+    # pandoc is PINNED, in every R job, as the fleet standard requires (seor
+    # design/fleet-standard.md, "CI on every push to `main`"; SEOR-egfbijyi).
+    # Its markdown writer reflows text and pads tables differently between
+    # versions, so README.md is byte-stable only under the pandoc that knit it,
+    # PANDOC_VERSION above; the apt pandoc (3.1.x) would report drift that is
+    # not there. Until SEOR-dpjdwhbi only `gates` pinned it, so `verify`,
+    # `coverage` and `pages` rendered with the apt pandoc.
+    #
+    # The release .deb is installed over the apt pandoc above, after
+    # sha256sum -c checks it against the release's own published digest
+    # (copied from seor's `.r`). A failed or mismatched download only warns and
+    # leaves the apt pandoc in place: per seor ADR 0005 every gate still runs
+    # and reports, so README drift `gates` reports after that warning is
+    # suspect. Nothing unverified is ever installed. --max-time bounds each
+    # attempt and --retry-max-time the retries, so a stalled CDN reaches that
+    # warning instead of hanging every R job.
+    - |
+      ARCH=$(dpkg --print-architecture)
+      case "$ARCH" in
+        amd64) PANDOC_SHA256=d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf ;;
+        arm64) PANDOC_SHA256=b651c8bfd5a0a2f6650d6c0830131747ef67a1d9c0475b1399626611419e2205 ;;
+        *) PANDOC_SHA256=unknown ;;
+      esac
+      if curl -fsSL --retry 3 --retry-delay 5 --retry-max-time 300 --connect-timeout 20 --max-time 120 \
+        -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-${ARCH}.deb" \
+        && echo "${PANDOC_SHA256}  /tmp/pandoc.deb" | sha256sum -c - \
+        && dpkg -i /tmp/pandoc.deb; then
+        echo "pandoc ${PANDOC_VERSION} installed"
+      else
+        echo "WARNING: pandoc ${PANDOC_VERSION} not installed; this job runs on the apt pandoc"
+      fi
+      pandoc --version | sed -n 1p
     # rocker/r-ver (4.5.1 and 4.4.3, as probed) generates only C.UTF-8 and
     # en_US.UTF-8, and tests/testthat/test-locale.R (REQ-094) runs a leg only
     # for each of its Turkish, Azeri and Lithuanian locales the machine has.
@@ -261,20 +304,14 @@ verify:
 # dependency closure: README.Rmd evaluates no package code, and
 # spelling::spell_check_package() reads the sources.
 #
-# pandoc is PINNED, as in punycoder and pagerankr: its markdown writer reflows
-# text between versions, so README.md is byte-stable only under the pandoc that
-# knit it, 3.10. The apt pandoc (3.1.x) would report drift that is not there.
-# Bump it only together with a re-knit of README.md.
+# The readme gate knits under the pinned pandoc that `.r`'s before_script
+# installs (PANDOC_VERSION; SEOR-egfbijyi).
 gates:
   extends:
     - .r
     - .on-main
   stage: verify
   script:
-    - PANDOC_VERSION=3.10
-    - curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-$(dpkg --print-architecture).deb"
-    - dpkg -i /tmp/pandoc.deb
-    - pandoc --version | head -n1
     - Rscript -e 'pak::pak(c("any::rmarkdown", "any::knitr", "any::spelling"))'
     - sh scripts/gates.sh
 

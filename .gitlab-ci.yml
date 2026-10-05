@@ -10,8 +10,9 @@
 # news-version are stages of that script. The other cheap gates of seor's
 # design/fleet-standard.md run in `gates` (README drift, spelling) and
 # `citation-version` (CITATION.cff and .zenodo.json against DESCRIPTION, and
-# the BugReports split). The deep checks and the dependency audits run only on
-# their own pipeline schedules, and `fossa` on every push to main.
+# the BugReports split), and generated-docs drift in `docs-drift`. The deep
+# checks and the dependency audits run only on their own pipeline schedules,
+# and `fossa` on every push to main.
 
 stages:
   - verify
@@ -335,12 +336,14 @@ gates:
 # release, so pak installs it by version, from P3M or by building it (seor's
 # job built 8.0.0 from source in 7s). Its own cache: the roxygen2 here is the
 # pin, not whatever another job pulls. The script regenerates in place, which
-# is safe in this job's throwaway clone.
+# is safe in this job's throwaway clone. In `check` with no `needs:`, as in
+# seor: a docs-only failure must not skip coverage, pages or fossa.
 docs-drift:
   extends:
     - .r
     - .on-main
-  stage: verify
+  stage: check
+  needs: []
   cache:
     key:
       prefix: "docs-drift-$R_VERSION"

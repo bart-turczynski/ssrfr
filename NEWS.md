@@ -14,7 +14,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 * `ssrf_fetch()` keeps certificate verification, ignores proxy variables, allows only `http` and `https` over HTTP/1.1, and sends each request at most once (SSRF-rgcijatt).
 * A binding is single-use, and a response is read in full within the policy's limits; its `print()` never shows the body (SSRF-rgcijatt).
 * Response limits count decoded bytes, interim `1xx` responses and trailer fields, so a compression bomb stops at the limit (SSRF-itqfcyrw).
-* `ssrf_prepare_hop(from = binding)` prepares a redirect hop, applying the method rules of `301` to `308` and dropping the body and uncarried fields across origins; `Authorization`, `Proxy-Authorization` and `Cookie` never cross (SSRF-fvtqbanc).
+* `ssrf_prepare_hop(from = binding)` prepares a redirect hop, applying the method rules of `301` to `308` and dropping the body and fields not named in `carry` across origins; `Authorization`, `Proxy-Authorization` and `Cookie` never cross (SSRF-fvtqbanc).
 * A redirect refuses an `https` to `http` downgrade and any hop past `max_redirects`; `max_redirects` and `total_timeout` bind the whole chain (SSRF-fvtqbanc).
 * A redirect hop's `from` must be a fetched redirect binding and its `url` that binding's `Location`, or `ssrfr_error_invalid_from` is raised (SSRF-fvtqbanc).
 * `ssrf_fetch_chain()` follows a redirect chain and returns its last outcome (SSRF-bvuwvcnh).

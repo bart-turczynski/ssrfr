@@ -82,7 +82,8 @@ tried and reverted (`19f08fb`).
   (roxygen2 skew, packages built under a newer R) before the gate runs.
 - `scripts/check-docs-drift.R`, `scripts/check-docs-drift.sh` — pre-push check
   that `man/`, `NAMESPACE` and `DESCRIPTION` match a fresh roxygen2 run, in a
-  `git archive` export of the pushed commit.
+  `git archive` export of the pushed commit; CI's `docs-drift` job runs the
+  `.R` script on `main`.
 - `scripts/check-spelling.R` — pre-push spelling check (`spelling`, en-US,
   `inst/WORDLIST`), since R CMD check skips it without an English dictionary.
 - `site/` — pkgdown output (`_pkgdown.yml`), git-ignored; the CI `pages` job

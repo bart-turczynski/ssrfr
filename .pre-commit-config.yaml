@@ -120,8 +120,8 @@ repos:
       # (SEOR-nwfmerhu). A stale .Rd is valid .Rd, so nothing else here sees it.
       # The hooks around it read the working tree and this one the pushed
       # commit, so on a push of another branch their verdicts can differ. The
-      # script's header says why it never runs in the working tree. Local only:
-      # CI's `gates` job has no roxygen2 (SEOR-fhrisfpt).
+      # script's header says why it never runs in the working tree. CI's
+      # `docs-drift` job runs the same check on main (SEOR-fhrisfpt).
       - id: docs-drift
         name: generated docs (man/, NAMESPACE, DESCRIPTION) match roxygen
         entry: bash scripts/check-docs-drift.sh

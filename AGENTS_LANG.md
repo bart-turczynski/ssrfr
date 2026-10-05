@@ -119,9 +119,12 @@ unexpected (e.g. misspelled) arguments.
 
 ### NEWS
 
-Add a `NEWS.md` bullet for every user-facing change — one line, no wrapping,
-with the issue number in parentheses. Internal-only refactors go under an
-`## Internal` heading or are omitted. The verify gate's `news-version` stage
+A `NEWS.md` bullet goes only to a change a package user would act on or
+notice: behavior, API, dependencies, R or system requirements, installation.
+One terse line, no wrapping, no rationale prose, and one issue number in
+parentheses. No bullet for logos, image or repository metadata, badges, README
+cosmetics, CI, gates, lint sets, spelling sweeps, agent files or other
+housekeeping, and no `## Internal` section (seor's `AGENTS_LANG.md`). The verify gate's `news-version` stage
 checks that the top `NEWS.md` heading is `(development version)` or the
 `DESCRIPTION` `Version`, so bump both together.
 

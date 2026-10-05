@@ -41,6 +41,6 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 
 * ssrfr has a logo, the fleet's black hex, in `man/figures/logo.svg` and `logo.png`. r-universe shows it on the package card and the documentation site in its header, and the `README.md` heading carries it with the alt text "hex logo, white on black" (`SEOR-wxjuxbtu`, `SEOR-wfleahtg`).
 
-* The logo files carry full metadata: every project link (GitLab, GitHub, CRAN, r-universe, the documentation site), a screen-reader description and the standard image metadata fields, written by `scripts/logo-metadata.py` from the fleet's `seor` repository (`SEOR-eyfiidrv`).
+* The logo files carry full metadata: every project link (GitLab, GitHub, CRAN, r-universe, the documentation site), a screen-reader description and the standard image metadata fields, written by `scripts/logo-metadata.py` from the fleet's `seor` repository (`SEOR-eyfiidrv`). Their keywords are the `X-schema.org-keywords` tags of `DESCRIPTION`, after `R`, `rstats` and `R package`, so the logo and r-universe list the same tags (`SEOR-qoqmestu`).
 
 * `README.md` now shows how to install `ssrfr` from r-universe, before the GitLab development install, and its development notes moved to `CONTRIBUTING.md` and `ARCHITECTURE.md`. `DESCRIPTION` declares `X-schema.org-keywords`, which r-universe search reads (`SEOR-kqmqosji`, `SEOR-nplcfbib`).

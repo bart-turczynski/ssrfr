@@ -23,7 +23,7 @@
 <dc:relation>https://CRAN.R-project.org/package=ssrfr</dc:relation>
 <dc:relation>https://bart-turczynski.r-universe.dev/ssrfr</dc:relation>
 <dc:relation>https://bart-turczynski.gitlab.io/ssrfr/</dc:relation>
-<dc:subject><rdf:Bag><rdf:li>R</rdf:li><rdf:li>rstats</rdf:li><rdf:li>R package</rdf:li><rdf:li>SSRF</rdf:li><rdf:li>server-side request forgery</rdf:li><rdf:li>security</rdf:li></rdf:Bag></dc:subject>
+<dc:subject><rdf:Bag><rdf:li>R</rdf:li><rdf:li>rstats</rdf:li><rdf:li>R package</rdf:li><rdf:li>ssrf</rdf:li><rdf:li>server-side-request-forgery</rdf:li><rdf:li>url-validation</rdf:li><rdf:li>ip-address</rdf:li><rdf:li>dns-rebinding</rdf:li><rdf:li>cloud-metadata</rdf:li><rdf:li>redirects</rdf:li><rdf:li>libcurl</rdf:li><rdf:li>security</rdf:li></rdf:Bag></dc:subject>
 <dc:contributor>Name set in IBM Plex Mono (SIL Open Font License 1.1), converted to outlines.</dc:contributor>
 <dcterms:alternative>ssrfr logo</dcterms:alternative>
 <dcterms:created>2026-10-04</dcterms:created>
@@ -46,7 +46,7 @@
 <dc:publisher><rdf:Bag><rdf:li>Bart Turczynski</rdf:li></rdf:Bag></dc:publisher>
 <dc:contributor><rdf:Bag><rdf:li>Name set in IBM Plex Mono (SIL Open Font License 1.1), converted to outlines.</rdf:li></rdf:Bag></dc:contributor>
 <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">&#169; 2026 Bart Turczynski. MIT License.</rdf:li></rdf:Alt></dc:rights>
-<dc:subject><rdf:Bag><rdf:li>R</rdf:li><rdf:li>rstats</rdf:li><rdf:li>R package</rdf:li><rdf:li>SSRF</rdf:li><rdf:li>server-side request forgery</rdf:li><rdf:li>security</rdf:li></rdf:Bag></dc:subject>
+<dc:subject><rdf:Bag><rdf:li>R</rdf:li><rdf:li>rstats</rdf:li><rdf:li>R package</rdf:li><rdf:li>ssrf</rdf:li><rdf:li>server-side-request-forgery</rdf:li><rdf:li>url-validation</rdf:li><rdf:li>ip-address</rdf:li><rdf:li>dns-rebinding</rdf:li><rdf:li>cloud-metadata</rdf:li><rdf:li>redirects</rdf:li><rdf:li>libcurl</rdf:li><rdf:li>security</rdf:li></rdf:Bag></dc:subject>
 <dc:source>https://gitlab.com/bart-turczynski/ssrfr</dc:source>
 <dc:relation><rdf:Bag><rdf:li>https://gitlab.com/bart-turczynski/ssrfr</rdf:li><rdf:li>https://github.com/bart-turczynski/ssrfr</rdf:li><rdf:li>https://CRAN.R-project.org/package=ssrfr</rdf:li><rdf:li>https://bart-turczynski.r-universe.dev/ssrfr</rdf:li><rdf:li>https://bart-turczynski.gitlab.io/ssrfr/</rdf:li></rdf:Bag></dc:relation>
 <dc:identifier>ssrfr</dc:identifier>
@@ -67,7 +67,7 @@
 <xmpRights:Owner><rdf:Bag><rdf:li>Bart Turczynski</rdf:li></rdf:Bag></xmpRights:Owner>
 <xmpMM:DocumentID>uuid:0e696bf5-c070-5899-9c9e-f565070dbe80</xmpMM:DocumentID>
 <xmpMM:OriginalDocumentID>uuid:0e696bf5-c070-5899-9c9e-f565070dbe80</xmpMM:OriginalDocumentID>
-<xmpMM:InstanceID>uuid:b0933bd2-e83e-5be2-b558-af38d0dab537</xmpMM:InstanceID>
+<xmpMM:InstanceID>uuid:fe582cda-ef22-5f1d-88f3-c89e86f26b46</xmpMM:InstanceID>
 <photoshop:Headline>ssrfr: SSRF protection library for R</photoshop:Headline>
 <photoshop:Credit>Bart Turczynski</photoshop:Credit>
 <photoshop:Source>Bart Turczynski</photoshop:Source>

@@ -27,6 +27,10 @@ python3 scripts/check-design.py
 `NOT_CRAN=true`, failing on any skipped test or one with no expectation, and
 `R CMD check --as-cran`, then prints one verdict. Both run as pre-push hooks,
 and CI runs `scripts/verify.R` on `main`; see `design/agent-workflow.md`.
+Another pre-push hook, `docs-drift` (`bash scripts/check-docs-drift.sh`),
+fails when `man/`, `NAMESPACE` or `DESCRIPTION` in the pushed commit differ
+from what roxygen2 regenerates; run `devtools::document()` and commit the
+result.
 
 Source lives in `R/`, tests live in `tests/testthat/`, and the design —
 specification, ADRs, evidence — lives in `design/`;

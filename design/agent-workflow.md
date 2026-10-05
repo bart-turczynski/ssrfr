@@ -39,9 +39,9 @@ exclusions, and why, are commented in the config.
 
 `verify` is the same file the CI `verify` job runs. CI also runs
 `check-bugreports`, `check-citation` and `spelling` (see below);
-`check-design`, `check-toolchain`, `check-urls` and `docs-drift` run only
-locally; `docs-drift` needs roxygen2 at the pinned version and the package's
-dependencies, which the `gates` job does not install.
+`check-design`, `check-toolchain` and `check-urls` run only locally.
+`docs-drift` also runs as its own CI job on `main` (SEOR-fhrisfpt), which
+installs roxygen2 at the pinned version and the package's dependencies.
 
 ## CI
 
@@ -58,6 +58,7 @@ hand at **Build > Pipelines > Run pipeline** and pick the ref.
 | `gates` | `main` (a schedule too), `web` | `scripts/gates.sh`: README drift against a fresh knit of `README.Rmd` (pandoc pinned), and spelling |
 | `citation-version` | `main` (a schedule too), `web` | `check-citation.py` and `check-bugreports.py`, each with its self-test |
 | `coverage` | `main` (a schedule too), `web` | `covr`, reported as a GitLab coverage artifact; fails below 95% |
+| `docs-drift` | `main` (a schedule too), `web` | `scripts/check-docs-drift.R` in the job's clone, under the pinned roxygen2 |
 | `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on R release, oldrel and devel |
 | `floor-check` | a `deep-check` schedule, `web` (manual) | `R CMD check --as-cran` on R 4.1.3, the declared floor, with dependencies from a dated package snapshot |
 | `pages` | `main` only (a schedule too) | the pkgdown site, published to GitLab Pages |
@@ -70,8 +71,8 @@ A schedule runs `full-check`, `floor-check` and `renovate` only when it sets
 the variable `SCHEDULE_KIND=deep-check` on the schedule itself, and
 `osv-audit` and `security-audit` only when it sets
 `SCHEDULE_KIND=dependency-audit`; any other schedule skips them. A schedule's
-pipeline is on `main`, so `verify`, `gates`, `citation-version`, `coverage`
-and `pages` run on every schedule, whatever its kind. Never set
+pipeline is on `main`, so `verify`, `gates`, `docs-drift`, `citation-version`,
+`coverage` and `pages` run on every schedule, whatever its kind. Never set
 `SCHEDULE_KIND` as a project or group variable: every schedule would inherit
 it.
 

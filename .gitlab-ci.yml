@@ -323,6 +323,35 @@ gates:
     - Rscript -e 'pak::pak(c("any::rmarkdown", "any::knitr", "any::spelling"))'
     - sh scripts/gates.sh
 
+# Generated-docs drift (SEOR-fhrisfpt): man/, NAMESPACE and DESCRIPTION must
+# match what the roxygen2 DESCRIPTION pins in Config/roxygen2/version
+# regenerates from R/. The pre-push `docs-drift` hook runs the same check, but
+# a server-side merge, a web edit, a Renovate MR or a `--no-verify` push never
+# passes through it. scripts/check-docs-drift.R refuses any other roxygen2,
+# because its output changes between releases.
+#
+# roxygen2 loads the package, so the job installs its dependency closure
+# (pslr at PSLR_SHA included). The pin is usually not the current CRAN
+# release, so pak installs it by version, from P3M or by building it (seor's
+# job built 8.0.0 from source in 7s). Its own cache: the roxygen2 here is the
+# pin, not whatever another job pulls. The script regenerates in place, which
+# is safe in this job's throwaway clone.
+docs-drift:
+  extends:
+    - .r
+    - .on-main
+  stage: verify
+  cache:
+    key:
+      prefix: "docs-drift-$R_VERSION"
+  script:
+    - *install-deps
+    - >
+      Rscript -e 'v <- read.dcf("DESCRIPTION", "Config/roxygen2/version")[[1]];
+      if (is.na(v)) stop("DESCRIPTION has no Config/roxygen2/version, the roxygen2 pin this job installs", call. = FALSE);
+      pak::pkg_install(paste0("roxygen2@", v))'
+    - Rscript scripts/check-docs-drift.R
+
 # CITATION.cff and .zenodo.json each duplicate the version and the project URLs
 # out of DESCRIPTION; scripts/check-citation.py, vendored from seor, holds them
 # to it. The BugReports split rides along (SEOR-ocbtrrnl). Offline,

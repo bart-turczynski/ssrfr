@@ -112,7 +112,9 @@ mirror <- function(root, files, dest) {
   for (f in files) {
     target <- file.path(dest, f)
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
-    file.copy(file.path(root, f), target)
+    if (!file.copy(file.path(root, f), target)) {
+      stop(sprintf("could not copy %s into %s", f, dest), call. = FALSE)
+    }
   }
   dest
 }
@@ -123,7 +125,7 @@ committed_files <- watched_files(pkg)
 committed_dir <- mirror(pkg, committed_files, tempfile("docs-committed-"))
 
 message(sprintf(
-  "Regenerating man/ and NAMESPACE with roxygen2 %s ...",
+  "Regenerating man/, NAMESPACE and DESCRIPTION with roxygen2 %s ...",
   installed
 ))
 roxygen2::roxygenise(pkg)

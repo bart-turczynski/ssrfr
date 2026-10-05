@@ -45,7 +45,10 @@ status=0
   Rscript scripts/check-docs-drift.R "$docsdir"
 ) || status=$?
 
-if [ "$status" -eq 3 ] || [ "$status" -ge 128 ]; then
+if [ "$status" -eq 3 ]; then
+  exit 3
+elif [ "$status" -ge 128 ]; then
+  echo "docs-drift: interrupted or killed (exit ${status}); the docs at ${ref} were not judged" >&2
   exit "$status"
 elif [ "$status" -ne 0 ]; then
   echo "docs-drift: FAIL -- the generated docs at ${ref} are out of date (or the check could not run; see the output above). If they are stale, run devtools::document() and commit the result." >&2

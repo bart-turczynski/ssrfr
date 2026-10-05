@@ -115,6 +115,20 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      # man/, NAMESPACE and DESCRIPTION in the pushed commit (PRE_COMMIT_TO_REF,
+      # else HEAD) against a fresh roxygen2 run in a `git archive` export of it
+      # (SEOR-nwfmerhu). A stale .Rd is valid .Rd, so nothing else here sees it.
+      # The hooks around it read the working tree and this one the pushed
+      # commit, so on a push of another branch their verdicts can differ. The
+      # script's header says why it never runs in the working tree. Local only:
+      # CI's `gates` job has no roxygen2 (SEOR-fhrisfpt).
+      - id: docs-drift
+        name: generated docs (man/, NAMESPACE, DESCRIPTION) match roxygen
+        entry: bash scripts/check-docs-drift.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       # R CMD check skips DESCRIPTION spelling on a machine with no English
       # dictionary; `spelling` bundles its own (SEOR-mtbzfroz). Genuine terms
       # go in inst/WORDLIST. Seconds, so it runs ahead of `verify`.

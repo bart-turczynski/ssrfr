@@ -33,12 +33,15 @@ exclusions, and why, are commented in the config.
 | `check-toolchain` | `Rscript scripts/check-toolchain.R` | the machine: roxygen2 against `Config/roxygen2/version`, packages built under a newer R |
 | `check-citation` | `python3 scripts/check-citation.py` | `CITATION.cff` and `.zenodo.json` name the version `DESCRIPTION` points at, and only URLs it declares |
 | `check-urls` | `Rscript scripts/check-urls.R` | every URL the package declares answers; a dead one fails, an unreachable host only warns, and the only exemption is `BugReports`' `/-/issues` 404 |
+| `docs-drift` | `bash scripts/check-docs-drift.sh` | `man/`, `NAMESPACE` and `DESCRIPTION` in the pushed commit match a fresh roxygen2 run (`scripts/check-docs-drift.R`, in a `git archive` export of that commit, never the working tree) |
 | `spelling` | `Rscript scripts/check-spelling.R` | spelling of `DESCRIPTION`, `man/`, vignettes, README and NEWS against en-US and `inst/WORDLIST` |
 | `verify` | `Rscript scripts/verify.R` | the package; stages listed in the script's header |
 
 `verify` is the same file the CI `verify` job runs. CI also runs
 `check-bugreports`, `check-citation` and `spelling` (see below);
-`check-design`, `check-toolchain` and `check-urls` run only locally.
+`check-design`, `check-toolchain`, `check-urls` and `docs-drift` run only
+locally; `docs-drift` needs roxygen2 at the pinned version and the package's
+dependencies, which the `gates` job does not install.
 
 ## CI
 

@@ -43,7 +43,7 @@ default:
   image: rocker/r-ver:$R_VERSION
   variables:
     # renovate: datasource=docker depName=rocker/r-ver
-    R_VERSION: "4.5.1"
+    R_VERSION: "4.6.1"
     # CI runners drop the image's LANG, so R falls back to the C locale and
     # reads any UTF-8 byte back with "bytes" encoding; lintr then dies parsing
     # its own config.
@@ -322,7 +322,7 @@ gates:
 citation-version:
   extends: .on-main
   stage: verify
-  image: python:3.13-alpine
+  image: python:3.14-alpine
   script:
     - python3 scripts/check-citation.py --self-test
     - python3 scripts/check-citation.py

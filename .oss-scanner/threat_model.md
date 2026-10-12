@@ -12,9 +12,11 @@ model is §11, the request lifecycle §12, the invariants INV-1 to INV-14 §13, 
 §14. Guarding is the package's whole purpose, so a bypass of the guard is the headline risk.
 
 Untrusted input:
-- The `url` argument of `ssrf_prepare_hop()`, `ssrf_fetch_chain()` and `ssrf_inspect_url()`, and
-  `base` for a relative reference: any byte string, including forms that one parser accepts and
-  another rejects.
+- The `url` argument of `ssrf_prepare_hop()`, `ssrf_fetch_chain()` and `ssrf_inspect_url()`:
+  any byte string, including forms that one parser accepts and another rejects. On a redirect hop,
+  `ssrf_prepare_hop(url, policy, from = binding)` takes the `Location` value as `url` and resolves
+  a relative one against the previous hop `from`; `ssrf_fetch_chain(url, policy, request)` does
+  the same for each hop it follows. Only `ssrf_inspect_url()` takes a `base` argument.
 - DNS answers for attacker-owned names: several A/AAAA records, mixed public and private
   records, low TTLs, and a different answer on a second lookup (rebinding).
 - Everything a fetched server sends: status line, interim `1xx` blocks, header fields, `Location`
@@ -60,9 +62,8 @@ harness, vignettes.
 
 ## How to exercise it
 
-The image: source at `/src`, the package installed, every Import and Suggest installed (`curl`,
-`rurl`, `raddr`, `testthat`, `webfakes`, `httpuv`, `callr`, `processx`, `withr`), the `openssl`
-command-line tool, no network. Loopback works.
+The image: source at `/src`, the package installed, every Import and Suggest installed, the
+`openssl` command-line tool, `gdb` and `valgrind`, no network. Loopback works.
 
 - Full suite: `Rscript -e 'testthat::test_local("/src")'`. One area:
   `Rscript -e 'testthat::test_local("/src", filter = "redirect")'`. The OSV and OSS Index
@@ -71,6 +72,9 @@ command-line tool, no network. Loopback works.
   `library(ssrfr); ssrf_inspect_url("http://0177.0.0.1/")$code`,
   `ssrf_prepare_hop("http://[::ffff:169.254.169.254]/", ssrf_policy(), request = list())`,
   `ssrf_vocabulary()` for the closed sets of reason codes, causes and condition classes.
+- A crash of the R process inside libcurl: get a backtrace with
+  `R -d gdb --debugger-args='-batch -ex run -ex bt' -e 'library(ssrfr); ssrf_vocabulary()'`, or
+  run the same expression under `R -d valgrind -e '…'`.
 - With no network, real names resolve to nothing (`unresolvable`). To drive the resolved path,
   mock the internal resolver seam as the tests do (`mock_answers()` in
   `tests/testthat/helper-transport.R`), for example
@@ -79,8 +83,8 @@ command-line tool, no network. Loopback works.
   .package = "ssrfr")`.
 - Loopback servers: `tests/testthat/helper-transport.R` has `local_test_server()` (webfakes,
   optional TLS), `local_raw_server()` for malformed responses, `loopback_policy()`, `pinned_url()`
-  (`.invalid` hostnames, so a fetch that arrives proves the pin was used). Load them with
-  `pkgload::load_all("/src"); testthat::source_test_helpers("/src/tests/testthat")`.
+  (`.invalid` hostnames, so a fetch that arrives proves the pin was used).
+  `pkgload::load_all("/src")` already sources these helpers.
 - Corpora worth reusing: `tests/testthat/fixtures/verdict-vectors.tsv` (bypass classes, each with a
   URL, mocked answers, policy, hop and expected code), `parse-vectors.tsv` (inputs where `rurl` and
   libcurl may read different hosts, with the measured hosts), `requirements.tsv`; their format is
@@ -88,6 +92,9 @@ command-line tool, no network. Loopback works.
   `tests/testthat/certs/`.
 
 ## How you rate severity
+
+Where this file and `design/specs/ssrfr-v1.md` disagree, the spec wins: it is the only normative
+document (ADR 0003, `AGENTS.md`).
 
 There is no native code here, so the memory-corruption rows of a C library do not apply; a crash
 of the R process reached through `ssrfr`'s use of libcurl is still in scope. Severity is about where
@@ -135,13 +142,15 @@ a connection goes and what it carries.
 - Documented opt-ins: anything an `allow_ranges`, `allow_hosts`, `allow_userinfo = TRUE`, an added
   scheme or port, or a raised limit admits. Limits have no ceiling by design. `allow_ports` applies
   to every allowed scheme (`http://h:443/` passes), deliberately.
-- Documented residuals (`ssrfr-v1.md` §5, §8, §9, §11.2): the host's own public addresses unless
-  listed in `deny_ranges`; operator NAT64 prefixes; ISATAP-wrapped provider endpoints; CNAME targets
-  not checked by hostname rules; a compromised resolver; the DNS query itself reaching an
-  attacker's zone; timing differences between refusal stages (§6.4); no certificate revocation
-  checking; no cycle detection beyond `max_redirects`; no homograph detection; `Refresh` and
-  `<meta http-equiv="refresh">` not followed; anything below the socket (NAT, transparent proxies,
-  public relays); no proxy support, no method allowlist, no concurrency limit.
+- Documented residuals, each at its section of `ssrfr-v1.md`: the host's own public addresses
+  unless listed in `deny_ranges` (§9); operator NAT64 prefixes and ISATAP-wrapped provider
+  endpoints (§5); CNAME targets not checked by hostname rules (§5.0); a compromised resolver
+  (§9, §11.2); the DNS query itself reaching an attacker's zone (§9); timing differences between
+  refusal stages (§6.4); no certificate revocation checking (§13, INV-9); no cycle detection
+  beyond `max_redirects` (§5.3); no homograph detection (§9); `Refresh` and
+  `<meta http-equiv="refresh">` not followed (§9); anything below the socket, such as NAT,
+  transparent proxies or public relays (§9); no proxy support (§13, INV-10); no method allowlist
+  and no concurrency limit (§9).
 - Unguarded paths: `download.file()`, `url()`, direct `curl` or `httr2` calls and the packages that
   read URLs through them are outside the guard and documented as such.
 - Misuse raises a classed R condition (`ssrfr_error_invalid_policy`, `_invalid_request`,

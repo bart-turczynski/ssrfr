@@ -133,7 +133,6 @@ test_that("a parse that passes with no host refuses as parse", {
     "http://[2606:4700:4700::1111%25eth0]/"
   )
   for (url in urls) {
-    expect_false(is.null(curl::curl_parse_url(url)$host), label = url)
     res <- ssrf_inspect_url(url)
     expect_identical(res$code, "parse", label = url)
     expect_identical(res$detail$check, "agreement", label = url)

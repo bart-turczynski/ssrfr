@@ -214,7 +214,8 @@ test_that("pending L0 verdict vectors keep their marker and still differ", {
   rows <- v[v$layer == "L0" & startsWith(v$status, "pending:"), ]
   # V0350 became active with rurl 3.1.0 (SSRF-imtdxdym). V0541 and V0542 wait
   # on rurl reading a percent-encoded trailing full stop (SSRF-shdndpga); until
-  # then they refuse as `parse`. A row marked pending later is named here.
+  # then they refuse as `parse`, which test-binding.R asserts and this loop
+  # does not. A row marked pending later is named here.
   expect_identical(rows$id, c("V0541", "V0542"))
   for (i in seq_len(nrow(rows))) {
     expect_false(

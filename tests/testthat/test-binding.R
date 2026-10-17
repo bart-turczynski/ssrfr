@@ -68,6 +68,49 @@ test_that("a refused hop returns a refusal with its reason code and hop", {
   expect_identical(r$address, "10.0.0.5")
 })
 
+# §4.2, INV-11: a zone-ID literal, and a host WHATWG cannot read, refuse at
+# prepare as `parse`, before any resolution, whatever address or name the
+# rest of the host spells. The two percent-encoded trailing stops are V0541
+# and V0542, pending on rurl: whichever code they reach, they refuse.
+test_that("a zone ID or an unreadable host refuses at prepare, unresolved", {
+  seen <- mock_answers("93.184.216.34")
+  urls <- c(
+    "http://[::1%25lo0]/",
+    "http://[fd00:ec2::254%25lo0]/",
+    "http://[::ffff:127.0.0.1%25lo0]/",
+    "http://[fe80::1%25eth0]/",
+    "http://[fe80::1%eth0]/",
+    "http://metadata﹒google﹒internal/",
+    "http://metadata.google.internal﹒/",
+    "http://metadata.google.internal‍/",
+    "http://meta‍data.google.internal/"
+  )
+  for (url in urls) {
+    r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "parse", label = url)
+  }
+  for (url in c(
+    "http://metadata.google.internal%E3%80%82/",
+    "http://metadata.google.internal%EF%BC%8E/"
+  )) {
+    r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_true(r$code %in% c("parse", "cloud-metadata"), label = url)
+  }
+  expect_identical(seen$queries, character())
+
+  # A metadata name off the built-in list refuses on its answer (§5).
+  mock_answers("169.254.169.254")
+  r <- ssrf_prepare_hop(
+    "http://instance-data.ec2.internal/",
+    ssrf_policy(),
+    request = list()
+  )
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "cloud-metadata")
+})
+
 test_that("a failed resolution is an operational failure, not a refusal", {
   for (answers in list(function(q) stop("no"), character(), "not-an-address")) {
     mock_answers(answers)

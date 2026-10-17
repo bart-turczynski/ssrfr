@@ -106,6 +106,47 @@ test_that("fullwidth separators in a host refuse as parse whatever rurl says", {
   }
 })
 
+# §4.1, INV-11: a host rurl leaves absent is never read as no host to check.
+# rurl's verdict is made to pass with no host, and the wire string keeps a
+# zone ID, from which libcurl's real parse drops the zone and returns the bare
+# address: the two parsers disagree, so the hop refuses before the address
+# gates, whatever that address is. With no host from libcurl either, a web URL
+# still refuses.
+test_that("a parse that passes with no host refuses as parse", {
+  local_mocked_bindings(
+    dep_nslookup = function(query) stop("resolver called"),
+    dep_rurl_verdicts = function(url) {
+      data.frame(
+        layer1_syntax_verdict = "pass",
+        layer2_policy_verdict = "admitted",
+        layer3_annotation_state = "not-applicable"
+      )
+    },
+    dep_rurl_parse = function(url) {
+      list(host = NA_character_, is_ip_host = FALSE)
+    },
+    dep_rurl_serialize = function(url) url
+  )
+  urls <- c(
+    "http://[::1%25lo0]/",
+    "http://[fd00:ec2::254%25lo0]/",
+    "http://[2606:4700:4700::1111%25eth0]/"
+  )
+  for (url in urls) {
+    expect_false(is.null(curl::curl_parse_url(url)$host), label = url)
+    res <- ssrf_inspect_url(url)
+    expect_identical(res$code, "parse", label = url)
+    expect_identical(res$detail$check, "agreement", label = url)
+  }
+
+  local_mocked_bindings(
+    dep_curl_parse = function(url) list(scheme = "http", host = NULL)
+  )
+  res <- ssrf_inspect_url("http://metadata.google.internal/")
+  expect_identical(res$code, "parse")
+  expect_identical(res$detail$check, "transport-parse")
+})
+
 # r-binding.md §7: a wire string or parsed host that is not printable ASCII
 # refuses as `parse` (a MUST-test), before any resolver call (§4.1, INV-6;
 # design/evidence/2026-09-29-wire-ascii.R). The first case holds only through

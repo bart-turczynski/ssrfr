@@ -212,9 +212,10 @@ test_that("every active L0 verdict vector is decided at L0 with its code", {
 test_that("pending L0 verdict vectors keep their marker and still differ", {
   v <- read_corpus("verdict-vectors.tsv")
   rows <- v[v$layer == "L0" & startsWith(v$status, "pending:"), ]
-  # None is pending since V0350 became active (rurl 3.1.0, SSRF-imtdxdym);
-  # a row marked pending later is named here.
-  expect_identical(rows$id, character())
+  # V0350 became active with rurl 3.1.0 (SSRF-imtdxdym). V0541 and V0542 wait
+  # on rurl reading a percent-encoded trailing full stop (SSRF-shdndpga); until
+  # then they refuse as `parse`. A row marked pending later is named here.
+  expect_identical(rows$id, c("V0541", "V0542"))
   for (i in seq_len(nrow(rows))) {
     expect_false(
       identical(inspect_row(rows[i, ]), rows$code[i]),

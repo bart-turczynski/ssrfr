@@ -19,7 +19,7 @@
 #     fields = Depends+Imports+Suggests    87 packages audited, reports curl
 #
 # ssrfr imports `curl` directly, so its hard closure does carry it, and the
-# two curl advisories it reports are dispositioned in helper-security.R.
+# curl advisories it reports are dispositioned in helper-security.R.
 #
 # A package's security posture is what it makes users install, so the audit
 # calls `audit_description()` directly with the narrower `fields`.

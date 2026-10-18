@@ -29,8 +29,7 @@
 #
 # Adding a row is a decision, not a formality. Rule B is what keeps it one.
 #
-# The reference implementation is seor's; sitemapr carries the same two curl
-# rows for its own reasons.
+# The reference implementation is seor's.
 
 oss_index_allowlist <- list(
   list(

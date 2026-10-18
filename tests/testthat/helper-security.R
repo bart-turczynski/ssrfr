@@ -6,12 +6,13 @@
 # WHY THESE ROWS. The contract this file implements is "every reported
 # advisory has a current, explicit disposition", replacing "the scan reports
 # nothing" (SEOR-fkvlzltx). ssrfr imports `curl` directly, and measured
-# 2026-10-03 with live OSS Index credentials the hard dependency closure (18
-# components) reports exactly two advisories, both against curl 8.0.0, CRAN's
-# current release, so no available version clears either. Each row below says
-# why the advisory does not reach a fetch made through ssrfr. Rows are added
-# only for advisories the audit reports today: rule B fails a row that is not
-# currently reported, so an anticipatory row is stale on arrival.
+# 2026-10-18 with live OSS Index credentials the hard dependency closure
+# reports exactly four advisories, all against curl 8.1.0, CRAN's current
+# release, so no available version clears any of them. OSS Index matches the
+# R package's version number against libcurl's affected ranges. Each row
+# below says why the advisory does not reach a fetch made through ssrfr. Rows
+# are added only for advisories the audit reports today: rule B fails a row
+# that is not currently reported, so an anticipatory row is stale on arrival.
 #
 # Three rules keep the list honest. test-security.R enforces them:
 #
@@ -35,12 +36,12 @@ oss_index_allowlist <- list(
   list(
     id = "CVE-2026-18924",
     package = "curl",
-    version_seen = "8.0.0",
+    version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
       "CWE-416 use-after-free on HTTP/2 server push over a shared",
       "connection handle (CVSS 9.1). Names a libcurl range covering CRAN's",
-      "current curl 8.0.0, so no available version clears it. Unreachable",
+      "current curl 8.1.0, so no available version clears it. Unreachable",
       "through ssrfr: the transport pins http_version to HTTP/1.1 and sets",
       "forbid_reuse (R/transport.R), so there is no HTTP/2 connection to",
       "push on, and R's curl cannot set CURLMOPT_PUSHFUNCTION. Re-check",
@@ -50,16 +51,49 @@ oss_index_allowlist <- list(
   list(
     id = "CVE-2026-3783",
     package = "curl",
-    version_seen = "8.0.0",
+    version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
       "CWE-522: an OAuth2 bearer token leaks to a redirect target when",
       ".netrc carries a machine/default entry (CVSS 6.9). Names a libcurl",
-      "range covering CRAN's current curl 8.0.0, so no available version",
+      "range covering CRAN's current curl 8.1.0, so no available version",
       "clears it. Unreachable through ssrfr: the transport sets netrc = 0",
       "and followlocation = 0 (R/transport.R), so libcurl neither reads",
       ".netrc nor follows a redirect, and ssrfr's own redirect hop drops",
       "Authorization on any cross-origin hop. Re-check before renewing."
+    )
+  ),
+  list(
+    id = "CVE-2026-86410",
+    package = "curl",
+    version_seen = "8.1.0",
+    review = as.Date("2026-12-01"),
+    reason = paste(
+      "CWE-297: the curl command-line tool installs its SSH host",
+      "verification options only for a direct SFTP or SCP transfer, not for",
+      "one reached by a redirect (CVSS 5.1). curl.se states libcurl is not",
+      "affected; the tool's range covers CRAN's current curl 8.1.0, so no",
+      "available version clears it. Unreachable through ssrfr: it drives",
+      "libcurl, never the tool, and the transport restricts protocols and",
+      "redir_protocols to http,https and sets followlocation = 0",
+      "(R/transport.R), so no transfer is SFTP or SCP. Re-check",
+      "R/transport.R before renewing this row."
+    )
+  ),
+  list(
+    id = "CVE-2026-87865",
+    package = "curl",
+    version_seen = "8.1.0",
+    review = as.Date("2026-12-01"),
+    reason = paste(
+      "CWE-295: libcurl built on libssh2, with a hashed known_hosts file,",
+      "can report a host-key mismatch as a missing key to a",
+      "CURLOPT_SSH_KEYFUNCTION callback (CVSS 6.9). Names a libcurl range",
+      "covering CRAN's current curl 8.1.0, so no available version clears",
+      "it. Unreachable through ssrfr: the transport restricts protocols and",
+      "redir_protocols to http,https (R/transport.R), so libcurl never opens",
+      "an SFTP or SCP transfer, and ssrfr sets no SSH key callback. Re-check",
+      "R/transport.R before renewing this row."
     )
   )
 )

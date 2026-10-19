@@ -71,7 +71,7 @@
 #
 # Left behind for reuse: the image ssrfr-loadtest:r<R_VERSION> and the volume
 # ssrfr-loadtest-lib-r<R_VERSION>. Remove them with
-#   docker rmi ssrfr-loadtest:r4.5.1; docker volume rm ssrfr-loadtest-lib-r4.5.1
+#   docker rmi ssrfr-loadtest:r4.6.1; docker volume rm ssrfr-loadtest-lib-r4.6.1
 
 set -euo pipefail
 

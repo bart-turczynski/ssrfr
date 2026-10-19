@@ -280,7 +280,7 @@ if [ "$rebuild" -eq 1 ] || ! docker image inspect "$image" > /dev/null 2>&1; the
   printf '%s\n' \
     "FROM rocker/r-ver:$r_version" \
     "ENV LANG=C.UTF-8 LC_ALL=C.UTF-8" \
-    "RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends curl ca-certificates git procps libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev libpng-dev libtiff5-dev libjpeg-dev && rm -rf /var/lib/apt/lists/*" \
+    "RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends curl ca-certificates git procps libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev libpng-dev libtiff-dev libjpeg-dev && rm -rf /var/lib/apt/lists/*" \
     > "$out/image/Dockerfile"
   waited "" docker build -t "$image" "$out/image" >> "$log" 2>&1 ||
     die "image build failed; see $log"

@@ -142,7 +142,7 @@ default:
       tidy
       libcurl4-openssl-dev libssl-dev libxml2-dev libgit2-dev zlib1g-dev
       libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev
-      libpng-dev libtiff5-dev libjpeg-dev
+      libpng-dev libtiff-dev libjpeg-dev
     # pandoc is PINNED, in every R job, as the fleet standard requires (seor
     # design/fleet-standard.md, "CI on every push to `main`"; SEOR-egfbijyi).
     # Its markdown writer reflows text and pads tables differently between
@@ -418,7 +418,7 @@ full-check:
   needs: []
   parallel:
     matrix:
-      - R_VERSION: ["4.6.1", "4.5.1", "devel"]
+      - R_VERSION: ["4.6.1", "4.5.3", "devel"]
   script:
     - Rscript -e 'pak::pak(c("any::lintr", "any::rcmdcheck"))'
     - *install-deps
@@ -649,7 +649,7 @@ security-audit:
 # are passed rather than inferred. Copied from seor's `fossa` job.
 fossa:
   stage: maintenance
-  image: debian:bookworm-slim
+  image: debian:trixie-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:

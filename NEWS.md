@@ -36,4 +36,5 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 * `ssrf_public_reason()` gives the one value an untrusted party may see (SSRF-upyqnwmv).
 * Refusals, failures and conditions never print userinfo, header values, bodies or proxy values (SSRF-upyqnwmv).
 * A failure's `detail` lists each address tried and how the attempt ended (SSRF-dmmcitul).
+* A body over `max_response_size` fails with the response's `status`, also recorded on the binding, and the decoded `observed_bytes` reached in `detail` (SSRF-hotiouqk).
 * `ssrf_vocabulary()` lists the closed, versioned reason codes, operational causes, condition classes and default-refused metadata endpoints (SSRF-upyqnwmv).

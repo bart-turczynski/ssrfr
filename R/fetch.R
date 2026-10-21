@@ -43,7 +43,9 @@ connected_cause <- function(error) {
 #' `ssrfr_error_spent_binding`, even when the first was interrupted. The
 #' spent binding stays readable: its `state` records the response status,
 #' the `Location` field, the address the connection was pinned to and each
-#' address tried.
+#' address tried. A recorded status alone does not mean the fetch
+#' succeeded: a size-limit failure and a `"redirect-limit"` refusal record
+#' one too.
 #'
 #' When a name resolved to several addresses, they are tried in the order
 #' the resolver returned them, moving on only when a connection could not be
@@ -108,7 +110,15 @@ connected_cause <- function(error) {
 #'   `"connect-failed"`, `"timeout"`, `"tls-failed"`, `"pin-mismatch"`,
 #'   `"response-too-large"` or `"protocol-error"`. Its `detail` lists each
 #'   address tried and how the attempt ended, and names the limit that was
-#'   reached.
+#'   reached. A `"response-too-large"` failure whose `detail$check` is
+#'   `"decoded-bytes"` (the body passed `max_response_size`) also carries
+#'   `detail$status`, the final response's status, which
+#'   `binding$state$status` records too, and `detail$observed_bytes`, the
+#'   decoded body bytes reached, the delivery that passed the limit
+#'   included. So a `404` with a large body stays distinguishable from a
+#'   large `200`. The status is left out when libcurl's and the status
+#'   line's disagree, and a header limit (`"header"`) records none. Such a
+#'   binding records no response and no `Location`, so it is never a `from`.
 #'
 #' @seealso [ssrf_prepare_hop()], which makes the binding;
 #'   [ssrf_public_reason()] before a failure reaches an untrusted party.
@@ -224,7 +234,9 @@ guarded_transfer <- function(binding, started) {
         step = attempt$step,
         check = attempt$check,
         limit = attempt$limit,
-        callback = attempt$callback
+        callback = attempt$callback,
+        status = attempt$status,
+        observed_bytes = attempt$observed_bytes
       ))
     }
     # §5.3: elapsed time is re-checked after decoding, which the transport's
@@ -279,10 +291,11 @@ fetch_failure <- function(binding, cause, address, endings, step, ...) {
 # One connection attempt at `address`. Returns a list: `ending`, how the
 # attempt ended ("pin-mismatch", "connect-failed", "connect-timeout", or
 # "connected"); for a connected attempt `cause` (with `step`, `check`,
-# `limit` and `callback`), `redirect_limit` (the status of a 3xx past the
-# redirect budget, §12 step 13) or `response`; for a pin mismatch, `check`
-# and `callback`. `callback` is every callback that failed, in the order
-# they first did, or NULL when none did.
+# `limit` and `callback`, and at the decoded-body check `status`, NULL when
+# unknown, and `observed_bytes`), `redirect_limit` (the status of a 3xx
+# past the redirect budget, §12 step 13) or `response`; for a pin mismatch,
+# `check` and `callback`. `callback` is every callback that failed, in the
+# order they first did, or NULL when none did.
 attempt_address <- function(binding, address, remaining, capabilities) {
   policy <- binding$policy
   opts <- transport_options(binding, address, remaining(), capabilities)
@@ -292,6 +305,8 @@ attempt_address <- function(binding, address, remaining, capabilities) {
   seen$header_fields <- 0L
   seen$body <- list()
   seen$bytes <- 0
+  # The decoded bytes reached by the delivery that passed max_response_size.
+  seen$observed_bytes <- NULL
   seen$body_started <- FALSE
   seen$body_since_progress <- FALSE
   seen$abort <- NULL
@@ -351,8 +366,9 @@ attempt_address <- function(binding, address, remaining, capabilities) {
       return(abort("timeout", "total", "total_timeout"))
     }
     # §5.3: decoded bytes, counted on each delivery; the delivery that passes
-    # the limit is not kept.
+    # the limit is not kept, but the bytes it reached are (§6.6).
     if (seen$bytes + length(x) > policy$max_response_size) {
+      seen$observed_bytes <- seen$bytes + length(x)
       return(abort("response-too-large", "decoded-bytes", "max_response_size"))
     }
     seen$bytes <- seen$bytes + length(x)
@@ -453,7 +469,18 @@ attempt_address <- function(binding, address, remaining, capabilities) {
     }
   } else if (is.null(record$redirect_limit)) {
     # A limit a callback reached ends the transfer, which the wrapper
-    # cancels, as that record says.
+    # cancels, as that record says. At the decoded-body check the header was
+    # whole and passed its limits, so the failure carries the final status,
+    # which the binding records too, and the decoded bytes reached (§6.6).
+    # The binding still records no response (§2.3).
+    if (identical(record$check, "decoded-bytes")) {
+      status <- observed_status(seen, transfer$status)
+      set_state(binding, status = status)
+      out <- ended_at_limit(record)
+      out$status <- status
+      out$observed_bytes <- seen$observed_bytes
+      return(out)
+    }
     return(ended_at_limit(record))
   }
   # The header is complete before libcurl ends a transfer on its own limits,
@@ -559,6 +586,21 @@ header_stop <- function(seen, policy, binding, reported = NULL) {
   }
   over <- header_limit(seen, policy)
   if (!is.null(over)) header_limit_stop(over)
+}
+
+# The final status of a transfer a body limit ended (§6.6), or NULL: the
+# status libcurl reports, when it is the status line of the final header
+# block measure_header() last measured, which held the whole header once a
+# body byte arrived. The status is transport-observed (§2.3): when the two
+# disagree, or libcurl reports none, none is recorded.
+observed_status <- function(seen, reported) {
+  blocks <- seen$segments$blocks
+  final <- which(blocks$complete & blocks$status >= 200L)
+  if (!length(final) || !is.numeric(reported) || reported == 0) {
+    return(NULL)
+  }
+  status <- blocks$status[[final[[1L]]]]
+  if (status != reported) NULL else as.integer(status)
 }
 
 header_limit_stop <- function(limit) {

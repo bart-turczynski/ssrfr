@@ -320,6 +320,13 @@ MUST record a status that `ssrfr` follows as a redirect before it is accepted as
 `from`. Passing an unspent binding, a binding whose fetch failed, or a binding
 whose response is not a followed redirect is an operational error.
 
+A recorded status does not by itself mean a successful response. A binding
+also records the status of a fetch that ended without one: a 3xx refused as
+`redirect-limit` (§12 step 13), and a body that passed `max_response_size`
+(§6.6). Success is recorded separately, and only a binding that records it is
+accepted as `from`, so neither of these is, whatever its status. *Amended
+2026-10-21* (`SSRF-hotiouqk`).
+
 A response is a *followed redirect* when its status is 301, 302,
 303, 307 or 308 (the Fetch Standard's redirect statuses) and it carries exactly
 one `Location` field line. A redirect status without `Location` is a final
@@ -1348,6 +1355,23 @@ A separate closed enum, `kebab-case`:
 When several limits trip during one transfer, the first one reached ends it and
 names the cause.
 
+A `response-too-large` failure's operator detail names the `step`, the
+`check` (`decoded-bytes` for the body, `header` for header bytes or fields, the
+trailer fields of a chunked body included), the `limit` and the `attempts`.
+At the `decoded-bytes` check the header was whole and within its limits, so
+the failure also carries what the transport observed before the limit ended
+it: `status`, the final response's status, which the binding records as well
+(§2.3), and `observed_bytes`, the decoded body bytes reached, counting the
+delivery that passed the limit. A consumer can then tell a `404` with a large
+body from a large `200`. The status is transport-observed: libcurl's report,
+recorded only when it is the final status line's, so when the two disagree, or
+libcurl reports none, the failure carries `observed_bytes` alone. A `header`
+failure carries neither: `ssrfr` reads no status out of a header that failed
+its limits. `Location` is not recorded (`location` and `location_count`
+stay unset): no size-limit failure is followed, a 3xx whose body passed the
+limit included, so a recorded target would serve only to mistake the failure
+for a redirect in hand. *Amended 2026-10-21* (`SSRF-hotiouqk`).
+
 When failover (§2.5) exhausts the validated addresses, the cause is `timeout`
 only if every attempt ended because `connect_timeout` elapsed, and
 `connect-failed` otherwise. Operator detail lists each address tried and how its
@@ -1599,6 +1623,13 @@ From 2026-09-30 they are also logged here:
   disagreement check, and its syntax verdict fails the two hosts holding a space
   that the wire-string rule's measurement excepted. In §5.3, 3.1.0 no longer
   raises an error on a long non-ASCII URL. No rule changes, and no test.
+- **2026-10-21** (`SSRF-hotiouqk`): §6.6 lists the operator detail of a
+  `response-too-large` failure, and at the `decoded-bytes` check adds the
+  transport-observed `status`, also recorded on the binding, and
+  `observed_bytes`; `Location` is not recorded. §2.3 says a recorded status
+  does not by itself mean a successful response, so neither a size-limit
+  failure nor a `redirect-limit` refusal is accepted as `from`. Found by the
+  consumer fit study `SSRF-riozjtgw`.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

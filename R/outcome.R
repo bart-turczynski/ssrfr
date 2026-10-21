@@ -22,7 +22,9 @@ display_detail_keys <- c(
   "category",
   "provider_kind",
   "attempts",
-  "callback"
+  "callback",
+  "status",
+  "observed_bytes"
 )
 
 # The single value ssrf_public_reason() returns (§6.4). It is not a reason code

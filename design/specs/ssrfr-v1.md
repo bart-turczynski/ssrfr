@@ -1366,7 +1366,7 @@ delivery that passed the limit. A consumer can then tell a `404` with a large
 body from a large `200`. The status is transport-observed: libcurl's report,
 recorded only when it is the final status line's, so when the two disagree, or
 libcurl reports none, the failure carries `observed_bytes` alone. A `header`
-failure carries neither: `ssrfr` reads no status out of a header that passed
+failure carries neither: `ssrfr` reads no status out of a header that failed
 its limits. `Location` is not recorded (`location` and `location_count`
 stay unset): no size-limit failure is followed, a 3xx whose body passed the
 limit included, so a recorded target would serve only to mistake the failure
@@ -1623,6 +1623,13 @@ From 2026-09-30 they are also logged here:
   disagreement check, and its syntax verdict fails the two hosts holding a space
   that the wire-string rule's measurement excepted. In §5.3, 3.1.0 no longer
   raises an error on a long non-ASCII URL. No rule changes, and no test.
+- **2026-10-21** (`SSRF-hotiouqk`): §6.6 lists the operator detail of a
+  `response-too-large` failure, and at the `decoded-bytes` check adds the
+  transport-observed `status`, also recorded on the binding, and
+  `observed_bytes`; `Location` is not recorded. §2.3 says a recorded status
+  does not by itself mean a successful response, so neither a size-limit
+  failure nor a `redirect-limit` refusal is accepted as `from`. Found by the
+  consumer fit study `SSRF-riozjtgw`.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

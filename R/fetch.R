@@ -111,10 +111,10 @@ connected_cause <- function(error) {
 #'   `"response-too-large"` or `"protocol-error"`. Its `detail` lists each
 #'   address tried and how the attempt ended, and names the limit that was
 #'   reached. A `"response-too-large"` failure whose `detail$check` is
-#'   `"decoded-bytes"` (the body passed `max_response_size`) also carries
+#'   `"decoded-bytes"` (the body exceeded `max_response_size`) also carries
 #'   `detail$status`, the final response's status, which
 #'   `binding$state$status` records too, and `detail$observed_bytes`, the
-#'   decoded body bytes reached, the delivery that passed the limit
+#'   decoded body bytes reached, the delivery that exceeded the limit
 #'   included. So a `404` with a large body stays distinguishable from a
 #'   large `200`. The status is left out when libcurl's and the status
 #'   line's disagree, and a header limit (`"header"`) records none. Such a

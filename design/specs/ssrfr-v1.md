@@ -44,7 +44,8 @@ corrected (ADR 0006). **Ratified 2026-09-25:** §8 items 25–31, by a
 unanimous four-model vote during v1 planning (`SSRF-cnljaaek`; ADR 0007), and
 items 32–33, two gaps a review of the implementation tickets found.
 **Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
-parsed host (§4.1, `SSRF-ljqshjmj`).
+parsed host (§4.1, `SSRF-ljqshjmj`). **Ratified 2026-10-22:** the 2026-10-21
+amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -322,7 +323,7 @@ whose response is not a followed redirect is an operational error.
 
 A recorded status does not by itself mean a successful response. A binding
 also records the status of a fetch that ended without one: a 3xx refused as
-`redirect-limit` (§12 step 13), and a body that passed `max_response_size`
+`redirect-limit` (§12 step 13), and a body that exceeded `max_response_size`
 (§6.6). Success is recorded separately, and only a binding that records it is
 accepted as `from`, so neither of these is, whatever its status. *Amended
 2026-10-21* (`SSRF-hotiouqk`).
@@ -1362,7 +1363,7 @@ At the `decoded-bytes` check the header was whole and within its limits, so
 the failure also carries what the transport observed before the limit ended
 it: `status`, the final response's status, which the binding records as well
 (§2.3), and `observed_bytes`, the decoded body bytes reached, counting the
-delivery that passed the limit. A consumer can then tell a `404` with a large
+delivery that exceeded the limit. A consumer can then tell a `404` with a large
 body from a large `200`. The status is transport-observed: libcurl's report,
 recorded only when it is the final status line's, so when the two disagree, or
 libcurl reports none, the failure carries `observed_bytes` alone. A `header`
@@ -1630,6 +1631,9 @@ From 2026-09-30 they are also logged here:
   does not by itself mean a successful response, so neither a size-limit
   failure nor a `redirect-limit` refusal is accepted as `from`. Found by the
   consumer fit study `SSRF-riozjtgw`.
+- **2026-10-22** (`SSRF-hotiouqk`): the maintainer ratified the 2026-10-21
+  amendments. Wording only: a body "exceeded", not "passed", the limit
+  (§2.3, §6.6). No rule changes, and no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

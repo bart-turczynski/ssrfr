@@ -30,10 +30,10 @@ A failure carries \code{cause}, from \code{ssrf_vocabulary("causes")}:
 \code{"response-too-large"} or \code{"protocol-error"}. Its \code{detail} lists each
 address tried and how the attempt ended, and names the limit that was
 reached. A \code{"response-too-large"} failure whose \code{detail$check} is
-\code{"decoded-bytes"} (the body passed \code{max_response_size}) also carries
+\code{"decoded-bytes"} (the body exceeded \code{max_response_size}) also carries
 \code{detail$status}, the final response's status, which
 \code{binding$state$status} records too, and \code{detail$observed_bytes}, the
-decoded body bytes reached, the delivery that passed the limit
+decoded body bytes reached, the delivery that exceeded the limit
 included. So a \code{404} with a large body stays distinguishable from a
 large \code{200}. The status is left out when libcurl's and the status
 line's disagree, and a header limit (\code{"header"}) records none. Such a

@@ -33,6 +33,7 @@
 <dcterms:license rdf:resource="https://opensource.org/license/mit"/>
 <dcterms:accessRights>Public</dcterms:accessRights>
 <dcterms:audience>R users</dcterms:audience>
+<dcterms:isPartOf rdf:resource="https://gitlab.com/bart-turczynski/seor"/>
 <cc:license rdf:resource="https://opensource.org/license/mit"/>
 <cc:attributionName>Bart Turczynski</cc:attributionName>
 <cc:attributionURL rdf:resource="https://gitlab.com/bart-turczynski/ssrfr"/>
@@ -67,7 +68,7 @@
 <xmpRights:Owner><rdf:Bag><rdf:li>Bart Turczynski</rdf:li></rdf:Bag></xmpRights:Owner>
 <xmpMM:DocumentID>uuid:0e696bf5-c070-5899-9c9e-f565070dbe80</xmpMM:DocumentID>
 <xmpMM:OriginalDocumentID>uuid:0e696bf5-c070-5899-9c9e-f565070dbe80</xmpMM:OriginalDocumentID>
-<xmpMM:InstanceID>uuid:fe582cda-ef22-5f1d-88f3-c89e86f26b46</xmpMM:InstanceID>
+<xmpMM:InstanceID>uuid:efda89d9-ee64-5277-9d81-98ab5a0ea0e5</xmpMM:InstanceID>
 <photoshop:Headline>ssrfr: SSRF protection library for R</photoshop:Headline>
 <photoshop:Credit>Bart Turczynski</photoshop:Credit>
 <photoshop:Source>Bart Turczynski</photoshop:Source>

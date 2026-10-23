@@ -94,6 +94,37 @@ oss_index_allowlist <- list(
       "an SFTP or SCP transfer, and ssrfr sets no SSH key callback. Re-check",
       "R/transport.R before renewing this row."
     )
+  ),
+  list(
+    id = "CVE-2026-86414",
+    package = "curl",
+    version_seen = "8.1.0",
+    review = as.Date("2026-12-01"),
+    reason = paste(
+      "CWE-201: an HTTP proxy answering a CONNECT with 401 instead of 407",
+      "makes libcurl send the origin's credentials to the proxy (CVSS 6.5).",
+      "Names a libcurl range covering CRAN's current curl 8.1.0, so no",
+      "available version clears it. Unreachable through ssrfr: the",
+      "transport sets proxy = \"\" and noproxy = \"*\" (R/transport.R), so no",
+      "attempt goes through a proxy whatever the environment says.",
+      "Re-check R/transport.R before renewing this row."
+    )
+  ),
+  list(
+    id = "CVE-2026-87864",
+    package = "curl",
+    version_seen = "8.1.0",
+    review = as.Date("2026-12-01"),
+    reason = paste(
+      "CWE-130: with CURLOPT_CRLF set, curl advertises the raw byte count",
+      "in an IMAP APPEND literal but sends the expanded data, so the",
+      "overflow runs as pipelined IMAP commands (CVSS 3.7). Names a libcurl",
+      "range covering CRAN's current curl 8.1.0, so no available version",
+      "clears it. Unreachable through ssrfr: the transport restricts",
+      "protocols and redir_protocols to http,https (R/transport.R), so",
+      "libcurl never opens the IMAP transfer an APPEND needs, and nothing",
+      "sets crlf. Re-check R/transport.R before renewing this row."
+    )
   )
 )
 

@@ -50,9 +50,8 @@
 # On arm64 P3M serves no Linux binaries and everything compiles from source;
 # the library lives in a named volume keyed by R_VERSION, so that is paid
 # once. Each invocation installs the dependency closure (Suggests included,
-# as CI's .install-deps does, with its pslr pin while .gitlab-ci.yml has
-# one) and the package itself, from a copy of the tree made inside the
-# container (the tree is mounted read-only). Tests run against the installed
+# as CI's .install-deps does) and the package itself, from a copy of the tree
+# made inside the container (the tree is mounted read-only). Tests run against the installed
 # package with testthat::test_dir(), as R CMD check runs them, under
 # NOT_CRAN=true, as rcmdcheck sets it. The test files are discovered, not
 # listed: every helper that calls a process starter (local_app_server(),
@@ -200,7 +199,6 @@ civar() {
 }
 r_version=$(civar R_VERSION)
 p3m_snapshot=$(civar P3M_SNAPSHOT)
-pslr_sha=$(civar PSLR_SHA)
 [ -n "$r_version" ] || die "no R_VERSION in .gitlab-ci.yml"
 [ -n "$p3m_snapshot" ] || die "no P3M_SNAPSHOT in .gitlab-ci.yml"
 
@@ -290,7 +288,7 @@ waited "" docker run -d --rm --init --name "$name" --label ssrfr-loadtest=1 \
   --cpus "$cpus" --memory "$memory" \
   -v "$volume:/opt/ssrfr" -v "$root:/src:ro" -v "$out:/out" \
   -e R_LIBS_USER=/opt/ssrfr/lib -e PKG_CACHE_DIR=/opt/ssrfr/pak-cache \
-  -e P3M_SNAPSHOT="$p3m_snapshot" -e PSLR_SHA="$pslr_sha" \
+  -e P3M_SNAPSHOT="$p3m_snapshot" \
   -e MAKEFLAGS="-j$cpus" -e NOT_CRAN=true \
   "$image" sleep infinity > /dev/null
 
@@ -319,10 +317,6 @@ mkdir -p /work/ssrfr
 tar -C /src --exclude=./.git --exclude=./tmp -cf - .| tar -C /work/ssrfr -xf -
 cd /work/ssrfr
 Rscript -e "pak::local_install_deps(dependencies = TRUE)"
-if [ -n "$PSLR_SHA" ]; then
-  Rscript -e "pak::pak(paste0(\"gitlab::bart-turczynski/pslr@\", Sys.getenv(\"PSLR_SHA\")))"
-  Rscript -e "d <- packageDescription(\"pslr\"); if (!identical(d\$RemoteSha, Sys.getenv(\"PSLR_SHA\"))) stop(\"pslr is not the pinned commit\")"
-fi
 R CMD INSTALL --library="$R_LIBS_USER" .
 cp scripts/load-test-helper.R tests/testthat/helper-zzz-load-test.R
 cp scripts/load-test-probe.R tests/testthat/test-zzz-load-probe.R

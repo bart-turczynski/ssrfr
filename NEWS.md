@@ -5,7 +5,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 ## Requirements
 
 * `ssrfr` requires R >= 4.1.0, as `pslr`, which it needs through `rurl`, does (`SEOR-rcpzfhgx`).
-* `ssrfr` requires `pslr` (>= 1.2.2), the first release that loads the public suffix list under a Turkish or Azeri locale, which every `rurl` parse depends on (SSRF-mspjpegk).
+* `ssrfr` requires `pslr` (>= 1.2.2), which fixes loading the public suffix list under Turkish and Azeri locales (SSRF-mspjpegk).
 
 ## Guarded fetch
 

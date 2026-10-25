@@ -70,8 +70,6 @@ default:
     # replaces it with this date plus a CRAN fallback. Pinned so rebuilding an
     # old commit resolves the same binaries; bump it when you bump R_VERSION.
     P3M_SNAPSHOT: "2026-09-01"
-    # The pslr commit .install-deps pins until CRAN serves the fixed pslr.
-    PSLR_SHA: "f322d57517c1dc5d070c0260648fa6cc58786c3f"
     # The pandoc every R job runs, installed in before_script below.
     # scripts/check-toolchain.R reads this line and fails the pre-push gate
     # when the local pandoc differs; seor's scripts/check-fleet-standard.py
@@ -271,26 +269,17 @@ workflow:
 # --------------------------------------------------------------------------
 # install-deps — the dependency closure, shared by every job that installs it
 #
-# TEMPORARY pslr pin. pslr 1.2.1, the CRAN release, fails to load the public
-# suffix list under a Turkish or Azeri locale on glibc (tolower("ICANN") is
-# "ıcann"), so every rurl parse fails and test-locale.R goes red here
-# (SSRF-bglihtwb). The fix is pslr !67, merged as f322d57; it reaches CRAN no
-# earlier than 2026-11-14. Until then the jobs install pslr from that commit,
-# after the CRAN closure so nothing replaces it, and fail if another pslr is
-# what loads. DESCRIPTION is untouched: the pin is CI-only. So is the fix, for
-# the local gate: on glibc with these locales, install the same commit first,
-# or test-locale.R fails on an untouched tree. (macOS keeps "I" as "i", so the
-# bug never shows there.) Once CRAN serves the fixed pslr, remove this block's
-# last two steps, PSLR_SHA in .r and this comment (SSRF-mspjpegk).
+# DESCRIPTION's Imports carries the pslr floor, 1.2.2, the first release that
+# loads the public suffix list under a Turkish or Azeri locale (SSRF-mspjpegk),
+# so the closure installs pslr from CRAN and no job pins a commit. macOS keeps
+# "I" as "i", so the bug never showed there.
 # --------------------------------------------------------------------------
 
 .install-deps:
   script: &install-deps
     - Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
-    - Rscript -e 'pak::pak(paste0("gitlab::bart-turczynski/pslr@", Sys.getenv("PSLR_SHA")))'
     - >
-      Rscript -e 'd <- packageDescription("pslr"); cat("pslr", d$Version, "from", d$RemoteSha, "\n")'
-      -e 'if (!identical(d$RemoteSha, Sys.getenv("PSLR_SHA"))) stop("pslr is not the pinned commit")'
+      Rscript -e 'cat("pslr", as.character(packageVersion("pslr")), "\n")'
 
 # --------------------------------------------------------------------------
 # verify — the fast gate
@@ -332,7 +321,7 @@ gates:
 # because its output changes between releases.
 #
 # roxygen2 loads the package, so the job installs its dependency closure
-# (pslr at PSLR_SHA included). The pin is usually not the current CRAN
+# (pslr included). The roxygen2 pin is usually not the current CRAN
 # release, so pak installs it by version, from P3M or by building it (seor's
 # job built 8.0.0 from source in 7s). Its own cache: the roxygen2 here is the
 # pin, not whatever another job pulls. The script regenerates in place, which

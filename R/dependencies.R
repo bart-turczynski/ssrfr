@@ -12,6 +12,15 @@
 # are not refusals (r-binding.md §2.2), and their text can quote the URL,
 # userinfo included, which ssrfr never relays (§2.3).
 
+# pslr is reached only through rurl, so ssrfr calls none of it. The import
+# below exists to enforce the floor in DESCRIPTION's Imports: pslr (>= 1.2.2)
+# is the first release that loads the public suffix list under a Turkish or
+# Azeri locale (SSRF-mspjpegk). Without a named import, R CMD check notes the
+# Imports entry as unused.
+#' @importFrom pslr psl_version
+#' @noRd
+NULL
+
 # The fixed rurl bundle (r-binding.md §2.1). It is internal and not
 # caller-configurable (INV-1): every argument is passed on every call that
 # takes it, including those equal to today's defaults.

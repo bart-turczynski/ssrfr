@@ -28,6 +28,7 @@ Depends:
     R (>= 4.1.0)
 Imports:
     curl (>= 7.0.0),
+    pslr (>= 1.2.2),
     raddr (>= 0.1.2),
     rurl (>= 3.1.0)
 Suggests:

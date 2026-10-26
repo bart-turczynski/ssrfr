@@ -18,6 +18,8 @@ Design docs never live in `docs/`, which belongs to pkgdown.
   Name them `YYYY-MM-DD-topic.R` and record the environment in the header.
 - [`references.md`](references.md) — pinned source URLs for `[sourced]` claims,
   keyed by spec section. Non-normative.
+- [`release-deltas.md`](release-deltas.md) — the CRAN release checklist, beside
+  the fleet one in seor.
 
 See also [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the structural map.
 

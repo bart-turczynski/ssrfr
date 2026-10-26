@@ -20,7 +20,7 @@ project:
   documentation:
     quickstart-guide: https://bart-turczynski.gitlab.io/ssrfr/
     detailed-guide: https://bart-turczynski.gitlab.io/ssrfr/reference/index.html
-    release-process: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/CONTRIBUTING.md
+    release-process: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/release-deltas.md
   repositories:
     - name: ssrfr
       url: https://gitlab.com/bart-turczynski/ssrfr

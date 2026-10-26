@@ -13,8 +13,8 @@
 # design/fleet-standard.md, "Local pre-push gate"). Copied from punycoder's
 # scripts/check-urls.R, itself ported from sitemapr's `urls` stage in
 # tools/verify.R; the three functions below are its verify_classify_urls(),
-# verify_url_self_test() and verify_urls(), unchanged apart from these
-# comments.
+# verify_url_self_test() and verify_urls(), with the /-/issues 404 exemption
+# removed (SEOR-sptibjph, seor ADR 0011).
 #
 # It runs as its own pre-push hook (`check-urls` in .pre-commit-config.yaml)
 # ahead of `verify`, so a dead link is reported in seconds rather than after

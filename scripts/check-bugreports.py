@@ -38,8 +38,9 @@ page today, so nothing is compared until one is added.
 
 WHAT IT CHECKS.
 
-1. `DESCRIPTION`'s `BugReports:` is the `/-/work_items` address,
-   optionally with a trailing slash, of the gitlab.com repository that
+1. `DESCRIPTION`'s `BugReports:` is the `/-/work_items` address, with no
+   trailing slash (scripts/verify.R allows the incoming NOTE for exactly
+   that form), of the gitlab.com repository that
    `DESCRIPTION`'s `URL:` names, and `codemeta.json`'s `"issueTracker"`
    is the same address.
 2. Each `man/*-package.Rd`'s "Report bugs at" link, when present, is
@@ -94,7 +95,7 @@ ISSUES_RE = re.compile(
 WORK_ITEMS_RE = re.compile(r"https://gitlab\.com/[\w.-]+/[\w.-]+/-/work_items\b")
 
 # DESCRIPTION's BugReports: value, in full, must match this.
-BUGREPORTS_RE = re.compile(r"^(https://gitlab\.com/[\w.-]+/[\w.-]+)/-/work_items/?$")
+BUGREPORTS_RE = re.compile(r"^(https://gitlab\.com/[\w.-]+/[\w.-]+)/-/work_items$")
 # A gitlab.com repository address in DESCRIPTION's URL: field.
 REPO_URL_RE = re.compile(r"(https://gitlab\.com/[\w.-]+/[\w.-]+?)/?(?=[\s,]|$)")
 ISSUE_TRACKER_RE = re.compile(r'"issueTracker"\s*:\s*"([^"]*)"')
@@ -314,8 +315,14 @@ def self_test() -> None:
         },
     )
 
-    # POSITIVE: a trailing slash is the same address.
-    expect_clean("trailing-slash", bugreports=f"{work_items}/", human=human_target)
+    # NEGATIVE: a trailing slash, which verify.R's incoming allowance does
+    # not match.
+    expect_flagged(
+        "trailing-slash",
+        "not a gitlab.com /-/work_items address",
+        bugreports=f"{work_items}/",
+        human=human_target,
+    )
 
     # POSITIVE: so is a trailing slash on URL:'s repository address.
     expect_clean(
@@ -447,7 +454,7 @@ def self_test() -> None:
         human={**human_target, ".gitlab/issue_templates/Bug report.md": f"Search {issues} first."},
     )
 
-    print("check-bugreports self-test: PASS (5 positive + 15 negative cases)")
+    print("check-bugreports self-test: PASS (4 positive + 16 negative cases)")
 
 
 def main() -> int:

@@ -2,9 +2,11 @@
 
 The fleet checklist is seor's
 [`design/release-checklist.md`](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/release-checklist.md).
-The checklist below moved here unchanged from `CONTRIBUTING.md` (SEOR-ogreubsr).
-It predates the fleet checklist and still lists every step, not only ssrfr's
-deltas; where the two disagree, this file wins.
+The checklist below moved here from `CONTRIBUTING.md` (SEOR-ogreubsr); only
+step 3's `BugReports:` bullet changed (SEOR-sptibjph). It predates the fleet
+checklist and still lists every step, not only ssrfr's deltas. Steps 9 and 10
+(`CRAN-SUBMISSION`) differ from the fleet checklist's step 8, pending
+reconciliation.
 
 ## CRAN release checklist
 

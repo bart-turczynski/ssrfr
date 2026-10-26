@@ -31,7 +31,7 @@ and CI runs `scripts/verify.R` on `main`; see
 Another pre-push hook, `docs-drift` (`bash scripts/check-docs-drift.sh`),
 fails when `man/`, `NAMESPACE` or `DESCRIPTION` in the pushed commit differ
 from what roxygen2 regenerates; run `devtools::document()` and commit the
-result. CI's `docs-drift` job runs the same check on `main`.
+result.
 
 Source lives in `R/`, tests live in `tests/testthat/`, and the design —
 specification, ADRs, evidence — lives in `design/`;

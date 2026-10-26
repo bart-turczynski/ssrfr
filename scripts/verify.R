@@ -170,36 +170,38 @@ v8_skipped <- "Skipping checking math rendering: package 'V8' unavailable"
 allowed_notes <- list(
   list(
     # Known paragraphs only; anything else R says here (a misspelling, a
-    # Title-case remark, a BugReports remark, an HTTP status for a URL) fails
-    # the gate. Wording from tools:::format.check_package_CRAN_incoming and
-    # tools:::format.check_url_db in R 4.6.0. A URL paragraph passes only when
-    # every URL in it is one of two kinds, with no other line in the
-    # paragraph:
-    # - DESCRIPTION's BugReports, exactly .../ssrfr/-/issues, answering 404.
-    #   That is the fleet's BugReports split (SEOR-ocbtrrnl;
-    #   scripts/check-bugreports.py holds it): R's incoming check wants a path
-    #   ending in /issues, and GitLab serves that as 404 to a signed-out
-    #   client since issues moved to /-/work_items. cran-comments.md explains
-    #   it to CRAN.
-    # - a URL that failed with Status "Error" and libcurl error 6 (could not
-    #   resolve host) or 28 (timed out), in the serial check's "libcurl error
-    #   code N:" form. Status 0 fails: R prints it with no message, so a
-    #   network blip and a broken server look the same. A dead domain also
-    #   fails to resolve and would pass, as it does offline; read the NOTE
-    #   before a submission.
+    # Title-case remark, an HTTP status for a URL) fails the gate. Wording
+    # from tools:::format.check_package_CRAN_incoming and
+    # tools:::format.check_url_db in R 4.6.0, and the BugReports paragraph
+    # from tools:::.check_package_CRAN_incoming in R 4.6.1.
+    # - The BugReports paragraph, for exactly .../ssrfr/-/work_items and the
+    #   .../-/work_items/issues R proposes. R's incoming check flags any
+    #   gitlab.com path not ending in /issues, but GitLab serves /-/issues as
+    #   404 to a non-browser client; CRAN invited the /-/work_items form on
+    #   2026-10-23 (seor ADR 0011; scripts/check-bugreports.py holds every
+    #   tracker link on it). cran-comments.md explains it to CRAN.
+    # - A URL paragraph passes only when every URL in it failed with Status
+    #   "Error" and libcurl error 6 (could not resolve host) or 28 (timed
+    #   out), in the serial check's "libcurl error code N:" form, with no
+    #   other line in the paragraph. Nothing is exempt by URL: a 404 fails.
+    #   Status 0 fails: R prints it with no message, so a network blip and a
+    #   broken server look the same. A dead domain also fails to resolve and
+    #   would pass, as it does offline; read the NOTE before a submission.
     check = "CRAN incoming feasibility",
     paragraphs = c(
       "Maintainer: .+",
       "New submission",
       "Version contains large components \\([0-9.]+\\.9[0-9]{3}\\)",
       paste0(
+        "The BugReports field in DESCRIPTION has",
+        "\n  https://gitlab\\.com/bart-turczynski/ssrfr/-/work_items",
+        "\nwhich should likely be",
+        "\n  https://gitlab\\.com/bart-turczynski/ssrfr/-/work_items/issues",
+        "\ninstead\\."
+      ),
+      paste0(
         "Found the following \\(possibly\\) invalid URLs?:",
         "(?:",
-        "\n  URL: https://gitlab\\.com/bart-turczynski/ssrfr/-/issues",
-        "\n    From: DESCRIPTION",
-        "\n    Status: 404",
-        "\n    Message: Not Found",
-        "|",
         "\n  URL: \\S+(?: \\(moved to \\S+\\))?",
         "\n    From: \\S+(?:\n {10}\\S+)*",
         "\n    Status: Error",
@@ -210,11 +212,12 @@ allowed_notes <- list(
     ),
     reason = paste(
       "Only R's pre-first-release lines (Maintainer, New submission, a .9xxx",
-      "version), the 404 on BugReports' /-/issues URL and URLs that timed",
-      "out or did not resolve are allowed. BugReports keeps /-/issues because",
-      "R's incoming check flags any other path, and GitLab serves it as 404",
-      "to a signed-out client (SEOR-ocbtrrnl). Any other HTTP status, status",
-      "0 or other libcurl error on a URL fails the gate."
+      "version), its suggestion of an /issues path for BugReports'",
+      "/-/work_items and URLs that timed out or did not resolve are allowed.",
+      "BugReports names /-/work_items because GitLab serves /-/issues as 404",
+      "to a non-browser client, and CRAN invited that form (seor ADR 0011).",
+      "Any HTTP status, status 0 or other libcurl error on a URL fails the",
+      "gate."
     )
   ),
   list(

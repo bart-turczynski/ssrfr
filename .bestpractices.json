@@ -40,7 +40,7 @@
   "report_tracker_status": "Met",
   "report_tracker_justification": "GitLab work items serve as the public issue tracker: https://gitlab.com/bart-turczynski/ssrfr/-/work_items",
   "report_process_status": "Met",
-  "report_process_justification": "Users submit bug reports through the GitLab issue tracker (https://gitlab.com/bart-turczynski/ssrfr/-/work_items), linked as \"Report a bug\" on the pkgdown site https://bart-turczynski.gitlab.io/ssrfr/ . DESCRIPTION names the same tracker as BugReports by its legacy /-/issues address, the form R's CRAN incoming check requires.",
+  "report_process_justification": "Users submit bug reports through the GitLab issue tracker (https://gitlab.com/bart-turczynski/ssrfr/-/work_items), linked as \"Report a bug\" on the pkgdown site https://bart-turczynski.gitlab.io/ssrfr/ , and named in DESCRIPTION's BugReports field.",
   "report_responses_status": "Met",
   "report_responses_justification": "No bug report has been filed on the public tracker to date (0 issues on 2026-10-03), so none is unacknowledged: https://gitlab.com/bart-turczynski/ssrfr/-/work_items",
   "enhancement_responses_status": "Met",

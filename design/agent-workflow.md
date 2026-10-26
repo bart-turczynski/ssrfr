@@ -29,10 +29,10 @@ exclusions, and why, are commented in the config.
 | Hook | Runs | Guards |
 |---|---|---|
 | `check-design` | `python3 scripts/check-design.py` | frozen ADRs, frontmatter, `ARCHITECTURE.md` naming every source directory, citations of git-ignored working space |
-| `check-bugreports` | `python3 scripts/check-bugreports.py` | the BugReports split: `DESCRIPTION` on `/-/issues`, human-facing tracker links on `/-/work_items` (SEOR-ocbtrrnl); its `--self-test` runs when the script changes |
+| `check-bugreports` | `python3 scripts/check-bugreports.py` | `DESCRIPTION`'s `BugReports:`, `codemeta.json` and every tracker link name `/-/work_items`, and no human-facing file links `/-/issues` ([seor ADR 0011](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/adr/0011-bugreports-names-work-items.md)); its `--self-test` runs when the script changes |
 | `check-toolchain` | `Rscript scripts/check-toolchain.R` | the machine: roxygen2 against `Config/roxygen2/version`, packages built under a newer R |
 | `check-citation` | `python3 scripts/check-citation.py` | `CITATION.cff` and `.zenodo.json` name the version `DESCRIPTION` points at, and only URLs it declares |
-| `check-urls` | `Rscript scripts/check-urls.R` | every URL the package declares answers; a dead one fails, an unreachable host only warns, and the only exemption is `BugReports`' `/-/issues` 404 |
+| `check-urls` | `Rscript scripts/check-urls.R` | every URL the package declares answers; a dead one fails, an unreachable host only warns, and nothing is exempt |
 | `docs-drift` | `bash scripts/check-docs-drift.sh` | `man/`, `NAMESPACE` and `DESCRIPTION` in the pushed commit match a fresh roxygen2 run (`scripts/check-docs-drift.R`, in a `git archive` export of that commit, never the working tree) |
 | `spelling` | `Rscript scripts/check-spelling.R` | spelling of `DESCRIPTION`, `man/`, vignettes, README and NEWS against en-US and `inst/WORDLIST` |
 | `verify` | `Rscript scripts/verify.R` | the package; stages listed in the script's header |

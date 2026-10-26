@@ -67,16 +67,16 @@ both.
      `full-check` job). There is no GitHub Actions CI. Finish the list once
      step 7 reports, before step 9.
    - The NOTEs: say what each one is. On a first submission that is "New
-     submission". R's URL check also reports the `BugReports` URL as possibly
-     invalid, Status 404. `DESCRIPTION` keeps the `/-/issues` form because R's
-     incoming check flags any other path, and a sibling package (pslr) was
-     archived at the pretest for declaring `/-/work_items`. GitLab serves
-     `/-/issues` as 404 to a signed-out client, and every file a person reads
-     links `/-/work_items` instead (SEOR-ocbtrrnl). Keep the `BugReports`
-     section of `cran-comments.md`, which says this; `allowed_notes` in
-     `scripts/verify.R` lets exactly that 404 through, and the
-     `check-bugreports` hook holds the split. Before you submit, check each
-     URL again with `curl -s -o /dev/null -w '%{http_code}\n' <url>`.
+     submission". R's incoming check also says the `BugReports` field "should
+     likely be" an `/issues` path. `DESCRIPTION` names `/-/work_items`, which
+     answers 200, because GitLab serves `/-/issues` as 404 to a non-browser
+     client, and CRAN invited the `/-/work_items` form on 2026-10-23
+     ([seor ADR 0011](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/adr/0011-bugreports-names-work-items.md)).
+     Keep the `BugReports` section of `cran-comments.md`, which says this;
+     `allowed_notes` in `scripts/verify.R` lets exactly that paragraph
+     through, and the `check-bugreports` hook holds every tracker link on
+     `/-/work_items`. Before you submit, check each URL again with
+     `curl -s -o /dev/null -w '%{http_code}\n' <url>`.
 4. **Run the verify gate** on the release commit: `Rscript scripts/verify.R`,
    then `Rscript scripts/check-spelling.R`. The gate runs lint, `news-version`,
    the tests with `NOT_CRAN=true` and `R CMD check --as-cran`. Its check stage

@@ -77,6 +77,24 @@ repos:
         pass_filenames: false
         files: ^scripts/check-bugreports\.py$
         stages: [pre-push]
+      # Every top-level NEWS.md bullet is one terse line: one source line, at
+      # most 32 words besides one trailing reference, no housekeeping and no
+      # Internal section (seor design/fleet-standard.md, "NEWS.md bullets").
+      # Ported from seor byte for byte; stdlib-only and offline.
+      - id: news-terse
+        name: NEWS.md bullets are one terse line
+        entry: python3 scripts/check-news.py NEWS.md
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: news-terse-self-test
+        name: check-news self-test
+        entry: python3 scripts/check-news.py --self-test
+        language: system
+        pass_filenames: false
+        files: ^scripts/check-news\.py$
+        stages: [pre-push]
       # Quick (one request, for CRAN's package index, which the check for a
       # dependency older than CRAN's reads: SEOR-hxxxkmws), and ahead of
       # `verify` on purpose: toolchain drift

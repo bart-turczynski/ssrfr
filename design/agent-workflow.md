@@ -30,6 +30,7 @@ exclusions, and why, are commented in the config.
 |---|---|---|
 | `check-design` | `python3 scripts/check-design.py` | frozen ADRs, frontmatter, `ARCHITECTURE.md` naming every source directory, citations of git-ignored working space |
 | `check-bugreports` | `python3 scripts/check-bugreports.py` | `DESCRIPTION`'s `BugReports:`, `codemeta.json` and every tracker link name `/-/work_items`, and no human-facing file links `/-/issues` ([seor ADR 0011](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/adr/0011-bugreports-names-work-items.md)); its `--self-test` runs when the script changes |
+| `news-terse` | `python3 scripts/check-news.py NEWS.md` | every top-level `NEWS.md` bullet is one terse line: one source line, at most 32 words besides one trailing reference, no housekeeping, no `Internal` section ([seor's fleet standard](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/fleet-standard.md)); its `--self-test` runs when the script changes |
 | `check-toolchain` | `Rscript scripts/check-toolchain.R` | the machine: roxygen2 against `Config/roxygen2/version`, packages built under a newer R |
 | `check-citation` | `python3 scripts/check-citation.py` | `CITATION.cff` and `.zenodo.json` name the version `DESCRIPTION` points at, and only URLs it declares |
 | `check-urls` | `Rscript scripts/check-urls.R` | every URL the package declares answers; a dead one fails, an unreachable host only warns, and nothing is exempt |
@@ -38,7 +39,7 @@ exclusions, and why, are commented in the config.
 | `verify` | `Rscript scripts/verify.R` | the package; stages listed in the script's header |
 
 `verify` is the same file the CI `verify` job runs. CI also runs
-`check-bugreports`, `check-citation` and `spelling` (see below);
+`check-bugreports`, `news-terse`, `check-citation` and `spelling` (see below);
 `check-design`, `check-toolchain` and `check-urls` run only locally.
 `docs-drift` also runs as its own CI job on `main` (SEOR-fhrisfpt), which
 installs roxygen2 at the pinned version and the package's dependencies.
@@ -56,7 +57,7 @@ hand at **Build > Pipelines > Run pipeline** and pick the ref.
 |---|---|---|
 | `verify` | `main` (a schedule too), `web` | `scripts/verify.R` |
 | `gates` | `main` (a schedule too), `web` | `scripts/gates.sh`: README drift against a fresh knit of `README.Rmd` (pandoc pinned), and spelling |
-| `citation-version` | `main` (a schedule too), `web` | `check-citation.py` and `check-bugreports.py`, each with its self-test |
+| `citation-version` | `main` (a schedule too), `web` | `check-citation.py`, `check-bugreports.py` and `check-news.py`, each with its self-test |
 | `coverage` | `main` (a schedule too), `web` | `covr`, reported as a GitLab coverage artifact; fails below 95% |
 | `docs-drift` | `main` (a schedule too), `web` | `scripts/check-docs-drift.R` in the job's clone, under the pinned roxygen2 |
 | `full-check` | a `deep-check` schedule, `web` (manual) | `scripts/verify.R` on R release, oldrel and devel |

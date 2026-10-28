@@ -121,11 +121,13 @@ unexpected (e.g. misspelled) arguments.
 
 A `NEWS.md` bullet goes only to a change a package user would act on or
 notice: behavior, API, dependencies, R or system requirements, installation.
-One terse line, no wrapping, no rationale prose, and one issue number in
-parentheses. No bullet for logos, image or repository metadata, badges, README
-cosmetics, CI, gates, lint sets, spelling sweeps, agent files or other
-housekeeping, and no `## Internal` section (seor's `AGENTS_LANG.md`). The verify gate's `news-version` stage
-checks that the top `NEWS.md` heading is `(development version)` or the
+One terse line, no wrapping, no rationale prose; where a standard decides it,
+a short clause citation such as "(RFC 3986 §2.2)"; at most one issue or MR
+reference, in parentheses, at the end. No bullet for logos, image or repository
+metadata, badges, README cosmetics, CI, gates, lint sets, spelling sweeps,
+agent files or other housekeeping, and no `## Internal` section (seor's
+`AGENTS_LANG.md`). The pre-push `news-terse` hook (`scripts/check-news.py`)
+enforces it. The verify gate's `news-version` stage checks that the top `NEWS.md` heading is `(development version)` or the
 `DESCRIPTION` `Version`, so bump both together.
 
 ### A red gate on an untouched tree

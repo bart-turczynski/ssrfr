@@ -18,7 +18,7 @@ License: MIT + file LICENSE
 URL: https://bart-turczynski.gitlab.io/ssrfr/,
     https://gitlab.com/bart-turczynski/ssrfr,
     https://bart-turczynski.r-universe.dev/ssrfr
-BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/issues
+BugReports: https://gitlab.com/bart-turczynski/ssrfr/-/work_items
 X-schema.org-keywords: ssrf, server-side-request-forgery, url-validation,
     ip-address, dns-rebinding, cloud-metadata, redirects, libcurl, security
 Encoding: UTF-8
@@ -46,4 +46,4 @@ Suggests:
 SystemRequirements: libcurl (>= 7.73.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.1

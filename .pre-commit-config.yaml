@@ -59,12 +59,12 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
-      # DESCRIPTION's BugReports keeps the /-/issues form R's incoming check
-      # asks for, and every human-facing tracker link uses /-/work_items
-      # (SEOR-ocbtrrnl). Vendored from pslr; stdlib-only and offline. The
-      # script's docstring says why the two forms must differ.
+      # DESCRIPTION's BugReports:, codemeta.json and every tracker link
+      # (.bestpractices.json, CONTRIBUTING.md, SECURITY.md) name /-/work_items,
+      # and no human-facing file may carry a /-/issues link (seor ADR 0011).
+      # Ported from seor's v2; stdlib-only and offline.
       - id: check-bugreports
-        name: BugReports split (DESCRIPTION vs human-facing tracker links)
+        name: BugReports and tracker links name /-/work_items
         entry: python3 scripts/check-bugreports.py
         language: system
         pass_filenames: false
@@ -105,9 +105,8 @@ repos:
       # inst/CITATION, NEWS, README.md) and fails on a dead one, in seconds
       # rather than after `verify`'s full check. A URL that cannot be reached
       # at all only warns, so a network blip never rejects a push; zero URLs
-      # checked fails; the only exemption is BugReports' /-/issues URL
-      # answering exactly 404 (SEOR-ocbtrrnl). The fleet standard's URL check,
-      # copied from punycoder's.
+      # checked fails; nothing is exempt (seor ADR 0011). The fleet standard's
+      # URL check, copied from punycoder's.
       - id: check-urls
         name: declared URLs resolve
         entry: Rscript scripts/check-urls.R

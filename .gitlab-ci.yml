@@ -10,7 +10,8 @@
 # news-version are stages of that script. The other cheap gates of seor's
 # design/fleet-standard.md run in `gates` (README drift, spelling) and
 # `citation-version` (CITATION.cff and .zenodo.json against DESCRIPTION, and
-# the BugReports split), and generated-docs drift in `docs-drift`. The deep
+# BugReports and the tracker links on /-/work_items), and generated-docs drift
+# in `docs-drift`. The deep
 # checks and the dependency audits run only on their own pipeline schedules,
 # and `fossa` on every push to main.
 
@@ -346,7 +347,8 @@ docs-drift:
 
 # CITATION.cff and .zenodo.json each duplicate the version and the project URLs
 # out of DESCRIPTION; scripts/check-citation.py, vendored from seor, holds them
-# to it. The BugReports split rides along (SEOR-ocbtrrnl). Offline,
+# to it. check-bugreports.py (BugReports and tracker links name /-/work_items,
+# seor ADR 0011) rides along. Offline,
 # stdlib-only Python, so it runs on a small python image rather than the R one.
 citation-version:
   extends: .on-main

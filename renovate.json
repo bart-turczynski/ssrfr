@@ -1,26 +1,21 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Renovate follows the CI pipeline cadence, a SCHEDULE_KIND=deep-check pipeline schedule, and a manual web run is intentional; so no schedule window here, and no hourly PR limit. Why: design/agent-workflow.md.",
+  "description": "Renovate runs as the x-renovate CI job on the SCHEDULE_KIND=deep-check pipeline schedule only, so no schedule window here, and no hourly PR limit. Why: design/agent-workflow.md.",
   "extends": ["config:recommended"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "labels": ["dependencies"],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "The R image tag lives in the R_VERSION variable of .gitlab-ci.yml, because the cache key needs it too, and the gitlabci manager cannot follow a tag through a variable. This bumps the line under the `# renovate:` comment.",
-      "managerFilePatterns": ["/(^|/)\\.gitlab-ci\\.yml$/"],
-      "matchStrings": [
-        "#\\s*renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
-      ]
-    }
-  ],
   "packageRules": [
     {
-      "description": "Group CI image bumps into a single weekly MR. This is the whole job for an R package: there is no CRAN manager, and DESCRIPTION declares version floors resolved against current CRAN at install time, so nothing else here is pinned. Replaces the old Dependabot `github-actions` group, which kept the r-lib/actions pins current.",
-      "matchManagers": ["gitlabci", "gitlabci-include", "custom.regex"],
+      "description": "Group CI image bumps into a single weekly MR. This is the whole job for an R package: there is no CRAN manager, and DESCRIPTION declares version floors resolved against current CRAN at install time, so nothing else here is pinned. The R images come from the fleet-ci template, pinned by SHA; what is left are the images of the x-* jobs in .gitlab-ci.yml.",
+      "matchManagers": ["gitlabci"],
       "groupName": "ci images",
       "commitMessagePrefix": "ci:"
+    },
+    {
+      "description": "Never bump the fleet-ci include: its ref must equal .fleet-ci/VERSION, so a bump re-runs fleet-ci's bin/vendor at the same SHA in the same merge request (.gitlab-ci.yml's header), which Renovate cannot do.",
+      "matchManagers": ["gitlabci-include"],
+      "enabled": false
     }
   ]
 }

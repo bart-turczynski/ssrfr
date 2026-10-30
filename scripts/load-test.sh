@@ -44,13 +44,14 @@
 # whatever the load multiple. The load is `yes > /dev/null`, multiple x cap
 # processes, started inside the container after setup and killed when the
 # cell ends, so "2x" means twice as many runnable processes as the container
-# may run at once. The image is the CI image, rocker/r-ver at the R_VERSION
-# .gitlab-ci.yml sets, with CI's repositories: the P3M snapshot it pins
-# first, CRAN behind it, so a raised DESCRIPTION floor resolves from CRAN.
-# On arm64 P3M serves no Linux binaries and everything compiles from source;
-# the library lives in a named volume keyed by R_VERSION, so that is paid
-# once. Each invocation installs the dependency closure (Suggests included,
-# as CI's .install-deps does) and the package itself, from a copy of the tree
+# may run at once. The image is rocker/r-ver at the R version of the fleet-ci
+# release image the gate and CI run (FLEET_IMAGE_R_RELEASE in
+# .fleet-ci/images), with the repositories the former CI used: the P3M
+# snapshot `p3m_snapshot` below pins first, CRAN behind it, so a raised
+# DESCRIPTION floor resolves from CRAN. On arm64 this script asks P3M for
+# source, so everything compiles; the library lives in a named volume keyed
+# by the R version, so that is paid once. Each invocation installs the
+# dependency closure (Suggests included) and the package itself, from a copy of the tree
 # made inside the container (the tree is mounted read-only). Tests run against the installed
 # package with testthat::test_dir(), as R CMD check runs them, under
 # NOT_CRAN=true, as rcmdcheck sets it. The test files are discovered, not
@@ -68,8 +69,8 @@
 # waits for each. Containers carry the label ssrfr-loadtest; after a run,
 # `docker ps -a --filter label=ssrfr-loadtest` must be empty.
 #
-# Left behind for reuse: the image ssrfr-loadtest:r<R_VERSION> and the volume
-# ssrfr-loadtest-lib-r<R_VERSION>. Remove them with
+# Left behind for reuse: the image ssrfr-loadtest:r<R version> and the volume
+# ssrfr-loadtest-lib-r<R version>. Remove them with
 #   docker rmi ssrfr-loadtest:r4.6.1; docker volume rm ssrfr-loadtest-lib-r4.6.1
 
 set -euo pipefail
@@ -193,14 +194,16 @@ vm_cpus=$(docker info --format '{{.NCPU}}' 2> /dev/null) ||
 [ "$cpus" -ge 1 ] && [ "$cpus" -lt "$vm_cpus" ] ||
   die "--cpus $cpus must be at least 1 and below the Docker VM's $vm_cpus CPUs"
 
-ci="$root/.gitlab-ci.yml"
-civar() {
-  sed -n "s/^ *$1: \"\\([^\"]*\\)\".*/\\1/p" "$ci" | head -n 1
-}
-r_version=$(civar R_VERSION)
-p3m_snapshot=$(civar P3M_SNAPSHOT)
-[ -n "$r_version" ] || die "no R_VERSION in .gitlab-ci.yml"
-[ -n "$p3m_snapshot" ] || die "no P3M_SNAPSHOT in .gitlab-ci.yml"
+# The R version of fleet-ci's release image, from its tag in
+# .fleet-ci/images (fleet-r:<R version>-<date>@sha256:...). The P3M snapshot
+# is this script's own pin, the one the former CI used.
+images="$root/.fleet-ci/images"
+r_version=$(sed -n 's/^FLEET_IMAGE_R_RELEASE=.*:\([0-9][0-9.]*\)-[0-9]\{8\}@.*/\1/p' "$images" 2> /dev/null | head -n 1)
+# Hard-coded, unlike r_version above: a re-vendor of .fleet-ci/ that moves
+# the release image to a newer R does not touch it. Bump it in the same
+# change as that re-vendor, to a date on which P3M serves the new R.
+p3m_snapshot=2026-09-01
+[ -n "$r_version" ] || die "no FLEET_IMAGE_R_RELEASE R version in .fleet-ci/images"
 
 image="ssrfr-loadtest:r$r_version"
 volume="ssrfr-loadtest-lib-r$r_version"
@@ -292,8 +295,8 @@ waited "" docker run -d --rm --init --name "$name" --label ssrfr-loadtest=1 \
   -e MAKEFLAGS="-j$cpus" -e NOT_CRAN=true \
   "$image" sleep infinity > /dev/null
 
-# The setup, as CI's before_script and .install-deps do it, minus what only
-# R CMD check needs (LaTeX, pandoc, tidy, the hostile locales).
+# The setup, as the former CI's before_script and .install-deps did it, minus
+# what only R CMD check needs (LaTeX, pandoc, tidy, the hostile locales).
 setup='
 set -eu
 mkdir -p "$R_LIBS_USER" "$PKG_CACHE_DIR"

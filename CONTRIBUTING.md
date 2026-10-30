@@ -8,30 +8,39 @@ GitLab; the GitHub repository is a read-only mirror.
 New code needs tests, and each user-facing change needs one `NEWS.md` bullet.
 A merge request must pass the verification command below.
 
-Install the package dependencies (from `DESCRIPTION`) plus the dev tooling the
-checks use:
+Verification is fleet-ci's local gate, which runs in the fleet Docker image
+(settings in `.fleet-ci.yml`); the gate itself needs Docker, python3, Ruby
+and git. The pre-push hooks still need a local R: the `check-toolchain` hook
+runs `Rscript scripts/check-toolchain.R`, which needs the yaml package, the
+roxygen2 that `DESCRIPTION`'s `Config/roxygen2/version` pins, rmarkdown, and
+pandoc 3.10 (`.fleet-ci/toolchain`). Install the hooks once per clone, from
+the package root:
 
 ```sh
-Rscript -e 'pak::local_install_deps(dependencies = TRUE)'
-Rscript -e 'pak::pak(c("lintr", "rcmdcheck"))'
+pre-commit install
+.fleet-ci/pre-push --install
 ```
 
-Run verification:
-
-```sh
-Rscript scripts/verify.R
-python3 scripts/check-design.py
-```
-
-`scripts/verify.R` runs `lintr`, a NEWS heading check, the testthat tests with
-`NOT_CRAN=true`, failing on any skipped test or one with no expectation, and
-`R CMD check --as-cran`, then prints one verdict. Both run as pre-push hooks,
-and CI runs `scripts/verify.R` on `main`; see
+From then on the gate runs on every push, on each pushed ref's tip, followed
+by the pre-commit pre-push hooks (`python3 scripts/check-design.py` among
+them). A docs-only change gets spelling and `pkgdown::check_pkgdown()`; any
+other gets docs drift, `lintr`, README drift, a NEWS heading check, the URL
+check and `R CMD check --as-cran` with the tests under `NOT_CRAN=true`,
+failing on any skipped test or one with no expectation; see
 [`design/agent-workflow.md`](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/agent-workflow.md).
-Another pre-push hook, `docs-drift` (`bash scripts/check-docs-drift.sh`),
-fails when `man/`, `NAMESPACE` or `DESCRIPTION` in the pushed commit differ
-from what roxygen2 regenerates; run `devtools::document()` and commit the
-result.
+`pre-commit install -f` (which installs both hook types, from
+`.pre-commit-config.yaml`'s `default_install_hook_types`) and
+`pre-commit install -f --hook-type pre-push` replace that hook and drop the
+gate; re-run `.fleet-ci/pre-push --install` after either. Without `-f`,
+`pre-commit install` keeps the gate (pre-commit's migration mode). To run the
+gate by hand on `HEAD`:
+
+```sh
+.fleet-ci/gate auto
+```
+
+The gate checks the committed tree, never uncommitted edits. When docs drift
+fails, run `devtools::document()` and commit the result.
 
 Source lives in `R/`, tests live in `tests/testthat/`, and the design —
 specification, ADRs, evidence — lives in `design/`;

@@ -1,0 +1,115 @@
+# The fleet-ci local gate's settings: T0 (docs) and T1 (full) before every
+# push, run by .fleet-ci/gate in the fleet image (fleet-ci README, "The
+# .fleet-ci.yml file"; seor ADR 0012). Read from the pushed commit. The
+# t2-locale and pages CI jobs read it too.
+version: 1
+
+# The image the gate runs in. It must be .gitlab-ci.yml's
+# FLEET_RELEASE_VARIANT (default fleet-r).
+variant: fleet-r
+
+# No docs_exclude: no full-tier gate reads a docs-allowlisted path. The
+# docs tier's own check_pkgdown() reads _pkgdown.yml, and the pre-push hooks
+# that read _pkgdown.yml or design/**/*.md (scripts/check-bugreports.py,
+# scripts/check-design.py) run on every push whatever the tier.
+
+# T0, and the start of T1. Genuine terms go in inst/WORDLIST (SEOR-mtbzfroz).
+docs_gates:
+  - Rscript scripts/check-spelling.R
+
+# T1, in the container after the dependency install, each run whatever the
+# others report: man/, NAMESPACE and DESCRIPTION against a fresh roxygen2
+# run (SEOR-nwfmerhu), lintr, README.md against a fresh knit, the NEWS
+# heading against the version, and every declared URL (the gate's R CMD
+# check runs with remote incoming, and so its URL check, off; t2-ascran
+# runs it with incoming on).
+cheap_gates:
+  - Rscript scripts/check-docs-drift.R .
+  - Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }'
+  - sh scripts/check-readme-drift.sh
+  - Rscript scripts/check-news-version.R
+  - Rscript scripts/check-urls.R
+
+# test-locale.R (REQ-094) runs a leg for each hostile locale the machine
+# has. The gate runs as the invoking user, so it compiles these into its own
+# LOCPATH, where glibc finds no other: every locale the checks or the
+# assertion use is listed. CI's t2-locale builds the same list.
+#
+# tr_TR.ISO8859-9 is the Latin-5 locale, built on glibc's ISO-8859-9
+# charmap (fleet-ci maps the codeset to it). It also answers to glibc's
+# normalized name, tr_TR.iso88599, the test's other Latin-5 leg; fleet-ci
+# refuses that name as a second entry.
+locales:
+  - tr_TR.UTF-8
+  - tr_TR.ISO8859-9
+  - az_AZ.UTF-8
+  - lt_LT.UTF-8
+
+# The leg the assertion follows, here and in t2-locale: a second, lighter
+# check under the same locale as the gate's own check, C.UTF-8 (no
+# --as-cran, --ignore-vignettes, no NOTE policy), existing only so the
+# locale assertion has a leg to follow. Under C, 2 tests fail; under
+# Latin-5, 330 fail, because of the test files' UTF-8 literals outside each
+# charset.
+locale_legs:
+  - C.UTF-8
+
+# The positive locale assertion: callr present and every hostile locale
+# usable, so test-locale.R cannot pass having run no hostile leg. Run after
+# the locale leg's check, here and in t2-locale.
+locale_assertions:
+  - Rscript scripts/check-locale-legs.R
+
+# The gate runs R CMD check with NOT_CRAN=true, so skip_on_cran() no longer
+# keeps these out of it. T2 runs both, as osv-audit and security-audit.
+exclude_tests:
+  - path: tests/testthat/test-osv.R
+    why: queries osv.dev over the network; the osv-audit job runs it in T2
+  - path: tests/testthat/test-security.R
+    why: queries Sonatype OSS Index with credentials the gate does not have; the security-audit job runs it in T2
+
+# Every skip R CMD check's test run may report; any other fails the gate. A
+# skipped test fails, as an expectation-free one does (ssrfr-v1.md §7.2), so
+# the list is empty.
+allowed_skips: []
+
+# Every R CMD check NOTE the gate and the T2 check legs (t2-check-release,
+# -oldrel, -devel) may report; any other fails them. t2-ascran does not apply
+# this list. The former scripts/verify.R's allowed_notes, one regex per
+# entry, each matching the whole NOTE: its "checking ..." line, then its
+# text, trailing spaces and line breaks tolerated; an entry that matched no
+# NOTE is reported as a warning only.
+#
+# All three stay for parity with the former verify, but entries 1 and 2
+# match nothing today: incoming is off in the gate and in the T2 check legs,
+# t2-ascran (incoming on) applies no list, and no Rd file uses \eqn or
+# \deqn.
+#
+# 1. CRAN incoming feasibility, by paragraph: only R's pre-first-release
+#    lines (Maintainer, New submission, a .9xxx version), its suggestion of
+#    an /issues path for BugReports' /-/work_items (GitLab serves /-/issues
+#    as 404 to a non-browser client; CRAN invited the /-/work_items form,
+#    seor ADR 0011; cran-comments.md explains it), and URLs that each failed
+#    with Status "Error" and libcurl error 6 (could not resolve host) or 28
+#    (timed out). Any other paragraph fails: a misspelling, an HTTP status,
+#    status 0, another libcurl error.
+# 2. HTML version of manual: R skipped math rendering because V8 is not
+#    installed (neither a dependency nor tooling here); R says so only once
+#    an Rd file has \eqn or \deqn. The HTML Tidy skip is not allowed.
+# 3. Future file timestamps: no time server was reachable, so R could not
+#    check the clock.
+allowed_notes:
+  - '^checking CRAN incoming feasibility \.\.\.[^\n]*NOTE[ \t]*\n(?:Maintainer: [^\n]+|New submission|Version contains large components \([0-9.]+\.9[0-9]{3}\)|The BugReports field in DESCRIPTION has[ \t]*\n  https://gitlab\.com/bart-turczynski/ssrfr/-/work_items[ \t]*\nwhich should likely be[ \t]*\n  https://gitlab\.com/bart-turczynski/ssrfr/-/work_items/issues[ \t]*\ninstead\.|Found the following \(possibly\) invalid URLs?:(?:[ \t]*\n  URL: [^ \t\n]+(?: \(moved to [^ \t\n]+\))?[ \t]*\n    From: [^ \t\n]+(?:[ \t]*\n {10}[^ \t\n]+)*[ \t]*\n    Status: Error[ \t]*\n    Message: libcurl error code (?:6|28):[ \t]*\n {6}\t?[^ \t\n][^\n]*)+)(?:[ \t]*\n(?:[ \t]*\n)+(?:Maintainer: [^\n]+|New submission|Version contains large components \([0-9.]+\.9[0-9]{3}\)|The BugReports field in DESCRIPTION has[ \t]*\n  https://gitlab\.com/bart-turczynski/ssrfr/-/work_items[ \t]*\nwhich should likely be[ \t]*\n  https://gitlab\.com/bart-turczynski/ssrfr/-/work_items/issues[ \t]*\ninstead\.|Found the following \(possibly\) invalid URLs?:(?:[ \t]*\n  URL: [^ \t\n]+(?: \(moved to [^ \t\n]+\))?[ \t]*\n    From: [^ \t\n]+(?:[ \t]*\n {10}[^ \t\n]+)*[ \t]*\n    Status: Error[ \t]*\n    Message: libcurl error code (?:6|28):[ \t]*\n {6}\t?[^ \t\n][^\n]*)+))*[ \t\n]*$'
+  - '^checking HTML version of manual \.\.\.[^\n]*NOTE[ \t]*\n[ \t]*Skipping checking math rendering: package ''V8'' unavailable[ \t\n]*$'
+  - '^checking for future file timestamps \.\.\.[^\n]*NOTE[ \t]*\n[ \t]*(?:unable to verify current time|Unable[ \t\n]+to[ \t\n]+verify[ \t\n]+current[ \t\n]+time\.[ \t\n]+To[ \t\n]+disable[ \t\n]+remote[ \t\n]+verification,[ \t\n]+set[ \t\n]+environment[ \t\n]+variable[ \t\n]+_R_CHECK_SYSTEM_CLOCK_[ \t\n]+to[ \t\n]+a[ \t\n]+false[ \t\n]+value\.)[ \t\n]*$'
+
+# The top-level .md files the pkgdown site publishes; every other one (the
+# agent files among them) is moved out before build_site()
+# (design/agent-workflow.md, "The Pages keep-list").
+pages_keep:
+  - README.md
+  - NEWS.md
+  - LICENSE.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+  - CODE_OF_CONDUCT.md

@@ -1,5 +1,6 @@
 url: https://bart-turczynski.gitlab.io/ssrfr/
-destination: site
+# No `destination`: the site builds into pkgdown's default docs/, which
+# fleet-ci's `pages` job publishes (design/agent-workflow.md).
 
 template:
   bootstrap: 5

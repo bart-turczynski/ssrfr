@@ -12,8 +12,9 @@ package dependencies, so they are not in `DESCRIPTION`.
   `testthat::test_local(filter = "corpus")` (matches `test-corpus.R`).
 - Regenerate docs: `devtools::document()` — rebuilds `man/` and `NAMESPACE` from
   the roxygen comments in `R/`.
-- Verify gate: `Rscript scripts/verify.R`. The pre-push hook and CI run exactly
-  that file; its header lists the stages.
+- Verify gate: `.fleet-ci/gate auto`, fleet-ci's local gate, in the fleet
+  image; the pre-push hook runs it. Its checks are in `.fleet-ci.yml`, and
+  `design/agent-workflow.md` lists the tiers.
 - When no R REPL is available, run snippets with `Rscript -e "..."`.
 
 ### Formatting
@@ -74,8 +75,9 @@ Documented deviations from the goodpractice set:
 ### Code style
 
 - `DESCRIPTION` sets the floor at R 4.1.0, the floor `rurl` and `raddr`
-  need. The weekly `deep-check` pipeline's `floor-check` job checks on R
-  4.1.3, so nothing newer than R 4.1 may be used.
+  need. The `x-floor` CI job, in the weekly `deep-check` pipeline and every
+  release pipeline, checks on R 4.1.3, so nothing newer than R 4.1 may be
+  used.
 - `snake_case` for functions and arguments; explicit `pkg::fn()` prefixes.
 - Layout is automated by Air (see [Formatting](#formatting)).
 
@@ -108,7 +110,7 @@ Documented deviations from the goodpractice set:
 - Every exported function needs a title, a `@param` per argument, `@return`, and
   runnable `@examples`. Internal helpers stay unexported and undocumented.
 - Wrap roxygen comments at 80 columns. Add new help topics to `_pkgdown.yml`
-  once it lists them; do not hand-edit the generated site in `site/`.
+  once it lists them; do not hand-edit the generated site in `docs/`.
 
 ### New functions
 
@@ -127,16 +129,19 @@ reference, in parentheses, at the end. No bullet for logos, image or repository
 metadata, badges, README cosmetics, CI, gates, lint sets, spelling sweeps,
 agent files or other housekeeping, and no `## Internal` section (seor's
 `AGENTS_LANG.md`). The pre-push `news-terse` hook (`scripts/check-news.py`)
-enforces it. The verify gate's `news-version` stage checks that the top `NEWS.md` heading is `(development version)` or the
+enforces it. The gate's `scripts/check-news-version.R` checks that the top `NEWS.md` heading is `(development version)` or the
 `DESCRIPTION` `Version`, so bump both together.
 
 ### A red gate on an untouched tree
 
-Toolchain drift makes the verify gate go red on a tree nobody changed, and it
-looks exactly like a defect in the change being made. `scripts/check-toolchain.R`
-runs ahead of the expensive step and names it in one line: roxygen2's installed
-version against this package's `Config/roxygen2/version`, and any installed
-package built under a newer R than the one running (SEOR-tcytizic).
+The gate runs in the image the fleet-ci pin names, so this machine's R
+library cannot turn it red. A dependency that moved on CRAN can: the gate
+resolves the dependencies afresh on every run. The pre-push
+`check-toolchain` hook (`scripts/check-toolchain.R`) still checks this
+machine, roxygen2 and pandoc against the pins, so that a local
+`devtools::document()` or README knit writes what the gate accepts
+(SEOR-tcytizic).
 
-If that check passes and the gate is still red on a tree you have not touched,
-say so and keep the evidence rather than assuming your change caused it.
+If the gate is red on a tree you have not touched, say so and keep the
+evidence (`FLEET_GATE_KEEP=<dir>` keeps the container's output) rather than
+assuming your change caused it.

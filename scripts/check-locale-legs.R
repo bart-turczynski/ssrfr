@@ -10,11 +10,12 @@
 # for each Turkish, Azeri and Lithuanian locale the machine accepts, through
 # callr, and runs none when the locales or callr are missing; that would
 # still pass. So this asserts what the test needs: callr in the run library
-# the check used, every hostile locale below usable by R, the Latin-5 ones
-# with an ISO-8859-9 codeset (a locale built on the wrong charmap is
-# accepted with an ASCII one, a leg that is not Latin-5), and tr_TR.UTF-8
-# folding "I" to a dotless i (U+0131). It also asserts that the check it
-# follows ran the tests at all.
+# the check used, every hostile locale below usable by R with the codeset
+# its name says (the Latin-5 ones ISO-8859-9, the .UTF-8 ones UTF-8: a
+# locale built on the wrong charmap is accepted with an ASCII one, a leg
+# that is not what it is named), and tr_TR.UTF-8 folding "I" to a dotless
+# i (U+0131). It also asserts that the check it follows ran the tests at
+# all, test-locale.R among them.
 #
 # A `locale_assertions` entry of .fleet-ci.yml: the fleet-ci local gate runs
 # it after each locale leg's check (full tier), and CI's `t2-locale` after
@@ -52,6 +53,20 @@ if (!nzchar(rcheck) || !any(file.exists(rout))) {
     )
   )
 }
+# R CMD check copies the package's tests/ into the .Rcheck directory before
+# it runs them, so test-locale.R is there whenever the check ran it (the
+# check reporter names no test file in testthat.Rout).
+test_locale <- file.path(rcheck, "tests", "testthat", "test-locale.R")
+if (!nzchar(rcheck) || !file.exists(test_locale)) {
+  problems <- c(
+    problems,
+    paste0(
+      "no '",
+      test_locale,
+      "': the check this follows did not run test-locale.R"
+    )
+  )
+}
 
 libs <- c(
   strsplit(Sys.getenv("R_LIBS"), .Platform$path.sep, fixed = TRUE)[[1L]],
@@ -76,19 +91,32 @@ for (locale in hostile_locales) {
       problems,
       paste0("R cannot use locale ", locale, ", so test-locale.R skips it")
     )
-  } else if (locale %in% latin5_locales) {
-    codeset <- l10n_info()$codeset
+    next
+  }
+  info <- l10n_info()
+  codeset <- if (is.null(info$codeset)) "" else info$codeset
+  if (locale %in% latin5_locales) {
     if (!grepl("^ISO-?8859-9$", toupper(codeset))) {
       problems <- c(
         problems,
         paste0(
           locale,
-          " has codeset ",
+          " has codeset '",
           codeset,
-          ", not ISO-8859-9: it is not a Latin-5 leg"
+          "', not ISO-8859-9: it is not a Latin-5 leg"
         )
       )
     }
+  } else if (endsWith(locale, ".UTF-8") && !isTRUE(info$`UTF-8`)) {
+    problems <- c(
+      problems,
+      paste0(
+        locale,
+        " has codeset '",
+        codeset,
+        "', not UTF-8: it is not a UTF-8 leg"
+      )
+    )
   }
 }
 if (nzchar(suppressWarnings(Sys.setlocale("LC_CTYPE", "tr_TR.UTF-8")))) {
@@ -106,8 +134,9 @@ if (length(problems)) {
   quit(status = 1L)
 }
 cat(
-  "check-locale-legs: callr present; usable: ",
+  "check-locale-legs: test-locale.R ran; callr present; usable: ",
   paste(hostile_locales, collapse = ", "),
-  "; Latin-5 codeset ISO-8859-9; tr_TR.UTF-8 folds I to a dotless i\n",
+  "; Latin-5 codeset ISO-8859-9, the others UTF-8; ",
+  "tr_TR.UTF-8 folds I to a dotless i\n",
   sep = ""
 )

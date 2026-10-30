@@ -147,13 +147,16 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
   offline tests (the allow-list is well formed, the validator rejects
   non-decisions) run only in `security-audit` (T2, T3). Moving them to a
   file of their own needs a `tests/` change, a follow-up.
-- **`t2-ascran` applies no NOTE list.** The former `verify` failed on any
-  R CMD check NOTE outside its `allowed_notes`, on every push.
-  `.fleet-ci.yml`'s `allowed_notes` carries the same list as regular
-  expressions: the local gate and the T2 check legs (`t2-check-release`,
-  `t2-check-oldrel`, `t2-check-devel`) fail on an unlisted NOTE, while
+- **`t2-ascran`, `x-floor` and `t2-locale` apply no NOTE list.** The
+  former `verify` failed on any R CMD check NOTE outside its
+  `allowed_notes`, on every push. `.fleet-ci.yml`'s `allowed_notes` keeps
+  its three entries as regular expressions, and the local gate,
+  `t2-check-release`, `t2-check-oldrel` and `t2-check-devel` enforce it:
+  they fail on an unlisted NOTE. `t2-ascran`, `x-floor` and `t2-locale`
+  apply no NOTE list. No job polices incoming NOTEs: the enforcing ones
+  run with incoming off, so the incoming entry matches nothing, and
   `t2-ascran`, the one leg that runs the incoming feasibility and URL
-  checks, does not. Read its NOTEs before a submission.
+  checks, applies no list. Read its NOTEs before a submission.
 - **The locale leg runs under `C.UTF-8`, not `C`** (`.fleet-ci.yml`'s
   `locale_legs`). Under `LC_ALL=C` the session charset is ASCII, R cannot
   translate the test files' UTF-8 literals, and two tests fail

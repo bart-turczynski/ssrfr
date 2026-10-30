@@ -45,18 +45,12 @@ locales:
   - az_AZ.UTF-8
   - lt_LT.UTF-8
 
-# The leg the assertion follows: one more check, here and in t2-locale,
-# under C.UTF-8, the session locale of the former CI, rather than the
-# default C. Under C the session charset is ASCII, R cannot translate the
-# test files' UTF-8 literals, and two tests fail (test-resolve.R:155 among
-# them); the hostile locales run inside test-locale.R whatever the leg.
-# The leg repeats the gate's own check, which already runs under C.UTF-8:
-# it exists so the locale assertion has a leg to follow. A Latin-5 leg
-# cannot take its place: under LC_ALL=tr_TR.ISO8859-9 the test files'
-# UTF-8 literals outside Latin-5 (test-inspect.R's fullwidth forms,
-# test-binding.R's) cannot be translated either, and 330 tests failed in
-# such a leg (fleet-ci v1.2.0, 2026-10-30). The Latin-5 locales run inside
-# test-locale.R, as the former CI ran them.
+# The leg the assertion follows, here and in t2-locale: a second, lighter
+# check under the same locale as the gate's own check, C.UTF-8 (no
+# --as-cran, --ignore-vignettes, no NOTE policy), existing only so the
+# locale assertion has a leg to follow. Under C, 2 tests fail; under
+# Latin-5, 330 fail, because of the test files' UTF-8 literals outside each
+# charset.
 locale_legs:
   - C.UTF-8
 
@@ -83,9 +77,13 @@ allowed_skips: []
 # -oldrel, -devel) may report; any other fails them. t2-ascran does not apply
 # this list. The former scripts/verify.R's allowed_notes, one regex per
 # entry, each matching the whole NOTE: its "checking ..." line, then its
-# text, trailing spaces and line breaks tolerated. Neither the gate nor those
-# legs runs the incoming check, so its entry never matches there; an entry
-# that matched no NOTE is reported as a warning only.
+# text, trailing spaces and line breaks tolerated; an entry that matched no
+# NOTE is reported as a warning only.
+#
+# All three stay for parity with the former verify, but entries 1 and 2
+# match nothing today: incoming is off in the gate and in the T2 check legs,
+# t2-ascran (incoming on) applies no list, and no Rd file uses \eqn or
+# \deqn.
 #
 # 1. CRAN incoming feasibility, by paragraph: only R's pre-first-release
 #    lines (Maintainer, New submission, a .9xxx version), its suggestion of

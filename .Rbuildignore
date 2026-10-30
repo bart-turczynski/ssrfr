@@ -9,6 +9,9 @@
 ^\.lintr$
 ^air\.toml$
 ^_pkgdown\.yml$
+# Kept so a site/ left in an older clone by the former `destination: site`
+# cannot reach the tarball.
+^site$
 ^public$
 ^\.r-lib$
 ^\.pak-cache$

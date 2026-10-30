@@ -126,6 +126,8 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
   snapshot inside R 4.1's support window, and rurl comes from a commit until
   CRAN serves its R 4.1 IPv6 fix. `x-floor` (on `.t2-job`) keeps the former
   `floor-check` unchanged; `.gitlab-ci.yml` has the detail.
+  It runs with incoming off: `.t2-job` also runs it in `v*` tag pipelines,
+  where incoming warns "Insufficient package version"; `t2-ascran` covers it.
 - **No sanitizer leg (`FLEET_SANITIZERS: "false"`).** ssrfr has no compiled
   code; the former CI had none either.
 - **No hostile locales in `x-floor`**, so `test-locale.R` skips its legs

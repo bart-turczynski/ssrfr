@@ -80,6 +80,8 @@ x-floor:
     R_CRAN_SRC: "https://cloud.r-project.org"
     R_CRAN_WEB: "https://cloud.r-project.org"
     _R_CHECK_FORCE_SUGGESTS_: "false"
+    # Incoming off: on a release tag it warns "Insufficient package version"; t2-ascran covers incoming.
+    _R_CHECK_CRAN_INCOMING_: "false"
     R_LIBS_USER: "$CI_PROJECT_DIR/.cache/R-floor"
     R_LIBS: "$CI_PROJECT_DIR/.cache/R-floor:/usr/local/lib/R/site-library:/usr/local/lib/R/library"
   cache:

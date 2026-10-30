@@ -8,12 +8,18 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=5120']
+      # .fleet-ci/ is fleet-ci's bin/vendor output, which seor's fleet checker
+      # requires byte for byte; re-run bin/vendor rather than editing it. So
+      # no fixer, formatter or speller here touches it.
       - id: end-of-file-fixer
+        exclude: &vendored '^\.fleet-ci/'
       - id: trailing-whitespace
+        exclude: *vendored
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
       - id: mixed-line-ending
+        exclude: *vendored
       - id: check-case-conflict
   # Air (https://posit-dev.github.io/air/) formats R sources on commit. The
   # hook bootstraps its own R-free binary, so no global install is needed.
@@ -23,7 +29,7 @@ repos:
     rev: 0.12.0
     hooks:
       - id: air-format
-        exclude: ^design/evidence/
+        exclude: ^(design/evidence/|\.fleet-ci/)
   # British spellings in code, comments, string literals, test names, fixture
   # notes, tooling and design prose, which spelling::spell_check_package() (the
   # `spelling` hook below) never reads: it covers DESCRIPTION, roxygen,
@@ -42,6 +48,7 @@ repos:
   #   design/adr/0001-network-safety-policy.md, 0003-one-normative-spec.md --
   #     accepted ADRs are frozen (scripts/check-design.py). A later status
   #     change to `superseded` would otherwise trip this hook.
+  #   .fleet-ci/ -- fleet-ci's bin/vendor output (see the fixers above).
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.3
     hooks:
@@ -49,7 +56,7 @@ repos:
         name: codespell (British spellings, en-GB_to_en-US; SEOR-xtmnpmae)
         args: [--builtin, en-GB_to_en-US, --ignore-words-list, mitre]
         stages: [pre-commit, pre-push]
-        exclude: '^(man/|design/evidence/|design/adr/0001-network-safety-policy\.md$|design/adr/0003-one-normative-spec\.md$)'
+        exclude: '^(\.fleet-ci/|man/|design/evidence/|design/adr/0001-network-safety-policy\.md$|design/adr/0003-one-normative-spec\.md$)'
   - repo: local
     hooks:
       - id: check-design

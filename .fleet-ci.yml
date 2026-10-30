@@ -1,0 +1,75 @@
+# The fleet-ci local gate's settings: T0 (docs) and T1 (full) before every
+# push, run by .fleet-ci/gate in the fleet image (fleet-ci README, "The
+# .fleet-ci.yml file"; seor ADR 0012). Read from the pushed commit. The
+# t2-locale and pages CI jobs read it too.
+version: 1
+
+# The image the gate runs in. It must be .gitlab-ci.yml's
+# FLEET_RELEASE_VARIANT (default fleet-r).
+variant: fleet-r
+
+# Allowlisted paths a gate or hook here reads, so a change to them is never
+# docs-only: scripts/check-bugreports.py (a pre-push hook) reads _pkgdown.yml
+# for tracker links. scripts/check-design.py also reads design/**/*.md, but
+# it runs as a pre-push hook on every push whatever the tier, so a design
+# change cannot skip it and design/ stays docs.
+docs_exclude:
+  - _pkgdown.yml
+
+# T0, and the start of T1. Genuine terms go in inst/WORDLIST (SEOR-mtbzfroz).
+docs_gates:
+  - Rscript scripts/check-spelling.R
+
+# T1, in the container after the dependency install, each run whatever the
+# others report: man/, NAMESPACE and DESCRIPTION against a fresh roxygen2
+# run (SEOR-nwfmerhu), lintr, README.md against a fresh knit, the NEWS
+# heading against the version, and every declared URL (the gate's R CMD
+# check runs with remote incoming, and so its URL check, off; t2-ascran
+# runs it with incoming on).
+cheap_gates:
+  - Rscript scripts/check-docs-drift.R .
+  - Rscript -e 'lints <- lintr::lint_package(); if (length(lints)) { print(lints); quit(status = 1) }'
+  - sh scripts/check-readme-drift.sh
+  - Rscript scripts/check-news-version.R
+  - Rscript scripts/check-urls.R
+
+# test-locale.R (REQ-094) runs a leg for each of these the machine has. The
+# gate runs as the invoking user, so it compiles them into its own LOCPATH,
+# where glibc finds no other: every locale the test or the assertion names
+# is listed. CI's t2-locale builds the same list.
+locales:
+  - tr_TR.UTF-8
+  - tr_TR.ISO8859-9
+  - az_AZ.UTF-8
+  - lt_LT.UTF-8
+
+# The positive locale assertion: callr present and every hostile locale
+# usable, so test-locale.R cannot pass having run no hostile leg. Run after
+# each locale leg's check (the default leg, LC_ALL=C), here and in
+# t2-locale.
+locale_assertions:
+  - Rscript scripts/check-locale-legs.R
+
+# The gate runs R CMD check with NOT_CRAN=true, so skip_on_cran() no longer
+# keeps these out of it. T2 runs both, as osv-audit and security-audit.
+exclude_tests:
+  - path: tests/testthat/test-osv.R
+    why: queries osv.dev over the network; the osv-audit job runs it in T2
+  - path: tests/testthat/test-security.R
+    why: queries Sonatype OSS Index with credentials the gate does not have; the security-audit job runs it in T2
+
+# Every skip R CMD check's test run may report; any other fails the gate. A
+# skipped test fails, as an expectation-free one does (ssrfr-v1.md §7.2), so
+# the list is empty.
+allowed_skips: []
+
+# The top-level .md files the pkgdown site publishes; every other one (the
+# agent files among them) is moved out before build_site()
+# (design/agent-workflow.md, "The Pages keep-list").
+pages_keep:
+  - README.md
+  - NEWS.md
+  - LICENSE.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+  - CODE_OF_CONDUCT.md

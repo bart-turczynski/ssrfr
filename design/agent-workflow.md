@@ -147,24 +147,20 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
   offline tests (the allow-list is well formed, the validator rejects
   non-decisions) run only in `security-audit` (T2, T3). Moving them to a
   file of their own needs a `tests/` change, a follow-up.
-- **A NOTE fails nothing, pending fleet-ci v1.2.0 `allowed_notes`.** The
-  former `verify` failed on any R CMD check NOTE outside its
-  `allowed_notes`; the gate and the T2 check legs fail on an ERROR or a
-  WARNING only, until `.fleet-ci.yml` can carry an `allowed_notes` key.
-- **No Latin-5 legs.** `test-locale.R` also runs `tr_TR.ISO8859-9` and
-  `tr_TR.iso88599` where the machine has them, and the former CI built them
-  (`localedef -i tr_TR -f ISO-8859-9`). fleet-ci's `locales` takes the
-  charmap from the name after the dot, and glibc has no charmap `ISO8859-9`:
-  the local gate's build is unusable, and `t2-locale`'s is accepted with an
-  ASCII codeset, a leg that is not Latin-5. So `.fleet-ci.yml` lists only
-  the UTF-8 locales, the assertion requires those, and the two Latin-5 legs
-  run nowhere until fleet-ci can build a locale whose charmap is not its
-  name's suffix.
+- **`t2-ascran` applies no NOTE list.** The former `verify` failed on any
+  R CMD check NOTE outside its `allowed_notes`, on every push.
+  `.fleet-ci.yml`'s `allowed_notes` carries the same list as regular
+  expressions: the local gate and the T2 check legs (`t2-check-release`,
+  `t2-check-oldrel`, `t2-check-devel`) fail on an unlisted NOTE, while
+  `t2-ascran`, the one leg that runs the incoming feasibility and URL
+  checks, does not. Read its NOTEs before a submission.
 - **The locale leg runs under `C.UTF-8`, not `C`** (`.fleet-ci.yml`'s
   `locale_legs`). Under `LC_ALL=C` the session charset is ASCII, R cannot
   translate the test files' UTF-8 literals, and two tests fail
-  (`test-resolve.R:155` among them); the former CI never ran a `C` leg. The
-  hostile locales run inside `test-locale.R` whatever the leg.
+  (`test-resolve.R:155` among them); the former CI never ran a `C` leg. A
+  `tr_TR.ISO8859-9` leg fails the same way, on the literals outside
+  Latin-5. The hostile locales, the Latin-5 ones among them, run inside
+  `test-locale.R` whatever the leg.
 - **`NOT_CRAN=true` in T1 and the T2 check legs.** The former `verify` ran
   its tests with `NOT_CRAN=true` and its check with `NOT_CRAN=false`; now
   one check, with `NOT_CRAN=true`, does both, so the `skip_on_cran()` tests

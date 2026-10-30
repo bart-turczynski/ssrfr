@@ -14,7 +14,7 @@ style, tests and lints are in [`../AGENTS_LANG.md`](../AGENTS_LANG.md).
 | --- | --- | --- |
 | hygiene hooks | pre-commit, at commit and at push | `.pre-commit-config.yaml` (below) |
 | T0 | every push whose diff against `main` is docs-only (`design/**/*.md` and the like; `_pkgdown.yml` is excluded here), locally, the pre-push hook | the gate's docs tier, `.fleet-ci/gate` in the fleet image: spelling (`scripts/check-spelling.R`) and `pkgdown::check_pkgdown()` |
-| T1 | every other push, locally, the pre-push hook | the gate's full tier: T0's checks, then docs drift (`scripts/check-docs-drift.R`), lintr, README drift (`scripts/check-readme-drift.sh`), the NEWS heading (`scripts/check-news-version.R`), the URL check (`scripts/check-urls.R`), one `R CMD check --as-cran` (`NOT_CRAN=true`, incoming checks off), and one more check under `LC_ALL=C` followed by the locale assertion (`scripts/check-locale-legs.R`) |
+| T1 | every other push, locally, the pre-push hook | the gate's full tier: T0's checks, then docs drift (`scripts/check-docs-drift.R`), lintr, README drift (`scripts/check-readme-drift.sh`), the NEWS heading (`scripts/check-news-version.R`), the URL check (`scripts/check-urls.R`), one `R CMD check --as-cran` (`NOT_CRAN=true`, incoming checks off), and one more check under `LC_ALL=C.UTF-8` followed by the locale assertion (`scripts/check-locale-legs.R`) |
 | T2 | the weekly `deep-check` schedule; every T3 run | `t2-check-release`, `t2-check-oldrel`, `t2-check-devel`, `x-floor` (R 4.1.3, in place of `t2-floor`), `t2-locale`, `t2-ascran` (incoming and URLs on), `coverage` (fails below 95%), `osv-audit`, `security-audit`, `citation-version`, `x-fossa`; on the schedule only, `x-renovate` |
 | T3 | a `RELEASE=1` web pipeline on `main`; a `v*` tag | all of T2 but `x-renovate`, plus `t3-manual` (the PDF manual); the tag, or `RELEASE=1` on a tag, adds `pages` |
 
@@ -129,6 +129,20 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
 - **No hostile locales in `x-floor`**, so `test-locale.R` skips its legs
   there; `t2-locale` and the local gate run them, and the locale assertion
   fails when they could not.
+- **No Latin-5 legs.** `test-locale.R` also runs `tr_TR.ISO8859-9` and
+  `tr_TR.iso88599` where the machine has them, and the former CI built them
+  (`localedef -i tr_TR -f ISO-8859-9`). fleet-ci's `locales` takes the
+  charmap from the name after the dot, and glibc has no charmap `ISO8859-9`:
+  the local gate's build is unusable, and `t2-locale`'s is accepted with an
+  ASCII codeset, a leg that is not Latin-5. So `.fleet-ci.yml` lists only
+  the UTF-8 locales, the assertion requires those, and the two Latin-5 legs
+  run nowhere until fleet-ci can build a locale whose charmap is not its
+  name's suffix.
+- **The locale leg runs under `C.UTF-8`, not `C`** (`.fleet-ci.yml`'s
+  `locale_legs`). Under `LC_ALL=C` the session charset is ASCII, R cannot
+  translate the test files' UTF-8 literals, and two tests fail
+  (`test-resolve.R:155` among them); the former CI never ran a `C` leg. The
+  hostile locales run inside `test-locale.R` whatever the leg.
 - **`NOT_CRAN=true` in T1 and the T2 check legs.** The former `verify` ran
   its tests with `NOT_CRAN=true` and its check with `NOT_CRAN=false`; now
   one check, with `NOT_CRAN=true`, does both, so the `skip_on_cran()` tests

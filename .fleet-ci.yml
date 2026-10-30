@@ -33,20 +33,33 @@ cheap_gates:
   - Rscript scripts/check-news-version.R
   - Rscript scripts/check-urls.R
 
-# test-locale.R (REQ-094) runs a leg for each of these the machine has. The
-# gate runs as the invoking user, so it compiles them into its own LOCPATH,
-# where glibc finds no other: every locale the test or the assertion names
-# is listed. CI's t2-locale builds the same list.
+# test-locale.R (REQ-094) runs a leg for each hostile locale the machine
+# has. The gate runs as the invoking user, so it compiles these into its own
+# LOCPATH, where glibc finds no other: every locale the checks or the
+# assertion use is listed. CI's t2-locale builds the same list.
+#
+# Not listed: the Latin-5 legs, tr_TR.ISO8859-9 and tr_TR.iso88599. Both the
+# gate and t2-locale take the charmap from the name after the dot, and glibc
+# has no charmap "ISO8859-9" (it is "ISO-8859-9"): the gate's locale is then
+# unusable, and t2-locale's is accepted with an ASCII codeset, a leg that is
+# not Latin-5. They return once fleet-ci can build them
+# (design/agent-workflow.md, "Gaps accepted in the fleet-ci migration").
 locales:
   - tr_TR.UTF-8
-  - tr_TR.ISO8859-9
   - az_AZ.UTF-8
   - lt_LT.UTF-8
 
+# The leg the assertion follows: one more check, here and in t2-locale,
+# under C.UTF-8, the session locale of the former CI, rather than the
+# default C. Under C the session charset is ASCII, R cannot translate the
+# test files' UTF-8 literals, and two tests fail (test-resolve.R:155 among
+# them); the hostile locales run inside test-locale.R whatever the leg.
+locale_legs:
+  - C.UTF-8
+
 # The positive locale assertion: callr present and every hostile locale
 # usable, so test-locale.R cannot pass having run no hostile leg. Run after
-# each locale leg's check (the default leg, LC_ALL=C), here and in
-# t2-locale.
+# the locale leg's check, here and in t2-locale.
 locale_assertions:
   - Rscript scripts/check-locale-legs.R
 

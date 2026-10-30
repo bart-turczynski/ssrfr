@@ -10,36 +10,38 @@
 # for each Turkish, Azeri and Lithuanian locale the machine accepts, through
 # callr, and runs none when the locales or callr are missing; that would
 # still pass. So this asserts what the test needs: callr in the run library
-# the check used, every hostile locale usable by R, and tr_TR.UTF-8 folding
-# "I" to a dotless i (U+0131). It also asserts that the check it follows ran the
-# tests at all.
+# the check used, every hostile locale below usable by R, and tr_TR.UTF-8
+# folding "I" to a dotless i (U+0131). It also asserts that the check it
+# follows ran the tests at all.
 #
 # A `locale_assertions` entry of .fleet-ci.yml: the fleet-ci local gate runs
 # it after each locale leg's check (full tier), and CI's `t2-locale` after
 # each of its legs, with FLEET_RCHECK_DIR naming the leg's .Rcheck directory.
 # The locales come from .fleet-ci.yml's `locales`; the list below must name
-# no locale missing there. The run library is R_LIBS in the local gate and
-# FLEET_RUN_LIB in CI. Exit 1, naming every failure, on any.
+# no locale missing there. The test's Latin-5 legs (tr_TR.ISO8859-9,
+# tr_TR.iso88599) are not here: fleet-ci cannot build them yet
+# (.fleet-ci.yml's `locales` says why). The run library is R_LIBS in the
+# local gate and FLEET_RUN_LIB in CI. Exit 1, naming every failure, on any.
 
 hostile_locales <- c(
   "tr_TR.UTF-8",
-  "tr_TR.ISO8859-9",
-  "tr_TR.iso88599",
   "az_AZ.UTF-8",
   "lt_LT.UTF-8"
 )
 
 problems <- character()
 
+# R CMD check writes testthat.Rout, or testthat.Rout.fail when a test failed
+# (the check then fails on its own).
 rcheck <- Sys.getenv("FLEET_RCHECK_DIR")
-rout <- file.path(rcheck, "tests", "testthat.Rout")
-if (!nzchar(rcheck) || !file.exists(rout)) {
+rout <- file.path(rcheck, "tests", c("testthat.Rout", "testthat.Rout.fail"))
+if (!nzchar(rcheck) || !any(file.exists(rout))) {
   problems <- c(
     problems,
     paste0(
       "no test output at '",
-      rout,
-      "': the check this follows ran no tests ",
+      rout[[1L]],
+      "' (or .fail): the check this follows ran no tests ",
       "(FLEET_RCHECK_DIR='",
       rcheck,
       "')"

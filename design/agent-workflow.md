@@ -13,7 +13,7 @@ style, tests and lints are in [`../AGENTS_LANG.md`](../AGENTS_LANG.md).
 | Tier | Where | What runs |
 | --- | --- | --- |
 | hygiene hooks | pre-commit, at commit and at push | `.pre-commit-config.yaml` (below) |
-| T0 | every push whose diff against `main` is docs-only (`design/**/*.md` and the like; `_pkgdown.yml` is excluded here), locally, the pre-push hook | the gate's docs tier, `.fleet-ci/gate` in the fleet image: spelling (`scripts/check-spelling.R`) and `pkgdown::check_pkgdown()` |
+| T0 | every push whose diff against `main` is docs-only (`design/**/*.md`, `_pkgdown.yml` and the like), locally, the pre-push hook | the gate's docs tier, `.fleet-ci/gate` in the fleet image: spelling (`scripts/check-spelling.R`) and `pkgdown::check_pkgdown()` |
 | T1 | every other push, locally, the pre-push hook | the gate's full tier: T0's checks, then docs drift (`scripts/check-docs-drift.R`), lintr, README drift (`scripts/check-readme-drift.sh`), the NEWS heading (`scripts/check-news-version.R`), the URL check (`scripts/check-urls.R`), one `R CMD check --as-cran` (`NOT_CRAN=true`, incoming checks off), and one more check under `LC_ALL=C.UTF-8` followed by the locale assertion (`scripts/check-locale-legs.R`) |
 | T2 | the weekly `deep-check` schedule; every T3 run | `t2-check-release`, `t2-check-oldrel`, `t2-check-devel`, `x-floor` (R 4.1.3, in place of `t2-floor`), `t2-locale`, `t2-ascran` (incoming and URLs on), `coverage` (fails below 95%), `osv-audit`, `security-audit`, `citation-version`, `x-fossa`; on the schedule only, `x-renovate` |
 | T3 | a `RELEASE=1` web pipeline on `main`; a `v*` tag | all of T2 but `x-renovate`, plus `t3-manual` (the PDF manual); the tag, or `RELEASE=1` on a tag, adds `pages` |
@@ -50,6 +50,8 @@ without `--hook-type pre-push`) moves the hook to `hooks/pre-push.legacy`
 --hook-type pre-commit` leaves it alone. `.fleet-ci/gate auto` runs the gate
 by hand on `HEAD`. A pass is stamped by tree, tier, classifier version, image
 and (full tier) resolved dependency lock, and a stamped commit is skipped.
+The gate refuses a push to `main` that adds more than one first-parent
+merge.
 
 **On every commit:** end-of-file and trailing-whitespace fixers, merge-conflict
 detection, YAML/TOML validation, mixed-line-ending and case-conflict guards, a
@@ -129,6 +131,26 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
 - **No hostile locales in `x-floor`**, so `test-locale.R` skips its legs
   there; `t2-locale` and the local gate run them, and the locale assertion
   fails when they could not.
+- **The hostile locales run on one R version.** The former `.r`
+  `before_script` built them for every R job, so the release, oldrel and
+  devel `full-check` legs all ran `test-locale.R`'s legs. Now only
+  `t2-locale` (the release image) and the local gate build them;
+  `t2-check-release`, `t2-check-oldrel` and `t2-check-devel` skip those legs.
+- **No server-side cheap gates.** The former `verify`, `gates`, `docs-drift`
+  and `citation-version` jobs ran lint, docs drift, README drift, spelling,
+  `check-news.py` and `check-bugreports.py` on every push to `main`, which
+  caught a web edit, a Renovate MR and a `--no-verify` push. Those runs are
+  gone; only the local gate and the pre-push hooks run them, and T2's
+  `citation-version` runs `check-citation.py` alone.
+- **`test-security.R`'s offline allow-list tests are out of T1.**
+  `exclude_tests` drops the whole file from the gate's check, so its two
+  offline tests (the allow-list is well formed, the validator rejects
+  non-decisions) run only in `security-audit` (T2, T3). Moving them to a
+  file of their own needs a `tests/` change, a follow-up.
+- **A NOTE fails nothing, pending fleet-ci v1.2.0 `allowed_notes`.** The
+  former `verify` failed on any R CMD check NOTE outside its
+  `allowed_notes`; the gate and the T2 check legs fail on an ERROR or a
+  WARNING only, until `.fleet-ci.yml` can carry an `allowed_notes` key.
 - **No Latin-5 legs.** `test-locale.R` also runs `tr_TR.ISO8859-9` and
   `tr_TR.iso88599` where the machine has them, and the former CI built them
   (`localedef -i tr_TR -f ISO-8859-9`). fleet-ci's `locales` takes the

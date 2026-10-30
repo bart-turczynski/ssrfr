@@ -110,7 +110,7 @@ Documented deviations from the goodpractice set:
 - Every exported function needs a title, a `@param` per argument, `@return`, and
   runnable `@examples`. Internal helpers stay unexported and undocumented.
 - Wrap roxygen comments at 80 columns. Add new help topics to `_pkgdown.yml`
-  once it lists them; do not hand-edit the generated site in `site/`.
+  once it lists them; do not hand-edit the generated site in `docs/`.
 
 ### New functions
 

@@ -14,7 +14,7 @@ R package: an SSRF guard for applications that fetch attacker-supplied URLs (`pl
 Gate: local
 Verify: .fleet-ci/gate auto
 
-The merge gate is fleet-ci's local gate, run in the fleet image by the pre-push hook (install it once per clone with `.fleet-ci/pre-push --install`); its settings are `.fleet-ci.yml`. A diff against `main` the classifier calls docs-only (`design/**/*.md` and the like; `_pkgdown.yml` is excluded here) gets T0, spelling and `pkgdown::check_pkgdown()`; any other gets T1, the cheap gates and `R CMD check` with the hostile-locale assertion.
+The merge gate is fleet-ci's local gate, run in the fleet image by the pre-push hook (install it once per clone with `.fleet-ci/pre-push --install`); its settings are `.fleet-ci.yml`. A diff against `main` the classifier calls docs-only (`design/**/*.md`, `_pkgdown.yml` and the like) gets T0, spelling and `pkgdown::check_pkgdown()`; any other gets T1, the cheap gates and `R CMD check` with the hostile-locale assertion.
 Branch pushes, merge requests and pushes to `main` create no pipeline, so an empty pipeline list is not a pass. CI runs fleet-ci's template: T2 on the weekly `deep-check` schedule, T3 on a `RELEASE=1` web pipeline and on the `v*` tag (seor ADR 0012).
 
 For setup and the roxygen-generated `NAMESPACE` and `man/`, see README.md.

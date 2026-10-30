@@ -8,13 +8,10 @@ version: 1
 # FLEET_RELEASE_VARIANT (default fleet-r).
 variant: fleet-r
 
-# Allowlisted paths a gate or hook here reads, so a change to them is never
-# docs-only: scripts/check-bugreports.py (a pre-push hook) reads _pkgdown.yml
-# for tracker links. scripts/check-design.py also reads design/**/*.md, but
-# it runs as a pre-push hook on every push whatever the tier, so a design
-# change cannot skip it and design/ stays docs.
-docs_exclude:
-  - _pkgdown.yml
+# No docs_exclude: no full-tier gate reads a docs-allowlisted path. The
+# docs tier's own check_pkgdown() reads _pkgdown.yml, and the pre-push hooks
+# that read _pkgdown.yml or design/**/*.md (scripts/check-bugreports.py,
+# scripts/check-design.py) run on every push whatever the tier.
 
 # T0, and the start of T1. Genuine terms go in inst/WORDLIST (SEOR-mtbzfroz).
 docs_gates:
@@ -54,6 +51,9 @@ locales:
 # default C. Under C the session charset is ASCII, R cannot translate the
 # test files' UTF-8 literals, and two tests fail (test-resolve.R:155 among
 # them); the hostile locales run inside test-locale.R whatever the leg.
+# The leg repeats the gate's own check, which already runs under C.UTF-8:
+# it exists so the locale assertion has a leg to follow, until fleet-ci
+# v1.2.0 lets the restored Latin-5 legs take its place.
 locale_legs:
   - C.UTF-8
 

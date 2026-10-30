@@ -76,7 +76,7 @@
   "warnings_fixed_status": "Met",
   "warnings_fixed_justification": "The local pre-push gate (T1) fails on any lint and on any R CMD check ERROR or WARNING, and the T2 check jobs fail on any R CMD check ERROR or WARNING, so warnings are fixed before a push lands.",
   "warnings_strict_status": "Met",
-  "warnings_strict_justification": "The local pre-push gate (T1) fails on any lintr finding and runs R CMD check --as-cran with error_on = \"warning\"; the T2 check jobs fail on any ERROR or WARNING: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/.fleet-ci.yml",
+  "warnings_strict_justification": "The local pre-push gate (T1) fails on any lintr finding and runs R CMD check --as-cran with error_on = \"warning\"; the T2 check jobs fail on any ERROR or WARNING. An R CMD check NOTE fails nothing for now, pending fleet-ci v1.2.0 allowed_notes (design/agent-workflow.md, \"Gaps accepted in the fleet-ci migration\"): https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/.fleet-ci.yml",
   "know_secure_design_status": "Met",
   "know_secure_design_justification": "ssrfr is a security control designed from a written threat model: parse once, resolve once, classify every address, pin the connection to a validated address, fail closed on anything undetermined, and never weaken certificate verification; its invariants are in the v1 specification: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/specs/ssrfr-v1.md",
   "know_common_errors_status": "Met",

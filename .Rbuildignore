@@ -9,7 +9,6 @@
 ^\.lintr$
 ^air\.toml$
 ^_pkgdown\.yml$
-^site$
 ^public$
 ^\.r-lib$
 ^\.pak-cache$

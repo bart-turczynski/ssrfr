@@ -196,10 +196,12 @@ vm_cpus=$(docker info --format '{{.NCPU}}' 2> /dev/null) ||
 
 # The R version of fleet-ci's release image, from its tag in
 # .fleet-ci/images (fleet-r:<R version>-<date>@sha256:...). The P3M snapshot
-# is this script's own pin, the one the former CI used: bump it with the R
-# version.
+# is this script's own pin, the one the former CI used.
 images="$root/.fleet-ci/images"
 r_version=$(sed -n 's/^FLEET_IMAGE_R_RELEASE=.*:\([0-9][0-9.]*\)-[0-9]\{8\}@.*/\1/p' "$images" 2> /dev/null | head -n 1)
+# Hard-coded, unlike r_version above: a re-vendor of .fleet-ci/ that moves
+# the release image to a newer R does not touch it. Bump it in the same
+# change as that re-vendor, to a date on which P3M serves the new R.
 p3m_snapshot=2026-09-01
 [ -n "$r_version" ] || die "no FLEET_IMAGE_R_RELEASE R version in .fleet-ci/images"
 

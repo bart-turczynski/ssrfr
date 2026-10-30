@@ -9,8 +9,12 @@ New code needs tests, and each user-facing change needs one `NEWS.md` bullet.
 A merge request must pass the verification command below.
 
 Verification is fleet-ci's local gate, which runs in the fleet Docker image
-(settings in `.fleet-ci.yml`), so it needs Docker, python3, Ruby and git, not
-a local R library. Install the hooks once per clone, from the package root:
+(settings in `.fleet-ci.yml`); the gate itself needs Docker, python3, Ruby
+and git. The pre-push hooks still need a local R: the `check-toolchain` hook
+runs `Rscript scripts/check-toolchain.R`, which needs the yaml package, the
+roxygen2 that `DESCRIPTION`'s `Config/roxygen2/version` pins, rmarkdown, and
+pandoc 3.10 (`.fleet-ci/toolchain`). Install the hooks once per clone, from
+the package root:
 
 ```sh
 pre-commit install

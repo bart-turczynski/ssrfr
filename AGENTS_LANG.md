@@ -60,7 +60,9 @@ Documented deviations from the goodpractice set:
 - `library_require_linter`: off. `tests/testthat.R` and vignette setup chunks
   legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
-  allow `:::`, which tests use to reach internal functions.
+  allow `:::`, which tests use to reach internal functions. It also flags
+  `%||%`, which base R has only from 4.4: on the R 4.1 floor it is undefined,
+  so spell out the `is.null()` check instead.
 - `case_folding_linter`: an addition. It bans `tolower()`, `toupper()` and
   `casefold()`, which follow `LC_CTYPE`: a Turkish or Azeri locale maps `I` to
   a dotless `ı`. Use `ascii_lower()` (`R/policy.R`), or `chartr()` over `a-z`

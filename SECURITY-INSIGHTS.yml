@@ -75,13 +75,14 @@ repository:
         integration:
           adhoc: true
           ci: true
-          release: false
+          release: true
         results: {}
         comment: |
-          The osv-audit job in .gitlab-ci.yml audits the runtime dependency
-          closure against the OSV database (osv.dev). No account or secrets
-          required. It runs on the weekly pipeline schedule that sets
-          SCHEDULE_KIND=dependency-audit, or by hand from a web pipeline.
+          The osv-audit job (fleet-ci's template, included by .gitlab-ci.yml)
+          audits the runtime dependency closure against the OSV database
+          (osv.dev). No account or secrets required. It runs on the weekly
+          pipeline schedule that sets SCHEDULE_KIND=deep-check and in every
+          release pipeline (RELEASE=1, and the v* tag).
       - name: oysteR (Sonatype OSS Index)
         type: SCA
         rulesets:
@@ -89,14 +90,14 @@ repository:
         integration:
           adhoc: true
           ci: true
-          release: false
+          release: true
         results: {}
         comment: |
-          The security-audit job in .gitlab-ci.yml audits the hard
+          The security-audit job (fleet-ci's template) audits the hard
           dependencies against the Sonatype OSS Index, and judges every
           reported advisory against the allow-list in
-          tests/testthat/helper-security.R. It runs on the same
-          dependency-audit schedule as osv-audit, and needs the OSSINDEX_USER
+          tests/testthat/helper-security.R. It runs in the same weekly and
+          release pipelines as osv-audit, and needs the OSSINDEX_USER
           (the literal `x`) and OSSINDEX_TOKEN CI/CD variables; it fails,
           rather than skipping, when they are missing.
       - name: FOSSA
@@ -106,8 +107,9 @@ repository:
         integration:
           adhoc: false
           ci: true
-          release: false
+          release: true
         results: {}
         comment: |
-          The fossa job in .gitlab-ci.yml runs `fossa analyze` on every push
-          to main, for the license and security badges in the README.
+          The x-fossa job in .gitlab-ci.yml runs `fossa analyze` on the weekly
+          deep-check schedule and in every release pipeline, for the license
+          and security badges in the README.

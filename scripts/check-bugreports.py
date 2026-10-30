@@ -24,8 +24,10 @@ https://gitlab.com/bart-turczynski/pslr/-/work_items and we will let it pass
 and fix our checks." So every file, DESCRIPTION included, now names
 `/-/work_items`, and none names `/-/issues` (SEOR-sptibjph, seor ADR 0011:
 https://gitlab.com/bart-turczynski/seor/-/blob/main/design/adr/0011-bugreports-names-work-items.md).
-`scripts/verify.R`'s `allowed_notes` lets the incoming check's "should likely
-be" paragraph through for exactly this package's `/-/work_items` address.
+The former `scripts/verify.R`'s `allowed_notes` let the incoming check's
+"should likely be" paragraph through for exactly this package's
+`/-/work_items` address; the incoming check now runs in CI's `t2-ascran`,
+where that paragraph is a NOTE.
 
 A roxygen `"_PACKAGE"` page (`man/<pkg>-package.Rd`) is not a separate
 decision: roxygen2 generates its "Useful links" section, "Report bugs at"
@@ -39,8 +41,8 @@ page today, so nothing is compared until one is added.
 WHAT IT CHECKS.
 
 1. `DESCRIPTION`'s `BugReports:` is the `/-/work_items` address, with no
-   trailing slash (scripts/verify.R allows the incoming NOTE for exactly
-   that form), of the gitlab.com repository that
+   trailing slash (the form cran-comments.md explains to CRAN), of the
+   gitlab.com repository that
    `DESCRIPTION`'s `URL:` names, and `codemeta.json`'s `"issueTracker"`
    is the same address.
 2. Each `man/*-package.Rd`'s "Report bugs at" link, when present, is
@@ -315,8 +317,8 @@ def self_test() -> None:
         },
     )
 
-    # NEGATIVE: a trailing slash, which verify.R's incoming allowance does
-    # not match.
+    # NEGATIVE: a trailing slash, which is not the form cran-comments.md
+    # explains to CRAN.
     expect_flagged(
         "trailing-slash",
         "not a gitlab.com /-/work_items address",

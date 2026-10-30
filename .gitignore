@@ -32,6 +32,7 @@ src/*.dll
 vignettes/*.html
 vignettes/*.pdf
 site/
+docs/
 public/
 .r-lib/
 .pak-cache/

@@ -77,19 +77,25 @@ tried and reverted (`19f08fb`).
   file naming every source directory.
 - `scripts/corpus-manifest.R` — rewrites the corpus row counts and checksums
   (`ssrfr-v1.md` §7.2).
-- `scripts/verify.R` — the verify gate, run by the pre-push hook and by CI.
+- `.fleet-ci.yml`, `.fleet-ci/` — the merge gate: fleet-ci's local gate,
+  vendored by fleet-ci's `bin/vendor`, and its settings (the gates below,
+  locales, excluded tests). The pre-push hook runs it in the fleet image.
 - `scripts/check-toolchain.R` — pre-push check that names machine drift
-  (roxygen2 skew, packages built under a newer R) before the gate runs.
-- `scripts/check-docs-drift.R`, `scripts/check-docs-drift.sh` — pre-push check
-  that `man/`, `NAMESPACE` and `DESCRIPTION` match a fresh roxygen2 run, in a
-  `git archive` export of the pushed commit; CI's `docs-drift` job runs the
-  `.R` script on `main`.
-- `scripts/check-spelling.R` — pre-push spelling check (`spelling`, en-US,
+  (roxygen2 skew, packages built under a newer R, pandoc against the fleet
+  image's) before a local `document()` or README knit.
+- `scripts/check-docs-drift.R` — gate check that `man/`, `NAMESPACE` and
+  `DESCRIPTION` match a fresh roxygen2 run.
+- `scripts/check-spelling.R` — gate spelling check (`spelling`, en-US,
   `inst/WORDLIST`), since R CMD check skips it without an English dictionary.
-- `site/` — pkgdown output (`_pkgdown.yml`), git-ignored; the CI `pages` job
-  publishes it. Neither it nor `docs/` holds design documents.
-- `.gitlab-ci.yml` — CI, on `main` only; see
-  [`design/agent-workflow.md`](design/agent-workflow.md).
+- `scripts/check-readme-drift.sh`, `scripts/check-news-version.R`,
+  `scripts/check-urls.R` — gate checks: `README.md` against a fresh knit, the
+  `NEWS.md` heading against the version, every declared URL.
+- `scripts/check-locale-legs.R` — the gate's and `t2-locale`'s assertion that
+  `test-locale.R` ran its hostile-locale legs.
+- `docs/` — pkgdown output (`_pkgdown.yml`), git-ignored; the CI `pages` job
+  publishes it. It holds no design documents.
+- `.gitlab-ci.yml` — CI, fleet-ci's template: weekly and release pipelines
+  only; see [`design/agent-workflow.md`](design/agent-workflow.md).
 
 ## Consumers
 

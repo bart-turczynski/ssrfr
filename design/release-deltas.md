@@ -25,14 +25,14 @@ both.
 1. **Set the release version** in `DESCRIPTION`: `Version: X.Y.Z`, with the
    `.9000` dropped.
 2. **Update the NEWS heading** in the same commit. The top `NEWS.md` heading
-   becomes `# ssrfr X.Y.Z`, and every unreleased item goes under it. The verify
-   gate's `news-version` stage fails unless that heading is
-   `(development version)` or the `DESCRIPTION` Version, so bump the two
-   together.
+   becomes `# ssrfr X.Y.Z`, and every unreleased item goes under it. The
+   gate's NEWS heading check (`scripts/check-news-version.R`) fails unless that
+   heading is `(development version)` or the `DESCRIPTION` Version, so bump
+   the two together.
 3. **Rewrite `cran-comments.md`** for this submission:
    - Test environments: list only the ones steps 4 to 7 actually ran (OS, R
      version, and where it ran: local, win-builder, R-hub, the GitLab
-     `full-check` job). There is no GitHub Actions CI. Finish the list once
+     `RELEASE=1` pipeline's check jobs). There is no GitHub Actions CI. Finish the list once
      step 7 reports, before step 9.
    - The NOTEs: say what each one is. On a first submission that is "New
      submission". R's incoming check also says the `BugReports` field "should
@@ -41,18 +41,22 @@ both.
      client, and CRAN invited the `/-/work_items` form on 2026-10-23
      ([seor ADR 0011](https://gitlab.com/bart-turczynski/seor/-/blob/main/design/adr/0011-bugreports-names-work-items.md)).
      Keep the `BugReports` section of `cran-comments.md`, which says this;
-     `allowed_notes` in `scripts/verify.R` lets exactly that paragraph
-     through, and the `check-bugreports` hook holds every tracker link on
+     the `check-bugreports` hook holds every tracker link on
      `/-/work_items`. Before you submit, check each URL again with
      `curl -s -o /dev/null -w '%{http_code}\n' <url>`.
-4. **Run the verify gate** on the release commit: `Rscript scripts/verify.R`,
-   then `Rscript scripts/check-spelling.R`. The gate runs lint, `news-version`,
-   the tests with `NOT_CRAN=true` and `R CMD check --as-cran`. Its check stage
-   needs HTML Tidy 5.0.0 or later (see the comment above `allowed_notes`). If
-   the gate is red on a tree nobody changed, run
-   `Rscript scripts/check-toolchain.R` first: it names the machine drift
-   (roxygen2 against `Config/roxygen2/version`, packages built under a newer
-   R) that otherwise looks like a defect (`AGENTS_LANG.md`).
+4. **Run the gate and the release checks** on the release commit:
+   `.fleet-ci/gate full`, which runs spelling, docs drift, lint, README
+   drift, the NEWS heading, the URL check, and `R CMD check --as-cran` with
+   the tests under `NOT_CRAN=true` and incoming checks off, in the fleet
+   image. Then start the release checks from **Build > Pipelines > Run
+   pipeline** on GitLab: ref `main`, variable `RELEASE=1`. That web pipeline
+   runs `t2-check-release`, `t2-check-oldrel`, `t2-check-devel`, `x-floor`,
+   `t2-locale`, `t2-ascran` (incoming feasibility and URLs on), `coverage`,
+   `osv-audit`, `security-audit`, `citation-version`, `x-fossa` and
+   `t3-manual`, without `pages`; it must pass for the exact commit you
+   submit (seor ADR 0012). An API pipeline (`glab ci run`) creates nothing.
+   If the gate is red on a tree nobody changed, see `AGENTS_LANG.md`, "A red
+   gate on an untouched tree".
 5. **Check the tarball you will submit**:
 
    ```sh
@@ -60,13 +64,13 @@ both.
    R CMD check --as-cran ssrfr_X.Y.Z.tar.gz
    ```
 
-   This runs without `allowed_notes`, so read every NOTE yourself. Nothing
-   beyond the notes step 3 explains should appear. Read the URL paragraph with
-   extra care: the verify gate lets a URL through when its host did not
-   resolve or timed out, and a dead domain looks exactly the same.
+   Read every NOTE yourself. Nothing beyond the notes step 3 explains should
+   appear. Read the URL paragraph with extra care: a URL whose host did not
+   resolve or timed out looks exactly like a dead domain. It needs HTML Tidy
+   5.0.0 or later, or it skips the HTML validation CRAN runs.
 6. **Check every URL**: `urlchecker::url_check()`, online. It reports dead and
    moved links in `DESCRIPTION`, `man/`, the vignette, README and NEWS,
-   including any the verify gate let through as unresolvable.
+   including any `scripts/check-urls.R` let through as unreachable.
 7. **Check other platforms.**
    - win-builder, all three flavors: `devtools::check_win_devel()`,
      `devtools::check_win_release()` and `devtools::check_win_oldrelease()`.
@@ -74,9 +78,8 @@ both.
    - R-hub: `rhub::rc_submit(path = <tarball>, platforms = ..., confirmation = TRUE)`,
      with Windows among the platforms (see `rhub::rhub_platforms()`). R-hub
      takes one submission every five minutes.
-   - The R-version matrix on Linux: start a pipeline by hand on the release
-     commit (**Build > Pipelines > Run pipeline**) and run the manual
-     `full-check` job.
+   - The R-version matrix on Linux: the `RELEASE=1` pipeline of step 4
+     (`t2-check-release`, `t2-check-oldrel`, `t2-check-devel`, `x-floor`).
 
    On Windows, R-hub gets the corpus fixtures wrong unless you prepare the
    tarball. R-hub checks the tarball out with git, and on Windows git's
@@ -123,8 +126,10 @@ both.
       `URL:` field, which only exists once CRAN has accepted the package.
 
     Leave `cran-comments.md` alone here: it describes the submission that just
-    landed, and step 3 of the next release rewrites it. `allowed_notes` already
-    allows the `.9000` "Version contains large components" NOTE.
+    landed, and step 3 of the next release rewrites it. The gate runs its
+    check with incoming off, so the `.9000` "Version contains large
+    components" NOTE never reaches it; `t2-ascran` reports it as a NOTE,
+    which does not fail the job.
 14. **Sanity check**: diff the published CRAN tarball
     (`https://cran.r-project.org/src/contrib/ssrfr_X.Y.Z.tar.gz`) against
     `R CMD build` of the tag. Only the `DESCRIPTION` fields CRAN adds should

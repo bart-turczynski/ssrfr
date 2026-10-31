@@ -34,8 +34,16 @@ test_that("every metadata hostname is normalized and names a table endpoint", {
   expect_match(names$source, "^https?://")
   expect_match(names$retrieved, "^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
   for (i in seq_len(nrow(names))) {
+    # The name as a host: after `//` or in a comma list, ending at a path,
+    # port, list separator or the quote's end, so the bare `metadata` is found
+    # neither in `metadata.google.internal` nor in the words "metadata server".
+    token <- paste0(
+      "(?<=//|,)\\Q",
+      names$hostname[i],
+      "\\E(?=[/:,]|\\.?$)"
+    )
     expect_true(
-      grepl(names$hostname[i], names$quote[i], fixed = TRUE),
+      grepl(token, names$quote[i], perl = TRUE),
       label = paste("quote of", names$hostname[i])
     )
   }

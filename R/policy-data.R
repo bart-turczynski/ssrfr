@@ -327,6 +327,7 @@ policy_table <- function(rows, columns, retrieved) {
   m <- do.call(rbind, rows)
   colnames(m) <- columns
   out <- as.data.frame(m)
+  stopifnot(length(retrieved) %in% c(1L, nrow(out)))
   out$retrieved <- retrieved
   out
 }

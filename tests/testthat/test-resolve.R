@@ -165,7 +165,7 @@ test_that("gate 5 matches no declined name and no near-miss", {
   for (url in urls) {
     seen <- mock_resolver("93.184.216.34")
     expect_identical(inspect_l1(url)$code, NA_character_, label = url)
-    expect_length(seen$queries, 1L)
+    expect_identical(length(seen$queries), 1L, label = url)
   }
 })
 

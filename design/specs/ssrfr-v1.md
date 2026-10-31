@@ -872,10 +872,11 @@ page names it as the metadata server's hostname, beside `169.254.169.254` and
 (Compute Engine, "Troubleshooting metadata server access issues", retrieved
 2026-10-31). *Amended 2026-10-31* (was declined; maintainer ruling of
 2026-10-22, landed for 1.0.0, `SSRF-figjvukt`). `instance-data`,
-`instance-data.ec2.internal` and `instance-data.<region>.compute.internal` stay
-declined: no current AWS document names them as the instance metadata host, and
-the regional form cannot be an exact whole-host entry. They refuse only by their
-answers, at gates 1–3.
+`instance-data.ec2.internal`, `instance-data.<region>.compute.internal` and
+`metadata.azure.internal` stay declined. For the three AWS names, the same
+ruling found no current AWS EC2 document naming them as the instance metadata
+host **[assumption]**, and the regional form cannot be an exact whole-host
+entry. They refuse only by their answers, at gates 1–3.
 
 ### 5.0 Precedence **[ratified]**
 

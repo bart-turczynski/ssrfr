@@ -67,7 +67,7 @@ test_that("a 404 whose body passes max_response_size records its status", {
   expect_identical(got$binding$state$status, 404L)
   expect_identical(r$detail$status, 404L)
   expect_type(r$detail$observed_bytes, "double")
-  observed <- r$detail$observed_bytes %||% NA_real_
+  observed <- r$detail$observed_bytes
   expect_gt(observed, 524288)
   expect_lte(observed, got$size)
   # The rendering shows the status and the bytes reached, never a header

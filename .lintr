@@ -1,7 +1,7 @@
 linters: linters_with_defaults(
     defaults = list(),
     undesirable_operator_linter = lintr::undesirable_operator_linter(
-      op = lintr::default_undesirable_operators[c("->>", "<<-")]
+      op = c(lintr::default_undesirable_operators[c("->>", "<<-")], "%||%" = "base R has it only from 4.4 and the floor is 4.1; spell out the NULL check")
     ),
     assignment_linter = lintr::assignment_linter(),
     line_length_linter = lintr::line_length_linter(80),

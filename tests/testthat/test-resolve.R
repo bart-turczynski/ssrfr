@@ -135,14 +135,16 @@ test_that("a URL refused before step 7 is never resolved", {
   expect_identical(seen$queries, character())
 })
 
-# §5 gate 5 matches exact whole hosts only. The bare GCP name `metadata` is not
-# on the list yet: it reaches step 7 and resolves once like any other name.
-test_that("gate 5 does not match bare metadata yet", {
+# §5 gate 5 matches exact whole hosts, after ASCII case folding and removal of
+# one root dot. The bare GCP name `metadata` is on the list (SSRF-figjvukt): it
+# refuses by name before step 7, whatever it would resolve to.
+test_that("gate 5 refuses bare metadata without resolving it", {
   for (url in c("http://metadata/", "http://METADATA/", "http://metadata./")) {
     seen <- mock_resolver("93.184.216.34")
     res <- inspect_l1(url)
-    expect_identical(res$code, NA_character_, label = url)
-    expect_length(seen$queries, 1L)
+    expect_identical(res$code, "cloud-metadata", label = url)
+    expect_identical(res$detail$gate, "5", label = url)
+    expect_identical(seen$queries, character(), label = url)
   }
 })
 

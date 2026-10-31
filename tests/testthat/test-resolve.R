@@ -135,6 +135,40 @@ test_that("a URL refused before step 7 is never resolved", {
   expect_identical(seen$queries, character())
 })
 
+# §5 gate 5 matches exact whole hosts, after ASCII case folding and removal of
+# one root dot. The bare GCP name `metadata` is on the list (SSRF-figjvukt): it
+# refuses by name before step 7, whatever it would resolve to.
+test_that("gate 5 refuses bare metadata without resolving it", {
+  for (url in c("http://metadata/", "http://METADATA/", "http://metadata./")) {
+    seen <- mock_resolver("93.184.216.34")
+    res <- inspect_l1(url)
+    expect_identical(res$code, "cloud-metadata", label = url)
+    expect_identical(res$detail$gate, "5", label = url)
+    expect_identical(seen$queries, character(), label = url)
+  }
+})
+
+# Names gate 5 declines (§5: no current vendor document names them as an
+# endpoint of gate 2's table, or no exact whole-host entry can hold them) and
+# near-misses of listed names: none is refused by name, so each resolves once
+# and its public answer admits.
+test_that("gate 5 matches no declined name and no near-miss", {
+  urls <- c(
+    "http://instance-data/",
+    "http://instance-data.ec2.internal/",
+    "http://instance-data.us-east-1.compute.internal/",
+    "http://metadata.example/",
+    "http://xmetadata/",
+    "http://metadata-server/",
+    "http://x.metadata/"
+  )
+  for (url in urls) {
+    seen <- mock_resolver("93.184.216.34")
+    expect_identical(inspect_l1(url)$code, NA_character_, label = url)
+    expect_identical(length(seen$queries), 1L, label = url)
+  }
+})
+
 # §5.0, "Names resolve as absolute": the query carries a single trailing root
 # dot, so no search domain applies; the host itself keeps libcurl's spelling,
 # which the Host header, SNI and the pin key use.

@@ -70,8 +70,9 @@ test_that("a refused hop returns a refusal with its reason code and hop", {
 
 # §4.2, INV-11: a zone-ID literal, and a host WHATWG cannot read, refuse at
 # prepare as `parse`, before any resolution, whatever address or name the
-# rest of the host spells. The two percent-encoded trailing stops are V0541
-# and V0542, pending on rurl: whichever code they reach, they refuse.
+# rest of the host spells. The percent-encoded trailing stops are V0541,
+# V0542, V0551 and V0552, pending on rurl: whichever code they reach, they
+# refuse.
 test_that("a zone ID or an unreadable host refuses at prepare, unresolved", {
   seen <- mock_answers("93.184.216.34")
   urls <- c(
@@ -92,7 +93,9 @@ test_that("a zone ID or an unreadable host refuses at prepare, unresolved", {
   }
   for (url in c(
     "http://metadata.google.internal%E3%80%82/",
-    "http://metadata.google.internal%EF%BC%8E/"
+    "http://metadata.google.internal%EF%BC%8E/",
+    "http://metadata%E3%80%82/",
+    "http://metadata%EF%BC%8E/"
   )) {
     r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
     expect_s3_class(r, "ssrfr_refusal")

@@ -8,8 +8,10 @@
 # Every row cites current vendor documentation, the date it was retrieved, and
 # the vendor's own text naming the address or name, verbatim (§5). `linklint`'s
 # table (packages/core/src/data/cloud-metadata.ts at 8830901) is the starting
-# point; the Scaleway and Linode rows are the four §5 adds. Where the page
+# point; the Scaleway and Linode rows are the four §5 adds, and gate 5's bare
+# `metadata`, which linklint declined, is admitted by §5. Where the page
 # linklint cites does not name the address, the row cites the page that does.
+# Rows retrieved on different dates carry their own `retrieved` date.
 #
 # Keys are canonical: an address in raddr's canonical text form, a hostname
 # ASCII-lowercase with no trailing root dot. Matching is by value, through
@@ -261,15 +263,33 @@ domain_metadata_hostnames <- function() {
         "cloud-init-user-data/"
       ),
       "curl http://metadata.exoscale.com/latest/meta-data"
+    ),
+    # Admitted by the maintainer's ruling of 2026-10-22 (SSRF-figjvukt).
+    c(
+      "metadata",
+      "169.254.169.254",
+      "GCP",
+      paste0(
+        "https://docs.cloud.google.com/compute/docs/troubleshooting/",
+        "troubleshoot-metadata-server"
+      ),
+      paste(
+        "To resolve this proxy issue, add the metadata server hostname and IP",
+        "address to the environment variable NO_PROXY",
+        paste0(
+          "export no_proxy=169.254.169.254,fd20:ce::254,metadata,",
+          "metadata.google.internal"
+        )
+      )
     )
   )
   closed_domain(
     "metadata_hostnames",
-    1L,
+    2L,
     policy_table(
       rows,
       c("hostname", "address", "provider", "source", "quote"),
-      retrieved = "2026-09-25"
+      retrieved = c(rep("2026-09-25", 5L), "2026-10-31")
     )
   )
 }
@@ -302,11 +322,12 @@ domain_metadata_headers <- function() {
 }
 
 # Binds rows of equal length into a data frame with the given columns, and
-# stamps the retrieval date on each.
+# stamps the retrieval date on each: one date for all rows, or one per row.
 policy_table <- function(rows, columns, retrieved) {
   m <- do.call(rbind, rows)
   colnames(m) <- columns
   out <- as.data.frame(m)
+  stopifnot(length(retrieved) %in% c(1L, nrow(out)))
   out$retrieved <- retrieved
   out
 }

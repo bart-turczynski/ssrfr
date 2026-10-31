@@ -61,12 +61,16 @@ locale_assertions:
   - Rscript scripts/check-locale-legs.R
 
 # The gate runs R CMD check with NOT_CRAN=true, so skip_on_cran() no longer
-# keeps these out of it. T2 runs both, as osv-audit and security-audit.
+# keeps these out of it. T2 runs the first two, as osv-audit and
+# security-audit; the L4 tests run only locally, under
+# SSRFR_INTEGRATION_TESTS, and their skip without it would fail the gate.
 exclude_tests:
   - path: tests/testthat/test-osv.R
     why: queries osv.dev over the network; the osv-audit job runs it in T2
   - path: tests/testthat/test-security.R
     why: queries Sonatype OSS Index with credentials the gate does not have; the security-audit job runs it in T2
+  - path: tests/testthat/test-integration.R
+    why: the L4 layer, real DNS, TLS and rebinding against public hosts; runs only locally under SSRFR_INTEGRATION_TESTS, never in CI (r-binding.md §7)
 
 # Every skip R CMD check's test run may report; any other fails the gate. A
 # skipped test fails, as an expectation-free one does (ssrfr-v1.md §7.2), so

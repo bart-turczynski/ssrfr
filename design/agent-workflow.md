@@ -173,7 +173,9 @@ pkgdown's default output directory, `docs/`, so `_pkgdown.yml` sets no
   run `test-osv.R` and `test-security.R` against the network (the latter
   skips there without the OSS Index credentials); T1 excludes both
   (`.fleet-ci.yml`'s `exclude_tests`), and `osv-audit` and `security-audit`
-  run them. A skipped test still fails T1: `allowed_skips` is empty.
+  run them. T1 also excludes `test-integration.R`, the L4 layer, which runs
+  only locally under `SSRFR_INTEGRATION_TESTS` and skips in the T2 legs
+  (`r-binding.md` §7). A skipped test still fails T1: `allowed_skips` is empty.
 - **No incoming check before a merge.** T1's check runs with
   `_R_CHECK_CRAN_INCOMING_=false`; the incoming feasibility and URL checks
   the former `verify` ran on every push run in `t2-ascran` (T2 and T3), and

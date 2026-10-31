@@ -13,11 +13,12 @@
 # ipv6.google.com, the 1u.ms rebinding service, and the DNS-over-HTTPS
 # endpoints of 1.1.1.1 and 8.8.8.8.
 
-# Skips unless SSRFR_INTEGRATION_TESTS is set, on CRAN, and offline.
+# Skips unless SSRFR_INTEGRATION_TESTS is `true` (as.logical() reads it), on
+# CRAN, and offline.
 skip_unless_integration <- function() {
   skip_if(
-    !nzchar(Sys.getenv("SSRFR_INTEGRATION_TESTS")),
-    "SSRFR_INTEGRATION_TESTS not set"
+    !isTRUE(as.logical(Sys.getenv("SSRFR_INTEGRATION_TESTS"))),
+    "SSRFR_INTEGRATION_TESTS not set to true"
   )
   skip_on_cran()
   skip_if_offline()
@@ -124,25 +125,40 @@ test_that("real DNS: one resolution, global addresses, the fetch on the pin", {
   r <- ssrf_fetch(b)
   expect_s3_class(r, "ssrfr_response")
   expect_identical(r$status, 200L)
-  # The fetch resolves nothing more, and every address libcurl dialed is the
-  # pinned one, on the URL's port.
+  # The fetch resolves nothing more. It may fail over in resolver order
+  # (§2.5), say past an AAAA with no route, but every address libcurl dialed
+  # is a validated one, and the last attempt connected.
   expect_identical(resolver$queries, "example.com.")
-  expect_identical(b$state$pin_used, b$pin)
-  expect_identical(b$state$attempts, paste(b$pin, "connected"))
+  expect_true(b$state$pin_used %in% b$validated)
+  attempts <- b$state$attempts
+  expect_identical(
+    attempts[[length(attempts)]],
+    paste(b$state$pin_used, "connected")
+  )
   tried <- dialed(trace$lines)
   expect_gt(nrow(tried), 0L)
-  expect_identical(unique(tried$address), b$pin)
+  expect_true(all(tried$address %in% b$validated))
   expect_identical(unique(tried$port), 443L)
 })
 
 # INV-4 through the system resolver: `localhost` answers ::1 and 127.0.0.1
-# from the hosts file on every platform. Public wildcard names that answer
+# from the hosts file on macOS and most Linux systems; where the platform does
+# not answer the absolute `localhost.` (some nss_files builds, Windows), the
+# test skips rather than testing the resolver. Public wildcard names that answer
 # 127.0.0.1 (nip.io, localtest.me) are not used: rebinding-protected
 # resolvers (NextDNS, dnsmasq's stop-dns-rebind, Pi-hole) answer them with
 # nothing, which would test the resolver, not the guard.
 test_that("real DNS: a name with a loopback address refuses, never connects", {
   skip_unless_integration()
   skip_if_not_installed("withr")
+  local_answers <- tryCatch(
+    ssrfr:::dep_nslookup("localhost."),
+    error = function(e) character()
+  )
+  skip_if(
+    length(local_answers) == 0L,
+    "this platform's resolver does not answer localhost."
+  )
   resolver <- local_counting_resolver()
   honeypot <- local_listener()
   policy <- integration_policy(allow_ports = c(80, 443, honeypot$port))
@@ -267,7 +283,9 @@ test_that("IPv6: a real AAAA-only name is pinned and dialed over IPv6", {
 # query reaches it, with TTL 0. The answers reach the guard through its
 # internal resolver seam, asked of 1.1.1.1 and 8.8.8.8 in turn over
 # DNS-over-HTTPS: a rebinding-protected system resolver answers the name with
-# nothing (NextDNS blocks 1u.ms), and over these two the answers alternate.
+# nothing (NextDNS blocks 1u.ms). Over these two the answers have alternated
+# in practice, but resolver caches and retries move the service's counter, so
+# the test hops until it has seen both outcomes, up to ten hops.
 # A is example.com's real address; the URL's port is a loopback honeypot's,
 # where nothing on the public side listens. Each hop resolves once: a
 # loopback answer refuses, a public one is pinned, and the fetch dials only
@@ -290,13 +308,24 @@ test_that("live rebinding: one resolution per hop, never a loopback dial", {
   seen <- new.env(parent = emptyenv())
   seen$queries <- character()
   seen$answers <- list()
+  seen$endpoints <- character()
+  seen$errors <- character()
   local_mocked_bindings(
     dep_nslookup = function(query) {
       endpoint <- doh_endpoints[[length(seen$queries) %% 2L + 1L]]
-      answers <- doh_answers(query, endpoint)
+      # Recorded before the query, so a DNS-over-HTTPS failure is reported
+      # as one, not as a guard refusal.
       seen$queries <- c(seen$queries, query)
-      seen$answers <- c(seen$answers, list(answers))
-      answers
+      seen$endpoints <- c(seen$endpoints, endpoint)
+      result <- tryCatch(
+        list(answers = doh_answers(query, endpoint), error = ""),
+        error = function(e) {
+          list(answers = character(), error = conditionMessage(e))
+        }
+      )
+      seen$errors <- c(seen$errors, result$error)
+      seen$answers <- c(seen$answers, list(result$answers))
+      result$answers
     },
     .package = "ssrfr"
   )
@@ -308,11 +337,23 @@ test_that("live rebinding: one resolution per hop, never a loopback dial", {
   )
   url <- paste0("http://", name, ":", honeypot$port, "/")
   outcomes <- character()
-  for (i in 1:4) {
+  for (i in 1:10) {
+    if (all(c("refused", "pinned") %in% outcomes)) {
+      break
+    }
     asked <- length(seen$queries)
     b <- ssrf_prepare_hop(url, policy, request = list())
     expect_length(seen$queries, asked + 1L)
     answer <- seen$answers[[asked + 1L]]
+    if (length(answer) == 0L) {
+      fail(paste0(
+        "no DNS-over-HTTPS answer from ",
+        seen$endpoints[[asked + 1L]],
+        if (nzchar(seen$errors[[asked + 1L]])) ": ",
+        seen$errors[[asked + 1L]]
+      ))
+      break
+    }
     if (identical(answer, "127.0.0.1")) {
       # A guard that admitted the answer would be fetched, as an
       # application does.
@@ -332,7 +373,10 @@ test_that("live rebinding: one resolution per hop, never a loopback dial", {
     # 127.0.0.1 to the next resolver that asks.
     rebound <- character()
     for (endpoint in rep(rev(doh_endpoints), 2L)) {
-      rebound <- doh_answers(paste0(name, "."), endpoint)
+      rebound <- tryCatch(
+        doh_answers(paste0(name, "."), endpoint),
+        error = function(e) character()
+      )
       if (identical(rebound, "127.0.0.1")) {
         break
       }

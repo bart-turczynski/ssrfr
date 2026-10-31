@@ -865,7 +865,17 @@ and whatever the name resolves to. The earlier justification — that Equinix Me
 and IBM VPC have "no link-local address at all" — was wrong for IBM, and Equinix
 Metal was sunset on 2026-06-30 **[sourced]**. `linklint`'s five-name list and its
 recorded declined names (bare `metadata`, `instance-data`,
-`metadata.azure.internal`) are the starting point.
+`metadata.azure.internal`) are the starting point. Bare `metadata` is admitted,
+so the built-in list has six names: Google's metadata-server troubleshooting
+page names it as the metadata server's hostname, beside `169.254.169.254` and
+`metadata.google.internal`, in the `NO_PROXY` value it prescribes **[sourced]**
+(Compute Engine, "Troubleshooting metadata server access issues", retrieved
+2026-10-31). *Amended 2026-10-31* (was declined; maintainer ruling of
+2026-10-22, landed for 1.0.0, `SSRF-figjvukt`). `instance-data`,
+`instance-data.ec2.internal` and `instance-data.<region>.compute.internal` stay
+declined: no current AWS document names them as the instance metadata host, and
+the regional form cannot be an exact whole-host entry. They refuse only by their
+answers, at gates 1–3.
 
 ### 5.0 Precedence **[ratified]**
 
@@ -1634,6 +1644,13 @@ From 2026-09-30 they are also logged here:
 - **2026-10-22** (`SSRF-hotiouqk`): the maintainer ratified the 2026-10-21
   amendments. Wording only: a body "exceeded", not "passed", the limit
   (§2.3, §6.6). No rule changes, and no test.
+- **2026-10-31** (`SSRF-figjvukt`): §5, gate 5, admits the bare host
+  `metadata`, as the maintainer ruled on 2026-10-22, cited to Google's
+  metadata-server troubleshooting page; the built-in list has six names, at
+  `metadata_hostnames` version 2. `instance-data`,
+  `instance-data.ec2.internal` and `instance-data.<region>.compute.internal`
+  stay declined. Verdict vectors V0257, V0258 and V0285 are superseded by
+  V0547–V0549.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

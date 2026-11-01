@@ -644,8 +644,8 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 
 | Behavior | Spec | Layer | Technique | On CRAN |
 |---|---|---|---|---|
-| Verdicts and reason codes | §5, §6.5 | L0 | golden table | runs |
-| Guard host equals transport host, by value | INV-1, INV-2 | L0 | parse-vector corpus | runs |
+| Verdicts and reason codes | §5, §6.5 | L0 | golden table | runs; the check that a pending row still differs `skip_on_cran()` |
+| Guard host equals transport host, by value | INV-1, INV-2 | L0 | parse-vector corpus | runs; the check that a pending row still differs `skip_on_cran()` |
 | Parser disagreement refuses as `parse` (a MUST-test): the four fullwidth separators in a host (`design/evidence/2026-09-25-fullwidth-separators.R`), with the refusal asserted whatever `rurl`'s verdict | §4.1 | L0 | named test, beside the corpus rows | runs |
 | A wire string or parsed host that is not printable ASCII refuses as `parse` (a MUST-test): a U-label serialization refuses even when a mocked `curl_parse_url()` returns the A-label, before any resolver call; a mocked serialization `http://b%C3%BCcher.invalid/` refuses through the real `curl_parse_url()` (`design/evidence/2026-09-29-wire-ascii.R`) | §4.1, INV-6 | L0 | named test, beside the disagreement test | runs |
 | A host with an `xn--` label that is not a genuine A-label refuses as `parse` at the parse boundary, check `ace-label`, before any resolver call: an `xn--` prefix in either case whose label is empty, undecodable or fails validity, in the hop's own URL, through `base`, and on the guarded hop, read from `rurl`'s `domain-invalid-ace-label` diagnostic (`rurl` 3.1.0); neither `rurl`'s layer-1 verdict nor the disagreement check refuses these hosts | §5.0 | L1 | named test with a counting resolver mock, beside corpus rows P0060–P0062 | runs |

@@ -210,6 +210,11 @@ test_that("every active L0 verdict vector is decided at L0 with its code", {
 })
 
 test_that("pending L0 verdict vectors keep their marker and still differ", {
+  # A tripwire for the maintainer, not a property of ssrfr: it fails as soon
+  # as an upstream fix lands, so on CRAN it would fail on rurl's or
+  # punycoder's release rather than on any change here. test-binding.R
+  # asserts on CRAN that these rows refuse whichever code they reach.
+  skip_on_cran()
   v <- read_corpus("verdict-vectors.tsv")
   rows <- v[v$layer == "L0" & startsWith(v$status, "pending:"), ]
   # V0350 became active with rurl 3.1.0 (SSRF-imtdxdym). V0541 and V0542, and

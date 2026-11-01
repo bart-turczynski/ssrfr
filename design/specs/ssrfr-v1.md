@@ -46,6 +46,8 @@ items 32–33, two gaps a review of the implementation tickets found.
 **Ratified 2026-09-29:** §8 item 34, the printable-ASCII wire string and
 parsed host (§4.1, `SSRF-ljqshjmj`). **Ratified 2026-10-22:** the 2026-10-21
 amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
+**Ratified 2026-11-01:** the 2026-10-31 amendment to §5 gate 5, admitting bare
+`metadata` (`SSRF-figjvukt`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -1652,6 +1654,9 @@ From 2026-09-30 they are also logged here:
   `instance-data.ec2.internal` and `instance-data.<region>.compute.internal`
   stay declined. Verdict vectors V0257, V0258 and V0285 are superseded by
   V0547–V0549.
+- **2026-11-01** (`SSRF-figjvukt`): the maintainer ratified the 2026-10-31
+  amendment to §5, gate 5, as written. The source now also cites a
+  2026-11-01 Wayback snapshot of Google's page. No rule changes, and no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

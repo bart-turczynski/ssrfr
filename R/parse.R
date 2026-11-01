@@ -54,58 +54,81 @@ default_ports <- c(http = 80L, https = 443L)
 # Fields the hop did not reach are NULL.
 parse_hop <- function(url, policy, base = NULL, base_scheme = NULL) {
   hop <- list(received = url, finding = NULL)
-  refuse <- function(code, step, ...) {
-    hop$finding <- new_finding(code, step, ...)
-    hop
-  }
 
-  # Step 1: the length limit, before either parser runs (§5.3), then
-  # reference resolution against the previous hop (§3.2, §3.3).
-  octets <- tryCatch(nchar(url, type = "bytes"), error = function(e) NA)
-  if (is.na(octets) || octets > policy$max_url_length) {
-    return(refuse("parse", 1L, check = "length", limit = "max_url_length"))
+  # Step 1: the length limit and reference resolution.
+  start <- parse_hop_start(url, policy, base, base_scheme)
+  if (!is.null(start$finding)) {
+    hop$finding <- start$finding
+    return(hop)
   }
-  if (!is.null(base)) {
-    if (is.null(base_scheme)) {
-      prior <- parse_boundary(base)
-      if (!is.null(prior$finding)) {
-        return(refuse("parse", 1L, check = "base"))
-      }
-      base_scheme <- prior$scheme
-    }
-    url <- read_resolution(url, base)
-    if (is.null(url)) {
-      return(refuse("parse", 1L, check = "resolution"))
-    }
-  }
-  hop$url <- url
+  hop$url <- start$url
 
   # Steps 1-2: both parsers, and their agreement.
-  parsed <- parse_boundary(url)
+  parsed <- parse_boundary(start$url)
   if (!is.null(parsed$finding)) {
     hop$finding <- parsed$finding
     return(hop)
   }
   hop <- c(hop, parsed[setdiff(names(parsed), "finding")])
 
+  # Steps 3-5: the scheme, userinfo and port under the policy.
+  finding <- parse_hop_policy(hop, policy, start$base_scheme)
+  if (!is.null(finding)) {
+    hop$finding <- finding
+  }
+  hop
+}
+
+# Step 1 for parse_hop(): the length limit, before either parser runs
+# (§5.3), then reference resolution against the previous hop (§3.2, §3.3).
+# Returns a list: `finding`, a step-1 `parse` finding or NULL, and when it is
+# NULL, `url`, the absolute URL to parse, and `base_scheme`, the scheme
+# libcurl read from `base` (NULL on a first hop).
+parse_hop_start <- function(url, policy, base, base_scheme) {
+  refuse <- function(...) {
+    list(finding = new_finding("parse", 1L, ...))
+  }
+  octets <- tryCatch(nchar(url, type = "bytes"), error = function(e) NA)
+  if (is.na(octets) || octets > policy$max_url_length) {
+    return(refuse(check = "length", limit = "max_url_length"))
+  }
+  if (!is.null(base)) {
+    if (is.null(base_scheme)) {
+      prior <- parse_boundary(base)
+      if (!is.null(prior$finding)) {
+        return(refuse(check = "base"))
+      }
+      base_scheme <- prior$scheme
+    }
+    url <- read_resolution(url, base)
+    if (is.null(url)) {
+      return(refuse(check = "resolution"))
+    }
+  }
+  list(finding = NULL, url = url, base_scheme = base_scheme)
+}
+
+# Steps 3-5 for parse_hop() on a hop that parsed: the first finding among the
+# scheme, the https-to-http downgrade, userinfo and the port, or NULL.
+parse_hop_policy <- function(hop, policy, base_scheme) {
   # Step 3: the scheme libcurl read, then no https-to-http redirect.
   if (!hop$scheme %in% policy$allow_schemes) {
-    return(refuse("scheme", 3L, host = hop$host))
+    return(new_finding("scheme", 3L, host = hop$host))
   }
   if (identical(base_scheme, "https") && identical(hop$scheme, "http")) {
-    return(refuse("downgrade", 3L, host = hop$host))
+    return(new_finding("downgrade", 3L, host = hop$host))
   }
 
   # Step 4: userinfo, as libcurl read it.
   if (hop$userinfo && !policy$allow_userinfo) {
-    return(refuse("userinfo", 4L, host = hop$host))
+    return(new_finding("userinfo", 4L, host = hop$host))
   }
 
   # Step 5: the effective port against the allowlist.
   if (!hop$port %in% policy$allow_ports) {
-    return(refuse("port", 5L, host = hop$host))
+    return(new_finding("port", 5L, host = hop$host))
   }
-  hop
+  NULL
 }
 
 # Parses one absolute URL at the boundary (§4.1, §4.2, §5.0), with no policy.
@@ -113,36 +136,14 @@ parse_hop <- function(url, policy, base = NULL, base_scheme = NULL) {
 # it is NULL, `wire`, `scheme`, `host`, `port`, `userinfo`, `host_kind`,
 # `name` and `address` as parse_hop() describes them.
 parse_boundary <- function(url) {
-  refuse <- function(code, check) {
-    list(
-      finding = new_finding(
-        code,
-        if (code == "scheme") 3L else 2L,
-        check = check
-      )
-    )
-  }
-  verdicts <- read_verdicts(url)
-  if (is.null(verdicts) || verdicts$layer1 != "pass") {
-    return(refuse("parse", "syntax"))
-  }
-  if (verdicts$layer2 != "admitted") {
-    return(refuse("scheme", "scheme-verdict"))
-  }
-  # §5.0: a host carrying an `xn--` label that is not a genuine A-label has no
-  # A-label, and its input spelling must not stand in for one. rurl's
-  # diagnostic is the signal; ssrfr decodes no label itself (§4).
-  diagnostics <- read_diagnostics(url)
-  if (is.null(diagnostics)) {
-    return(refuse("parse", "diagnostics"))
-  }
-  if (ace_label_failure %in% diagnostics) {
-    return(refuse("parse", "ace-label"))
+  refused <- parse_boundary_verdicts(url)
+  if (!is.null(refused)) {
+    return(refused)
   }
   ours <- read_rurl_parse(url)
   wire <- read_serialization(url)
   if (is.null(ours) || is.null(wire)) {
-    return(refuse("parse", "syntax"))
+    return(parse_boundary_refuse("parse", "syntax"))
   }
   # The target URI carries no fragment (§2.3). In a WHATWG serialization every
   # other `#` is percent-encoded; a host rurl left holding one (RURL-crsrkcoh)
@@ -152,39 +153,70 @@ parse_boundary <- function(url) {
   # curl_parse_url() sees it. A U-label reaching libcurl can defeat the
   # connect_to pin even when libcurl's parse returns the A-label (INV-6).
   if (!printable_ascii(wire)) {
-    return(refuse("parse", "wire-ascii"))
+    return(parse_boundary_refuse("parse", "wire-ascii"))
   }
   theirs <- read_curl_parse(wire)
   if (is.null(theirs)) {
-    return(refuse("parse", "transport-parse"))
+    return(parse_boundary_refuse("parse", "transport-parse"))
   }
-  host <- theirs$host
-  agree <- hosts_agree(ours$host, host)
+  agree <- hosts_agree(ours$host, theirs$host)
   if (is.na(agree)) {
-    return(refuse("malformed-address", "agreement"))
+    return(parse_boundary_refuse("malformed-address", "agreement"))
   }
   if (!agree) {
-    return(refuse("parse", "agreement"))
+    return(parse_boundary_refuse("parse", "agreement"))
   }
+  parse_boundary_fields(wire, ours, theirs)
+}
+
+# A parse_boundary() refusal: the finding alone, at step 3 for `scheme` and
+# step 2 for every other code.
+parse_boundary_refuse <- function(code, check) {
+  list(
+    finding = new_finding(
+      code,
+      if (code == "scheme") 3L else 2L,
+      check = check
+    )
+  )
+}
+
+# rurl's verdicts and diagnostics of `url` (§4.2, §5.0): a parse_boundary()
+# refusal when layer 1 fails, layer 2 does not admit, the diagnostics cannot
+# be read or a label is a false A-label; NULL when the URL passes them.
+parse_boundary_verdicts <- function(url) {
+  verdicts <- read_verdicts(url)
+  if (is.null(verdicts) || verdicts$layer1 != "pass") {
+    return(parse_boundary_refuse("parse", "syntax"))
+  }
+  if (verdicts$layer2 != "admitted") {
+    return(parse_boundary_refuse("scheme", "scheme-verdict"))
+  }
+  # §5.0: a host carrying an `xn--` label that is not a genuine A-label has no
+  # A-label, and its input spelling must not stand in for one. rurl's
+  # diagnostic is the signal; ssrfr decodes no label itself (§4).
+  diagnostics <- read_diagnostics(url)
+  if (is.null(diagnostics)) {
+    return(parse_boundary_refuse("parse", "diagnostics"))
+  }
+  if (ace_label_failure %in% diagnostics) {
+    return(parse_boundary_refuse("parse", "ace-label"))
+  }
+  NULL
+}
+
+# What parse_boundary() established once the two parsers agree: the fields
+# parse_hop() describes, read from libcurl's parse `theirs` of `wire`, or a
+# `transport-parse` refusal when an http(s) URL has no host or no valid port.
+parse_boundary_fields <- function(wire, ours, theirs) {
+  host <- theirs$host
   scheme <- ascii_lower(theirs$scheme)
   web <- scheme %in% names(default_ports)
-  port <- if (is.null(theirs$port)) {
-    if (web) default_ports[[scheme]] else NA_integer_
-  } else {
-    suppressWarnings(as.integer(theirs$port))
-  }
+  port <- parse_boundary_port(theirs$port, scheme)
   if (web && (is.null(host) || !nzchar(host) || is.na(port))) {
-    return(refuse("parse", "transport-parse"))
+    return(parse_boundary_refuse("parse", "transport-parse"))
   }
-  kind <- if (is.null(host)) {
-    NA_character_
-  } else if (grepl("^\\[.*\\]$", host)) {
-    "ipv6"
-  } else if (ours$is_ip) {
-    "ipv4"
-  } else {
-    "name"
-  }
+  kind <- parse_boundary_host_kind(host, ours$is_ip)
   list(
     finding = NULL,
     wire = wire,
@@ -197,6 +229,30 @@ parse_boundary <- function(url) {
     name = if (identical(kind, "name")) normalize_host_name(host),
     address = if (!is.na(kind) && kind != "name") unbracket(host)
   )
+}
+
+# The effective port: libcurl's port as an integer (NA when it is not one),
+# or, when libcurl read none, the scheme's default, NA for a scheme without
+# one.
+parse_boundary_port <- function(port, scheme) {
+  if (!is.null(port)) {
+    return(suppressWarnings(as.integer(port)))
+  }
+  if (scheme %in% names(default_ports)) default_ports[[scheme]] else NA_integer_
+}
+
+# The host's kind: "ipv6" for a bracketed literal, "ipv4" for one rurl read
+# as an address, "name" otherwise, NA when libcurl read no host.
+parse_boundary_host_kind <- function(host, is_ip) {
+  if (is.null(host)) {
+    NA_character_
+  } else if (grepl("^\\[.*\\]$", host)) {
+    "ipv6"
+  } else if (is_ip) {
+    "ipv4"
+  } else {
+    "name"
+  }
 }
 
 # Whether `x` is printable ASCII, U+0021 to U+007E (§4.1). Read as bytes, so
@@ -224,13 +280,24 @@ unbracket <- function(host) {
 # still parse to a host that is not. NA when raddr parsed both and then failed
 # to format one (§6.5: `malformed-address`).
 hosts_agree <- function(ours, theirs) {
-  absent <- function(h) is.null(h) || is.na(h) || !nzchar(h)
-  if (absent(ours) || absent(theirs)) {
-    return(absent(ours) && absent(theirs))
+  if (hosts_agree_absent(ours) || hosts_agree_absent(theirs)) {
+    return(hosts_agree_absent(ours) && hosts_agree_absent(theirs))
   }
   if (!printable_ascii(ours) || !printable_ascii(theirs)) {
     return(FALSE)
   }
+  hosts_agree_values(ours, theirs)
+}
+
+# Whether a parser left the host absent: NULL, NA or empty.
+hosts_agree_absent <- function(h) {
+  is.null(h) || is.na(h) || !nzchar(h)
+}
+
+# hosts_agree() for two present, printable ASCII hosts: equal raddr values
+# when both are addresses, NA when raddr failed to format one, equal
+# lowercase strings when both are names, FALSE otherwise.
+hosts_agree_values <- function(ours, theirs) {
   a <- canonical_address(unbracket(ours))
   b <- canonical_address(unbracket(theirs))
   if (!is.null(a) && !is.null(b)) {

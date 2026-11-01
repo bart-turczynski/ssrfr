@@ -636,7 +636,7 @@ working in a throwaway package: 9/9 expectations pass.
 | **L1** | `testthat::local_mocked_bindings()` on the internal `nslookup` wrapper; a **counting mock asserting exactly one call** proves INV-5's resolve-once | always |
 | **L2** | pin `http://pinned.example.invalid:PORT/` to a loopback `webfakes` app; assert arrival **and** that `Host:` is still the hostname | guard `skip_if_not_installed("webfakes")`, cap threads at 2 |
 | **L3** | `base::serverSocket()` + `socketAccept()` — read exact wire bytes, zero dependencies | always |
-| **L4** | env-gated `SSRFR_INTEGRATION_TESTS` — real DNS, TLS chains, IPv6 pinning | never |
+| **L4** | env-gated `SSRFR_INTEGRATION_TESTS` — real DNS, TLS chains, IPv6 pinning, live rebinding, against public hosts; every test in `test-integration.R` ("Running L4", below) | never |
 
 ### Behavior to test layer
 
@@ -683,8 +683,32 @@ Test layers, as in the table above; the spec's corpus names guard layers.
 | Each transfer's first request goes on a fresh connection | §14 | L3 | two fetches to a server that keeps connections open arrive on two | runs |
 | A chunked body's trailer fields count against `max_header_bytes` and `max_header_fields` as they arrive. libcurl writes trailer lines to the header buffer but not to the trace's header lines, so `ssrfr` measures header and trailers alike from the header buffer, never from the trace, and the limits hold in flight even on a build that traces no line for a read of header or trailer bytes. No empty line ends the trailer lines, so one segmenter, shared by the measure and the parse, classifies each line by the block before it: a status line at the start or after an empty line opens a header block, ended or not, unless a complete final block precedes it, and every line after that block is a trailer line, and a field unless it is empty, one shaped like a status line included. A count taken in flight and one taken at the end therefore agree: a header cut short at `max_header_fields` ends with the transfer's own cause, and a status-shaped first trailer counts before any body byte is delivered | §5.3, §6.6 | L3; L0 for the segmenter and the status-shaped line | raw server sending many, wide and never-ending trailers, and a header cut short at the field limit; a never-ending header and never-ending trailers with every trace line but text withheld; a scripted progress call over a final block and a status-shaped trailer; the segmenter and the header measure run on raw buffers | runs |
 | Ordinary HTTP still works through the guard: methods, headers, `gzip`, a redirect chain | §2 | L2 | `webfakes::httpbin_app()` via `ssrf_prepare_hop()` / `ssrf_fetch()`; the chain hop by hop through `from` (`test-redirect.R`) and through `ssrf_fetch_chain()` (`test-chain.R`) | if `webfakes` |
-| IPv6 pin | INV-6 | L2 (`httpuv`) | `"HOST::[::1]:"` | if `httpuv` and `::1` bind |
-| Real DNS, certificate chains, live rebinding | INV-4, INV-5, INV-9 | L4 | `SSRFR_INTEGRATION_TESTS` | never |
+| IPv6 pin | INV-6 | L2 (`httpuv`); L4 | `"HOST::[::1]:"`; a real AAAA-only name, "IPv6: a real AAAA-only name is pinned and dialed over IPv6" in `test-integration.R` | if `httpuv` and `::1` bind; L4 never |
+| Real DNS, certificate chains, live rebinding | INV-4, INV-5, INV-9 | L4 | `SSRFR_INTEGRATION_TESTS`, in `test-integration.R`: "real DNS: one resolution, global addresses, the fetch on the pin" (`example.com`: one absolute query through the system resolver, every validated address global, every traced `Trying` the pin); "real DNS: a name with a loopback address refuses, never connects" (`localhost`, `::1` and `127.0.0.1` from the hosts file, refused as `loopback` at step 8 (skipped where the platform does not answer the absolute `localhost.`), a honeypot listener seeing no connection; public wildcard names such as `nip.io` are left out, because a rebinding-protected resolver answers them with nothing); "TLS: a real valid chain verifies; verification is not weakened" (`badssl.com`, every §5 row on the real attempt, no CA option); "TLS: real bad chains refuse as tls-failed at the pinned address" (`expired`, `wrong.host`, `self-signed` and `untrusted-root.badssl.com`, each answered with `badssl.com`'s real address through the resolver mock, beside a valid control at that pin: step 10, check `transport`); "IPv6: a real AAAA-only name is pinned and dialed over IPv6" (`ipv6.google.com`; skips without an IPv6 route); "live rebinding: one resolution per hop, never a loopback dial" (`1u.ms`'s `make-A-rebind-127.0.0.1-rr` name, its answers asked live of 1.1.1.1 and 8.8.8.8 over DNS-over-HTTPS through the resolver mock: one resolution per hop, hopping until both a loopback answer refused and a public one fetched only at the pin after the name has rebound have been seen, at most ten hops, a honeypot seeing no connection) | never |
+
+### Running L4
+
+Every L4 test is in `tests/testthat/test-integration.R` and skips unless
+`SSRFR_INTEGRATION_TESTS` is `true`, on CRAN, and offline. That file is in
+`.fleet-ci.yml`'s `exclude_tests`, so the gate, which fails on any skip
+(Rules, "A skipped security test is a failure"), never runs it and never
+sees its environment skip; CI never makes its requests. Run it locally:
+
+```sh
+SSRFR_INTEGRATION_TESTS=true \
+  Rscript -e "testthat::test_local(filter = 'integration')"
+```
+
+It depends on public hosts that need no credentials: `example.com`,
+`badssl.com`, `ipv6.google.com`, the `1u.ms` rebinding service, and the
+DNS-over-HTTPS endpoints of 1.1.1.1 and 8.8.8.8, reached by address. The
+rebinding answers come through the resolver mock rather than the system
+resolver because a rebinding-protected resolver (NextDNS on the
+maintainer's machine, dnsmasq's `stop-dns-rebind`, Pi-hole) answers such a
+name with nothing, and the system resolver is the only one the guard
+uses (§3). For the same reason the `badssl.com` names other than
+`badssl.com` itself are answered with its real address: NextDNS refuses to
+resolve `self-signed` and `untrusted-root` (category `untrusted-certs`).
 
 ### Why `.invalid`
 

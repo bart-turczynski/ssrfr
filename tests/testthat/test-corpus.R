@@ -11,7 +11,9 @@
 #
 # A pending row is never skipped (§7.2): its marker is asserted, and so is the
 # fact that its expectation still does not hold, so the day the upstream fix
-# lands the test fails and the row is promoted to active.
+# lands the test fails and the row is promoted to active. That second check
+# skips on CRAN, where an upstream release would fail it rather than any
+# change here.
 
 # A field may carry only the escapes defined in fixtures/README.md.
 has_bad_escape <- function(x) {
@@ -210,19 +212,19 @@ test_that("every active L0 verdict vector is decided at L0 with its code", {
 })
 
 test_that("pending L0 verdict vectors keep their marker and still differ", {
-  # A tripwire for the maintainer, not a property of ssrfr: it fails as soon
-  # as an upstream fix lands, so on CRAN it would fail on rurl's or
-  # punycoder's release rather than on any change here. test-binding.R
-  # asserts on CRAN that these rows refuse whichever code they reach.
-  skip_on_cran()
   v <- read_corpus("verdict-vectors.tsv")
   rows <- v[v$layer == "L0" & startsWith(v$status, "pending:"), ]
   # V0350 became active with rurl 3.1.0 (SSRF-imtdxdym). V0541 and V0542, and
-  # their bare-`metadata` counterparts V0551 and V0552, wait on rurl reading a
-  # percent-encoded trailing full stop (SSRF-shdndpga); until then they refuse
-  # as `parse`, which test-binding.R asserts and this loop does not. A row
-  # marked pending later is named here.
+  # their bare-`metadata` counterparts V0551 and V0552, wait on rurl or
+  # punycoder reading a percent-encoded trailing full stop (SSRF-shdndpga);
+  # until then they refuse as `parse`. test-binding.R asserts, on CRAN too,
+  # that these four URLs refuse whichever code they reach; this loop does
+  # not. A row marked pending later is named here, and its refusal asserted
+  # there.
   expect_identical(rows$id, c("V0541", "V0542", "V0551", "V0552"))
+  # The tripwire below fails the day the upstream fix lands, so on CRAN it
+  # would fail on that release rather than on any change here.
+  skip_on_cran()
   for (i in seq_len(nrow(rows))) {
     expect_false(
       identical(inspect_row(rows[i, ]), rows$code[i]),
@@ -412,6 +414,8 @@ test_that("pending parse vectors keep their marker and still differ", {
   # None is pending since P0060-P0062 became active (rurl 3.1.0,
   # SSRF-imtdxdym); a row marked pending later is named here.
   expect_identical(rows$id, character())
+  # As for the L0 rows: the tripwire would fail on an upstream release.
+  skip_on_cran()
   for (i in seq_len(nrow(rows))) {
     expect_false(
       identical(parse_row(rows$input[i])$outcome, rows$expect[i]),

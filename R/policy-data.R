@@ -270,6 +270,7 @@ domain_metadata_hostnames <- function() {
       "169.254.169.254",
       "GCP",
       paste0(
+        "http://web.archive.org/web/20261101192936/",
         "https://docs.cloud.google.com/compute/docs/troubleshooting/",
         "troubleshoot-metadata-server"
       ),

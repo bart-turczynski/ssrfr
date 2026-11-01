@@ -13,7 +13,7 @@ abstract: >-
   and every resolved address is classified before the connection is pinned to
   a validated address, so a hostname cannot be rebound between check and
   connect. Refusals carry stable reason codes.
-version: 0.0.0.9000
+version: 1.0.0
 authors:
   - family-names: Turczynski
     given-names: Bart

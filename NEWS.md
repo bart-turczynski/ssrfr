@@ -1,4 +1,4 @@
-# ssrfr 0.0.0.9000
+# ssrfr 1.0.0
 
 First release: an SSRF guard for R code that fetches URLs an attacker can influence.
 

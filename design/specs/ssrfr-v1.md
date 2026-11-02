@@ -47,7 +47,9 @@ items 32–33, two gaps a review of the implementation tickets found.
 parsed host (§4.1, `SSRF-ljqshjmj`). **Ratified 2026-10-22:** the 2026-10-21
 amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
 **Ratified 2026-11-01:** the 2026-10-31 amendment to §5 gate 5, admitting bare
-`metadata` (`SSRF-figjvukt`).
+`metadata` (`SSRF-figjvukt`). **Ratified 2026-11-02:** the 2026-11-02
+amendment to §5.0, refusing a host with an empty label as `parse`
+(`SSRF-qopriinc`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -1683,6 +1685,8 @@ From 2026-09-30 they are also logged here:
   The diagnostic is read from the serialization as well as from the URL
   received, since UTS #46 can empty a label by deleting ignored code points;
   parse vectors P0127–P0136 cover it.
+- **2026-11-02** (`SSRF-qopriinc`): the maintainer ratified the 2026-11-02
+  amendment to §5.0 as written.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

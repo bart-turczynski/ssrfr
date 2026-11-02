@@ -276,53 +276,18 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
   shown <- default_if_null(hop$url, url)
   redirect <- NULL
   if (!is.null(from) && is.null(hop$finding)) {
-    origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
-    inherited <- redirect_plan(
-      plan,
-      from$state$status,
-      cross_origin = !same_origin(from$origin, origin)
-    )
-    # §2.3, §2.5: the plan this hop sends, once the redirect has dropped
-    # what it drops, is checked under this hop's policy, which may not admit
-    # a field the previous hop's did. A dropped field is not checked. The
-    # caller passed `from`, not `request`, so a message names an entry by
-    # its place in `from$request`, the plan inherited, not in the plan
-    # derived from it.
-    label <- plan_label("from$request", function(field, i) {
-      switch(
-        field,
-        headers = inherited$kept[[i]],
-        carry = match(inherited$plan$carry[[i]], from$request$carry),
-        i
-      )
-    })
-    plan <- check_request(inherited$plan, policy, label)
-    redirect <- c(list(from_hop = from$hop), inherited$record)
+    inherited <- prepare_hop_redirect(hop, plan, policy, from)
+    plan <- inherited$plan
+    redirect <- inherited$redirect
   }
   if (is.null(hop$finding)) {
     hop$finding <- host_policy(hop, policy)
   }
   validated <- character()
   if (is.null(hop$finding) && hop$host_kind %in% c("ipv4", "ipv6")) {
-    gates <- address_gates(hop$address, policy)
-    hop$finding <- gates$finding
-    if (is.null(hop$finding)) {
-      # The pin target is the literal's canonical text (r-binding.md §2.6).
-      canonical <- canonical_address(hop$address)
-      if (!is_string(canonical)) {
-        hop$finding <- new_finding(
-          "malformed-address",
-          8L,
-          address = hop$address,
-          gate = "1b",
-          tier = 1L
-        )
-      }
-      validated <- canonical
-    }
-    if (!is.null(hop$finding)) {
-      hop$finding$host <- hop$host
-    }
+    literal <- prepare_hop_literal(hop, policy)
+    hop$finding <- literal$finding
+    validated <- literal$validated
   } else if (is.null(hop$finding)) {
     resolution <- resolve_hop(hop, policy)
     hop$finding <- resolution$finding
@@ -343,6 +308,63 @@ prepare_hop <- function(url, policy, plan, started, from = NULL) {
     ))
   }
   new_binding(hop, policy, plan, validated, hop_index, spent, redirect)
+}
+
+# A redirect hop's plan (§2.3): `from`'s plan transformed for the previous
+# response and the new origin, then checked under this hop's policy, which
+# raises on a field it refuses. Returns a list: `plan`, what the hop sends,
+# and `redirect`, the binding's record of the redirect.
+prepare_hop_redirect <- function(hop, plan, policy, from) {
+  origin <- list(scheme = hop$scheme, host = hop$host, port = hop$port)
+  inherited <- redirect_plan(
+    plan,
+    from$state$status,
+    cross_origin = !same_origin(from$origin, origin)
+  )
+  # §2.3, §2.5: the plan this hop sends, once the redirect has dropped
+  # what it drops, is checked under this hop's policy, which may not admit
+  # a field the previous hop's did. A dropped field is not checked. The
+  # caller passed `from`, not `request`, so a message names an entry by
+  # its place in `from$request`, the plan inherited, not in the plan
+  # derived from it.
+  label <- plan_label("from$request", function(field, i) {
+    switch(
+      field,
+      headers = inherited$kept[[i]],
+      carry = match(inherited$plan$carry[[i]], from$request$carry),
+      i
+    )
+  })
+  list(
+    plan = check_request(inherited$plan, policy, label),
+    redirect = c(list(from_hop = from$hop), inherited$record)
+  )
+}
+
+# Step 8 for an address literal: gates 1-3 on the address, then its
+# canonical text, the pin target (r-binding.md §2.6). Returns a list:
+# `finding`, carrying the hop's host, or NULL, and `validated`.
+prepare_hop_literal <- function(hop, policy) {
+  gates <- address_gates(hop$address, policy)
+  finding <- gates$finding
+  validated <- character()
+  if (is.null(finding)) {
+    canonical <- canonical_address(hop$address)
+    if (!is_string(canonical)) {
+      finding <- new_finding(
+        "malformed-address",
+        8L,
+        address = hop$address,
+        gate = "1b",
+        tier = 1L
+      )
+    }
+    validated <- canonical
+  }
+  if (!is.null(finding)) {
+    finding$host <- hop$host
+  }
+  list(finding = finding, validated = validated)
 }
 
 # A finding of steps 1-8 as the outcome ssrf_prepare_hop() returns: a refusal

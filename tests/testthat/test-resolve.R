@@ -367,3 +367,47 @@ test_that("a failing raddr wrapper refuses an answer as malformed-address", {
     }
   }
 })
+
+# §8 item 32: an answer raddr parses into a value it cannot then say is or
+# is not an address is a raddr failure, `malformed-address`, not an answer
+# that is no address (`unresolvable`, §6.6).
+test_that("an answer raddr cannot report missing or not is malformed", {
+  pton <- ssrfr:::dep_raddr_pton
+  # One raddr_address whose is.na() is no single flag.
+  unreadable <- structure(
+    data.frame(x = integer()),
+    class = c("raddr_address", "data.frame")
+  )
+  local_mocked_bindings(
+    dep_raddr_pton = function(text) {
+      if (identical(text, "203.0.113.9")) unreadable else pton(text)
+    }
+  )
+  mock_resolver("93.184.216.34,203.0.113.9")
+  res <- inspect_l1("http://a.example/")
+  expect_identical(res$code, "malformed-address")
+  expect_identical(res$cause, NA_character_)
+  expect_identical(res$step, 8L)
+})
+
+# INV-4, INV-5: the one resolver call asks libcurl for every address of both
+# families and raises on failure, which the caller turns into `unresolvable`.
+test_that("the resolver asks libcurl once for every address of both families", {
+  calls <- new.env(parent = emptyenv())
+  calls$args <- list()
+  local_mocked_bindings(
+    nslookup = function(...) {
+      calls$args[[length(calls$args) + 1L]] <- list(...)
+      c("93.184.216.34", "2606:4700:4700::1111")
+    },
+    .package = "curl"
+  )
+  b <- ssrf_prepare_hop("http://a.example/", ssrf_policy(), request = list())
+  expect_s3_class(b, "ssrfr_binding")
+  expect_identical(b$validated, c("93.184.216.34", "2606:4700:4700::1111"))
+  expect_length(calls$args, 1L)
+  expect_identical(
+    calls$args[[1L]],
+    list("a.example.", ipv4_only = FALSE, multiple = TRUE, error = TRUE)
+  )
+})

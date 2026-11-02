@@ -69,6 +69,25 @@ test_that("every handle carries the pin; TLS is never weakened", {
   expect_identical(unknown$accept_encoding, "identity")
 })
 
+# INV-6, r-binding.md §4.2: the connect_to key is libcurl's host. Should
+# libcurl spell an IPv6 host without brackets, the key is bracketed, so its
+# colons never read as the port fields of the entry.
+test_that("an IPv6 host libcurl spells bare is bracketed in the pin key", {
+  local_mocked_bindings(dep_curl_parse = function(url) {
+    p <- curl::curl_parse_url(url)
+    p$host <- gsub("[][]", "", p$host)
+    p
+  })
+  b <- binding_for("https://[2606:4700:4700::1111]/", NULL)
+  expect_s3_class(b, "ssrfr_binding")
+  expect_identical(b$origin$host, "2606:4700:4700::1111")
+  opts <- ssrfr:::transport_options(b, b$validated, 10, caps_modern)
+  expect_identical(
+    opts$connect_to,
+    "[2606:4700:4700::1111]::[2606:4700:4700::1111]:"
+  )
+})
+
 test_that("the option checker fires on a planted violation", {
   b <- binding_for("http://pin.example/")
   good <- ssrfr:::transport_options(b, "93.184.216.34", 10, caps_modern)
@@ -478,6 +497,24 @@ test_that("response headers are read from the final block only", {
   expect_null(ssrfr:::parse_response_headers(as.raw(c(0x48, 0x00, 0x49))))
 })
 
+# RFC 9112 §5: a complete final block whose line is neither a field line nor
+# the folding of one is no response, so the fetch makes it `protocol-error`.
+test_that("a final block with a line that is not a field line is no response", {
+  for (line in c("no colon", " folded with nothing before it", ": no name")) {
+    expect_null(
+      ssrfr:::parse_response_headers(wire(
+        "HTTP/1.1 200 OK\r\n",
+        line,
+        "\r\n\r\n"
+      )),
+      label = line
+    )
+  }
+  # The same block without that line is a response.
+  parsed <- ssrfr:::parse_response_headers(wire("HTTP/1.1 200 OK\r\n\r\n"))
+  expect_identical(parsed$status, 200L)
+})
+
 # libcurl reads no header after a complete final block, so the status and
 # the fields come from the one complete final block, and every line after
 # it is a trailer line. A buffer with a second final block reads as the
@@ -593,4 +630,19 @@ test_that("libcurl's capabilities are read through guarded wrappers", {
       })
     }
   }
+})
+
+# A version string that does not start with a number reads as no
+# capabilities, so the builder falls back to the forms every libcurl takes.
+test_that("a libcurl version with no number reads as no capabilities", {
+  version <- ssrfr:::dep_curl_version
+  local_mocked_bindings(dep_curl_version = function() {
+    modifyList(version(), list(version = "unknown"))
+  })
+  expect_null(ssrfr:::read_curl_capabilities())
+  local_mocked_bindings(dep_curl_version = function() {
+    modifyList(version(), list(version = "8.14.1-DEV"))
+  })
+  caps <- ssrfr:::read_curl_capabilities()
+  expect_identical(caps$version, numeric_version("8.14.1"))
 })

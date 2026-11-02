@@ -117,3 +117,43 @@ test_that("a header-limit failure records no status", {
   expect_null(r$detail$observed_bytes)
   expect_false(binding$state$fetched)
 })
+
+# §2.3: the status is transport-observed. At the decoded-body check it is
+# recorded only when libcurl reports the final status line's status; a
+# status libcurl does not report, or one that disagrees, records none.
+test_that("a decoded-bytes failure records no status libcurl disagrees with", {
+  stub_transfer <- function(reported) {
+    function(opts, on_body, debug, progress) {
+      debug(0L, charToRaw("Trying 192.0.2.1:80...\n"))
+      headers <- wire(
+        "HTTP/1.1 404 Not Found\r\n",
+        "Content-Type: text/plain\r\n\r\n"
+      )
+      go <- on_body(as.raw(rep(0x61, 2000)), function() headers)
+      list(
+        aborted = !go,
+        error = NULL,
+        status = reported,
+        headers = headers,
+        connect = 0.01
+      )
+    }
+  }
+  local_mocked_bindings(dep_nslookup = function(query) "192.0.2.1")
+  policy <- ssrf_policy(allow_ranges = "192.0.2.0/24", max_response_size = 1000)
+  for (reported in c(404L, 0L, 500L)) {
+    local({
+      local_mocked_bindings(dep_curl_transfer = stub_transfer(reported))
+      b <- ssrf_prepare_hop("http://big.invalid/", policy, request = list())
+      r <- ssrf_fetch(b)
+      label <- paste("libcurl reports", reported)
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, "response-too-large", label = label)
+      expect_identical(r$detail$check, "decoded-bytes", label = label)
+      expect_identical(r$detail$observed_bytes, 2000, label = label)
+      want <- if (reported == 404L) 404L
+      expect_identical(r$detail$status, want, label = label)
+      expect_identical(b$state$status, want, label = label)
+    })
+  }
+})

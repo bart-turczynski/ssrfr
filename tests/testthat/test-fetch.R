@@ -599,9 +599,8 @@ test_that("a transport error after connecting maps by its curl class", {
 })
 
 # libcurl may call the write callback with no bytes, for an empty body. Such
-# a delivery is not the first body byte: the header is not read for it, and
-# it counts nothing.
-test_that("an empty delivery neither starts the body nor counts", {
+# a delivery is not the first body byte: the header is not read for it.
+test_that("an empty delivery does not start the body", {
   seen <- new.env(parent = emptyenv())
   seen$empty <- NULL
   local_mocked_bindings(

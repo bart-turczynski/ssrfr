@@ -113,37 +113,83 @@ test_that("a rule whose host is only the root dot has no A-label form", {
 # with an empty label, or an `xn--` label that is not a genuine A-label (§5.0),
 # is a construction error. One trailing root dot is not an empty label.
 test_that("a rule with an empty label is a construction error", {
-  for (rule in c("evil.com..", "a..", "...", "a..b", "..a")) {
-    expect_error(
-      ssrf_policy(deny_hosts = rule),
-      regexp = "has an empty label",
-      class = "ssrfr_error_invalid_policy",
-      label = rule
-    )
-    expect_error(
-      ssrf_policy(allow_hosts = rule),
-      regexp = "has an empty label",
-      class = "ssrfr_error_invalid_policy",
-      label = rule
-    )
+  # U+3002, U+FF0E and U+FF61 map to `.` (UTS #46), as `%2e` decodes to it.
+  rules <- c(
+    "evil.com..",
+    "a..",
+    "...",
+    "a..b",
+    "..a",
+    ".a..b",
+    "a.%2e",
+    "a%2e%2eb",
+    "a\u3002\u3002b",
+    "a\uff0e\uff0eb",
+    "a\uff61\uff61b",
+    "evil.com\u3002\uff61"
+  )
+  for (field in c("deny_hosts", "allow_hosts")) {
+    for (rule in rules) {
+      expect_error(
+        do.call(ssrf_policy, stats::setNames(list(rule), field)),
+        regexp = "has an empty label",
+        class = "ssrfr_error_invalid_policy",
+        label = paste(field, rule)
+      )
+    }
   }
   expect_identical(
     ssrf_policy(deny_hosts = "evil.com.")$deny_hosts,
     "evil.com"
   )
+  expect_identical(
+    ssrf_policy(deny_hosts = "evil.com\u3002")$deny_hosts,
+    "evil.com"
+  )
+})
+
+# IDNA mapping drops ignored code points (U+00AD, U+200B, U+034F), so a label
+# of them alone is empty once mapped, and a first label of them would turn an
+# exact rule into a subdomain rule (`.internal` reopening the built-in
+# metadata names). Whichever check rurl's version trips, the rule is refused.
+test_that("a label empty once IDNA drops ignored code points is refused", {
+  rules <- c(
+    "a.\u00ad.b",
+    "a.\u034f.com",
+    ".\u00ad.com",
+    "\u00ad.internal",
+    "\u200b.evil.com"
+  )
+  for (field in c("deny_hosts", "allow_hosts")) {
+    for (rule in rules) {
+      expect_error(
+        do.call(ssrf_policy, stats::setNames(list(rule), field)),
+        class = "ssrfr_error_invalid_policy",
+        label = paste(field, encodeString(rule))
+      )
+    }
+  }
+  # An ignored code point inside a label is dropped, not refused.
+  expect_identical(
+    ssrf_policy(deny_hosts = "ev\u00adil.com")$deny_hosts,
+    "evil.com"
+  )
 })
 
 test_that("a rule with a false A-label is a construction error", {
-  for (rule in c("xn--", "xn--a", "XN--a.com", ".xn--abc-.com")) {
-    expect_error(
-      ssrf_policy(deny_hosts = rule),
-      regexp = "is not a genuine A-label",
-      class = "ssrfr_error_invalid_policy",
-      label = rule
-    )
+  rules <- c("xn--", "xn--a", "XN--a.com", ".xn--abc-.com", "a.xn--.b")
+  for (field in c("deny_hosts", "allow_hosts")) {
+    for (rule in rules) {
+      expect_error(
+        do.call(ssrf_policy, stats::setNames(list(rule), field)),
+        regexp = "is not a genuine A-label",
+        class = "ssrfr_error_invalid_policy",
+        label = paste(field, rule)
+      )
+    }
   }
   expect_identical(
-    ssrf_policy(deny_hosts = "xn--bcher-kva.example")$deny_hosts,
+    ssrf_policy(deny_hosts = "XN--BCHER-KVA.example")$deny_hosts,
     "xn--bcher-kva.example"
   )
 })
@@ -157,21 +203,25 @@ test_that("a rule whose labels rurl cannot report is a construction error", {
   )
 })
 
-# The repro of SSRF-gtpebxfi: the mistyped rule used to build and then let
-# the host through to resolution.
-test_that("a deny rule mistyped with an empty label cannot build a policy", {
+# SSRF-gtpebxfi: `deny_hosts = "evil.com.."` built, stored `evil.com.`, and
+# let `http://evil.com/` through to resolution. The policy now never exists,
+# and the rule written as intended refuses the host before resolution.
+test_that("a mistyped deny rule cannot leave its host unrefused", {
+  seen <- mock_answers("93.184.216.34")
   expect_error(
     ssrf_policy(deny_hosts = "evil.com.."),
     class = "ssrfr_error_invalid_policy"
   )
-  mock_answers("93.184.216.34")
-  b <- ssrf_prepare_hop(
-    "http://evil.com/",
-    ssrf_policy(deny_hosts = "evil.com."),
-    request = list()
-  )
-  expect_s3_class(b, "ssrfr_refusal")
-  expect_identical(b$code, "host-denied")
+  for (rule in c("evil.com", "evil.com.", "EVIL.com")) {
+    b <- ssrf_prepare_hop(
+      "http://evil.com/",
+      ssrf_policy(deny_hosts = rule),
+      request = list()
+    )
+    expect_s3_class(b, "ssrfr_refusal")
+    expect_identical(b$code, "host-denied", label = rule)
+  }
+  expect_length(seen$queries, 0L)
 })
 
 test_that("a range raddr cannot parse is a construction error", {

@@ -34,6 +34,10 @@ numeric_literal_shapes <- c(
 # (rurl 3.1.0, ruling RUL-023), so its absence admits (§5.0).
 ace_label_failure <- "domain-invalid-ace-label"
 
+# rurl's diagnostic for a host with an empty label, such as `a..b`; one
+# trailing root dot is not one. Hostname rules refuse it (§5.3).
+empty_label_diagnostic <- "domain-empty-label"
+
 default_ports <- c(http = 80L, https = 443L)
 
 # Steps 1-5 for one hop. `url` is the string the hop received; `base`, the

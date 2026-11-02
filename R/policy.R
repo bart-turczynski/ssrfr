@@ -292,22 +292,34 @@ normalize_host_rule <- function(rule, label) {
   if (!nzchar(normalized) || grepl("[^\\x21-\\x7e]", normalized, perl = TRUE)) {
     invalid("it has no IDNA A-label form.")
   }
-  diagnostics <- read_diagnostics(host$url)
-  if (is.null(diagnostics)) {
-    invalid("its labels could not be checked.")
-  }
-  if (empty_label_diagnostic %in% diagnostics) {
-    invalid("it has an empty label.")
-  }
-  if (ace_label_failure %in% diagnostics) {
-    invalid("it has an `xn--` label that is not a genuine A-label.")
+  # Both the name as written and its normalized A-label: IDNA mapping drops
+  # ignored code points, so `a.<U+00AD>.b` becomes `a..b` and a first label of
+  # them turns `<U+00AD>.internal` into the subdomain rule `.internal`.
+  for (url in c(host$url, paste0("http://", normalized, ":1/"))) {
+    why <- rule_label_problem(url)
+    if (!is.null(why)) {
+      invalid(why)
+    }
   }
   if (subdomains) paste0(".", normalized) else normalized
 }
 
-# rurl's diagnostic for a host with an empty label, such as `a..b`; one
-# trailing root dot is not one.
-empty_label_diagnostic <- "domain-empty-label"
+# Why rurl's diagnostics of a rule's probe `url` make it no valid rule: an
+# empty label, or an `xn--` label that is not a genuine A-label (§5.0); NULL
+# when they report neither. Diagnostics that cannot be read fail closed.
+rule_label_problem <- function(url) {
+  diagnostics <- read_diagnostics(url)
+  if (is.null(diagnostics)) {
+    return("its labels could not be checked.")
+  }
+  if (empty_label_diagnostic %in% diagnostics) {
+    return("it has an empty label.")
+  }
+  if (ace_label_failure %in% diagnostics) {
+    return("it has an `xn--` label that is not a genuine A-label.")
+  }
+  NULL
+}
 
 # Parses `http://<name>:1/` with rurl under WHATWG and returns that probe URL
 # with the host, or NULL unless the whole of `name` is the host: the probe port

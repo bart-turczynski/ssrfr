@@ -70,12 +70,12 @@ fetch protects a request.
 \details{
 The URL is parsed as the guarded fetch parses it: \code{rurl} under the WHATWG
 URL Standard, then libcurl's own parser on the string libcurl would be
-handed. A URL the two parsers read differently is reported as \code{"parse"},
-and so is a host with an \verb{xn--} label that is not a genuine A-label, such
-as \code{xn--a.example}, which \code{rurl} reports with its
-\code{domain-invalid-ace-label} diagnostic, or with an empty label, such as
-\code{evil.example..}, which carries its \code{domain-empty-label} diagnostic; a
-single trailing root dot is no empty label. Checks run in the order of a
+handed. A URL the two parsers read differently is reported as \code{"parse"}.
+So is a host with an \verb{xn--} label that is not a genuine A-label, such as
+\code{xn--a.example}, which \code{rurl} reports with its \code{domain-invalid-ace-label}
+diagnostic. So is a host with an empty label, such as \code{evil.example..},
+which \code{rurl} reports with its \code{domain-empty-label} diagnostic, on the URL
+or on its serialization; a single trailing root dot is no empty label. Checks run in the order of a
 guarded hop, and the first one that applies names the reason code: the
 length limit and the parse, the scheme, embedded credentials, the port, an
 ambiguous numeric host spelling, the hostname rules, and the address rules.

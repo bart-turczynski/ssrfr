@@ -154,6 +154,16 @@ parse_boundary <- function(url) {
   # other `#` is percent-encoded; a host rurl left holding one (RURL-crsrkcoh)
   # is cut short here and then fails the agreement check below.
   wire <- sub("#.*$", "", wire, useBytes = TRUE)
+  # §5.0: UTS #46 mapping deletes ignored code points, so a label holding only
+  # those is empty in the serialization alone (`evil.example.­.` becomes
+  # `evil.example..`). The wire's diagnostics are read as well as the input's.
+  wire_diagnostics <- read_diagnostics(wire)
+  if (is.null(wire_diagnostics)) {
+    return(parse_boundary_refuse("parse", "diagnostics"))
+  }
+  if (empty_label_diagnostic %in% wire_diagnostics) {
+    return(parse_boundary_refuse("parse", "empty-label"))
+  }
   # §4.1: the string libcurl is handed must be printable ASCII, read before
   # curl_parse_url() sees it. A U-label reaching libcurl can defeat the
   # connect_to pin even when libcurl's parse returns the A-label (INV-6).

@@ -6,15 +6,15 @@
 # refuses as `parse`, layer 2 other than `admitted` as `scheme` (§6.5); a rurl
 # warning or parse_status never refuses (r-binding.md §2.2). Then rurl's
 # diagnostics of the same string: a host carrying an `xn--` label that is not
-# a genuine A-label refuses as `parse` (§5.0), as does a failed reading. rurl's
-# serialization, with the fragment removed (§2.3), is the wire string libcurl
-# is handed, and its host is the A-label (§4.1). That string, and the host
-# curl_parse_url() returns from it, must be printable ASCII, or the hop refuses
-# as `parse` (§4.1). curl_parse_url() of that exact string supplies the host
-# the transport dials and the scheme, userinfo and port that steps 3-5 read
-# (§12). The two parsers' hosts must be one value, addresses compared as raddr
-# values and names as lowercase A-labels, or the hop refuses as `parse` (§4.1,
-# INV-1, INV-2).
+# a genuine A-label, or an empty label, refuses as `parse` (§5.0), as does a
+# failed reading. rurl's serialization, with the fragment removed (§2.3), is
+# the wire string libcurl is handed, and its host is the A-label (§4.1). That
+# string, and the host curl_parse_url() returns from it, must be printable
+# ASCII, or the hop refuses as `parse` (§4.1). curl_parse_url() of that exact
+# string supplies the host the transport dials and the scheme, userinfo and
+# port that steps 3-5 read (§12). The two parsers' hosts must be one value,
+# addresses compared as raddr values and names as lowercase A-labels, or the
+# hop refuses as `parse` (§4.1, INV-1, INV-2).
 
 # rurl's numeric-literal shape diagnostics (r-binding.md §2.3): any of them on
 # the host the hop received refuses as `numeric-literal` (§12 step 6).
@@ -35,7 +35,8 @@ numeric_literal_shapes <- c(
 ace_label_failure <- "domain-invalid-ace-label"
 
 # rurl's diagnostic for a host with an empty label, such as `a..b`; one
-# trailing root dot is not one. Hostname rules refuse it (§5.3).
+# trailing root dot is not one. A URL host carrying it refuses as `parse`
+# (§5.0), and so does a hostname rule (§5.3).
 empty_label_diagnostic <- "domain-empty-label"
 
 default_ports <- c(http = 80L, https = 443L)
@@ -187,7 +188,8 @@ parse_boundary_refuse <- function(code, check) {
 
 # rurl's verdicts and diagnostics of `url` (§4.2, §5.0): a parse_boundary()
 # refusal when layer 1 fails, layer 2 does not admit, the diagnostics cannot
-# be read or a label is a false A-label; NULL when the URL passes them.
+# be read, or a label is a false A-label or empty; NULL when the URL passes
+# them.
 parse_boundary_verdicts <- function(url) {
   verdicts <- read_verdicts(url)
   if (is.null(verdicts) || verdicts$layer1 != "pass") {
@@ -205,6 +207,11 @@ parse_boundary_verdicts <- function(url) {
   }
   if (ace_label_failure %in% diagnostics) {
     return(parse_boundary_refuse("parse", "ace-label"))
+  }
+  # §5.0: an empty label would otherwise reach hostname matching unmatched,
+  # since only one trailing root dot is removed (SSRF-qopriinc).
+  if (empty_label_diagnostic %in% diagnostics) {
+    return(parse_boundary_refuse("parse", "empty-label"))
   }
   NULL
 }

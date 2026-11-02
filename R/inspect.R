@@ -55,11 +55,13 @@ inspect_hop <- function(url, policy, base = NULL, resolve = FALSE) {
 #' handed. A URL the two parsers read differently is reported as `"parse"`,
 #' and so is a host with an `xn--` label that is not a genuine A-label, such
 #' as `xn--a.example`, which `rurl` reports with its
-#' `domain-invalid-ace-label` diagnostic. Checks run in the order of a guarded
-#' hop, and the first one that applies names the reason code: the length limit
-#' and the parse, the scheme, embedded credentials, the port, an ambiguous
-#' numeric host spelling, the hostname rules, and the address rules. A
-#' relative reference, such as a redirect's `Location`, is resolved against
+#' `domain-invalid-ace-label` diagnostic, or with an empty label, such as
+#' `evil.example..`, which carries its `domain-empty-label` diagnostic; a
+#' single trailing root dot is no empty label. Checks run in the order of a
+#' guarded hop, and the first one that applies names the reason code: the
+#' length limit and the parse, the scheme, embedded credentials, the port, an
+#' ambiguous numeric host spelling, the hostname rules, and the address rules.
+#' A relative reference, such as a redirect's `Location`, is resolved against
 #' `base` first.
 #'
 #' Layer `"L0"`, the default, is structural and does no network I/O: it

@@ -377,6 +377,49 @@ test_that("an xn-- label that is not an A-label refuses as parse", {
   expect_identical(resolver$seen$calls, 0L)
 })
 
+# §5.0: a host carrying an empty label refuses as `parse` at the parse
+# boundary, on rurl's `domain-empty-label` diagnostic, before any resolver
+# call. Only one trailing root dot is removed for matching, so `evil.com..`
+# would otherwise miss gate 4 and gate 5 and be resolved (SSRF-qopriinc).
+test_that("a host with an empty label refuses as parse, unresolved", {
+  seen <- mock_answers("93.184.216.34")
+  policy <- ssrf_policy(deny_hosts = "evil.com")
+  urls <- c(
+    "http://evil.com../",
+    "http://evil..com/",
+    "http://.evil.com/",
+    "http://metadata.google.internal../",
+    "http://evil.com。。/",
+    "http://evil.com．．/"
+  )
+  for (url in urls) {
+    r <- ssrf_prepare_hop(url, policy, request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "parse", label = url)
+    expect_identical(r$detail$step, 2L, label = url)
+    expect_identical(r$detail$check, "empty-label", label = url)
+    res <- ssrf_inspect_url(url, policy)
+    expect_identical(res$code, "parse", label = url)
+    expect_identical(res$step, 2L, label = url)
+    expect_identical(res$detail$check, "empty-label", label = url)
+  }
+  # A relative reference whose absolute URL carries one, at L1.
+  res <- ssrf_inspect_url(
+    "//evil.com../",
+    policy,
+    base = "http://example.com/",
+    layer = "L1"
+  )
+  expect_identical(res$detail$check, "empty-label")
+  expect_identical(seen$queries, character())
+
+  # A single trailing root dot is no empty label: it is stripped for matching
+  # and the deny rule refuses, still without resolving.
+  r <- ssrf_prepare_hop("http://evil.com./", policy, request = list())
+  expect_identical(r$code, "host-denied")
+  expect_identical(seen$queries, character())
+})
+
 # The diagnostics are read for the absolute URL as well as for the string the
 # hop received: a reading that fails for the absolute URL alone refuses.
 test_that("unreadable diagnostics for the absolute URL refuse as parse", {

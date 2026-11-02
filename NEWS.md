@@ -25,6 +25,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 * `ssrf_inspect_url()` reports what a URL is under a policy, with no network I/O (SSRF-uxmxqufj).
 * A URL refuses as `"parse"` unless libcurl gets printable ASCII, so a U-label host reaches it only as its A-label (SSRF-afpkreyj).
 * A host with an `xn--` label that is not a genuine A-label refuses as `"parse"`; `ssrfr` requires `rurl` >= 3.1.0 (SSRF-imtdxdym).
+* A host with an empty label, such as `evil.example..`, refuses as `"parse"` before resolution instead of passing the hostname rules (SSRF-qopriinc).
 * `ssrf_inspect_url(layer = "L1")` also resolves the name and classifies every address (SSRF-ifldwmnc).
 
 ## Policy

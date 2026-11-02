@@ -418,9 +418,17 @@ new_binding <- function(
     total_timeout = policy$total_timeout,
     elapsed = spent
   )
-  # §2.4: the values live in a private store; `state` shows each field as a
-  # read-only active binding and is locked once, never unlocked. The store
-  # is `state`'s enclosure, where only set_state() looks for it.
+  b$state <- new_binding_state(spent)
+  lockEnvironment(b, bindings = TRUE)
+  class(b) <- "ssrfr_binding"
+  b
+}
+
+# A new binding's `state`, `spent` seconds into the budget. §2.4: the values
+# live in a private store; `state` shows each field as a read-only active
+# binding and is locked once, never unlocked. The store is `state`'s
+# enclosure, where only set_state() looks for it.
+new_binding_state <- function(spent) {
   store <- list2env(
     list(
       fetchable = TRUE,
@@ -440,10 +448,7 @@ new_binding <- function(
     makeActiveBinding(field, state_field(store, field), state)
   }
   lockEnvironment(state, bindings = TRUE)
-  b$state <- state
-  lockEnvironment(b, bindings = TRUE)
-  class(b) <- "ssrfr_binding"
-  b
+  state
 }
 
 # The active binding that shows `field` of a binding's store. It takes no
@@ -474,18 +479,6 @@ set_state <- function(binding, ...) {
 #' @export
 format.ssrfr_binding <- function(x, ...) {
   state <- x$state
-  plan <- x$request
-  fields <- names(plan$headers)
-  headers <- if (length(fields)) {
-    paste0(toString(fields), " (values withheld)")
-  } else {
-    "none"
-  }
-  body <- if (is.null(plan$body)) {
-    "none"
-  } else {
-    paste0(length(plan$body), " bytes (withheld)")
-  }
   status <- if (isTRUE(state$fetchable)) {
     "fetchable"
   } else if (isTRUE(state$fetched)) {
@@ -494,20 +487,6 @@ format.ssrfr_binding <- function(x, ...) {
     "spent"
   }
   origin <- x$origin
-  redirect <- x$redirect
-  if (!is.null(redirect)) {
-    redirect <- paste0(
-      "  redirect: ",
-      redirect$status,
-      " from hop ",
-      redirect$from_hop,
-      if (redirect$cross_origin) ", cross-origin" else ", same origin",
-      if (length(redirect$dropped)) {
-        paste0("; dropped ", toString(redirect$dropped))
-      },
-      if (redirect$body_dropped) "; body dropped"
-    )
-  }
   c(
     paste0("<ssrfr_binding> (hop ", x$hop, ", ", status, ")"),
     paste0(
@@ -521,13 +500,52 @@ format.ssrfr_binding <- function(x, ...) {
     paste0("  url: ", redact_url(x$url)),
     paste0("  validated: ", toString(x$validated)),
     paste0("  pin: ", default_if_null(state$pin_used, x$pin)),
-    paste0("  method: ", plan$method),
-    paste0("  headers: ", headers),
-    paste0("  body: ", body),
-    if (length(plan$carry)) paste0("  carry: ", toString(plan$carry)),
-    redirect,
+    format_ssrfr_binding_request(x$request),
+    format_ssrfr_binding_redirect(x$redirect),
     "  tls: certificate and hostname verified",
     if (!is.null(state$status)) paste0("  status: ", state$status),
     if (!is.null(state$outcome)) paste0("  outcome: ", state$outcome)
+  )
+}
+
+# The lines of format.ssrfr_binding() for the request `plan`: its method,
+# header field names and body size, never a value or a byte, and the fields
+# it nominates to carry across an origin.
+format_ssrfr_binding_request <- function(plan) {
+  fields <- names(plan$headers)
+  headers <- if (length(fields)) {
+    paste0(toString(fields), " (values withheld)")
+  } else {
+    "none"
+  }
+  body <- if (is.null(plan$body)) {
+    "none"
+  } else {
+    paste0(length(plan$body), " bytes (withheld)")
+  }
+  c(
+    paste0("  method: ", plan$method),
+    paste0("  headers: ", headers),
+    paste0("  body: ", body),
+    if (length(plan$carry)) paste0("  carry: ", toString(plan$carry))
+  )
+}
+
+# The line of format.ssrfr_binding() for the `redirect` that led to the
+# hop, or NULL for the first hop.
+format_ssrfr_binding_redirect <- function(redirect) {
+  if (is.null(redirect)) {
+    return(NULL)
+  }
+  paste0(
+    "  redirect: ",
+    redirect$status,
+    " from hop ",
+    redirect$from_hop,
+    if (redirect$cross_origin) ", cross-origin" else ", same origin",
+    if (length(redirect$dropped)) {
+      paste0("; dropped ", toString(redirect$dropped))
+    },
+    if (redirect$body_dropped) "; body dropped"
   )
 }

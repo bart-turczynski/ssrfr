@@ -72,13 +72,7 @@ new_ssrf_failure <- function(
 }
 
 new_outcome <- function(token, hop, host, address, url, detail, class) {
-  if (
-    !is.numeric(hop) ||
-      length(hop) != 1L ||
-      is.na(hop) ||
-      hop < 1 ||
-      hop != trunc(hop)
-  ) {
+  if (new_outcome_bad_hop(hop)) {
     internal_error("`hop` must be a whole number from 1, the first hop.")
   }
   for (field in list(host, address, url)) {
@@ -102,6 +96,15 @@ new_outcome <- function(token, hop, host, address, url, detail, class) {
     ),
     class = c(class, "ssrfr_outcome")
   )
+}
+
+# Whether `hop` is not a hop index: anything but a single whole number from 1.
+new_outcome_bad_hop <- function(hop) {
+  !is.numeric(hop) ||
+    length(hop) != 1L ||
+    is.na(hop) ||
+    hop < 1 ||
+    hop != trunc(hop)
 }
 
 is_named <- function(x) {

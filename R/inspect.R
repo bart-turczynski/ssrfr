@@ -209,41 +209,11 @@ address_records <- function(records) {
 
 #' @export
 format.ssrfr_inspection <- function(x, ...) {
-  line <- function(label, value) {
-    if (length(value) != 1L || is.na(value)) {
-      NULL
-    } else {
-      paste0("  ", label, ": ", value)
-    }
-  }
-  detail <- NULL
-  for (key in intersect(names(x$detail), display_detail_keys)) {
-    detail <- c(
-      detail,
-      paste0(
-        "    ",
-        key,
-        ": ",
-        toString(format(x$detail[[key]], trim = TRUE, justify = "none"))
-      )
-    )
-  }
-  outcome <- if (is.na(x$cause)) {
-    paste0("  code: ", if (is.na(x$code)) paste("none at", x$layer) else x$code)
-  } else {
-    paste0("  cause: ", x$cause)
-  }
-  answers <- if (!is.null(x$answers)) {
-    shown <- if (length(x$answers)) toString(x$answers) else "none"
-    paste0("  answers: ", shown)
-  }
-  addresses <- NULL
-  for (r in x$addresses) {
-    addresses <- c(
-      addresses,
-      paste0("    ", r$address, ": ", if (is.na(r$code)) "none" else r$code)
-    )
-  }
+  line <- format_ssrfr_inspection_line
+  detail <- format_ssrfr_inspection_detail(x$detail)
+  outcome <- format_ssrfr_inspection_outcome(x)
+  answers <- format_ssrfr_inspection_answers(x$answers)
+  addresses <- format_ssrfr_inspection_addresses(x$addresses)
   c(
     paste0("<ssrfr_inspection> (", x$layer, ": facts, not a defense)"),
     outcome,
@@ -258,6 +228,64 @@ format.ssrfr_inspection <- function(x, ...) {
     answers,
     if (length(addresses)) c("  addresses:", addresses)
   )
+}
+
+# One `label: value` line of an inspection, or NULL when the value is absent:
+# not a single value, or NA.
+format_ssrfr_inspection_line <- function(label, value) {
+  if (length(value) != 1L || is.na(value)) {
+    NULL
+  } else {
+    paste0("  ", label, ": ", value)
+  }
+}
+
+# The detail lines an inspection shows: only the keys in
+# `display_detail_keys`, in the order the detail holds them, or NULL.
+format_ssrfr_inspection_detail <- function(detail) {
+  lines <- NULL
+  for (key in intersect(names(detail), display_detail_keys)) {
+    lines <- c(
+      lines,
+      paste0(
+        "    ",
+        key,
+        ": ",
+        toString(format(detail[[key]], trim = TRUE, justify = "none"))
+      )
+    )
+  }
+  lines
+}
+
+# The outcome line: the cause of a failure, else the reason code, or `none
+# at` the layer the inspection reached.
+format_ssrfr_inspection_outcome <- function(x) {
+  if (is.na(x$cause)) {
+    paste0("  code: ", if (is.na(x$code)) paste("none at", x$layer) else x$code)
+  } else {
+    paste0("  cause: ", x$cause)
+  }
+}
+
+# The answers line: NULL when no resolution ran, `none` for an empty answer.
+format_ssrfr_inspection_answers <- function(answers) {
+  if (!is.null(answers)) {
+    shown <- if (length(answers)) toString(answers) else "none"
+    paste0("  answers: ", shown)
+  }
+}
+
+# One line per resolved address with its reason code or `none`, or NULL.
+format_ssrfr_inspection_addresses <- function(addresses) {
+  lines <- NULL
+  for (r in addresses) {
+    lines <- c(
+      lines,
+      paste0("    ", r$address, ": ", if (is.na(r$code)) "none" else r$code)
+    )
+  }
+  lines
 }
 
 #' @export

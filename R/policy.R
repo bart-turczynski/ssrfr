@@ -177,14 +177,7 @@ check_ports <- function(x) {
     policy_error("`allow_ports` must be a non-empty numeric vector.")
   }
   for (i in seq_along(x)) {
-    port <- x[[i]]
-    if (
-      is.na(port) ||
-        !is.finite(port) ||
-        port != trunc(port) ||
-        port < 1 ||
-        port > 65535
-    ) {
+    if (check_ports_invalid(x[[i]])) {
       policy_error(paste0(
         entry_label("allow_ports", i),
         " is not a port number from 1 to 65535."
@@ -192,6 +185,16 @@ check_ports <- function(x) {
     }
   }
   as.integer(unname(x))
+}
+
+# Whether one allow_ports entry is not a port number: NA, non-finite, not a
+# whole number, or outside 1 to 65535.
+check_ports_invalid <- function(port) {
+  is.na(port) ||
+    !is.finite(port) ||
+    port != trunc(port) ||
+    port < 1 ||
+    port > 65535
 }
 
 check_flag <- function(x, field) {
@@ -298,15 +301,7 @@ rule_host <- function(name) {
     {
       p <- rurl::safe_parse_urls(url, url_standard = "whatwg")
       verdict <- rurl::get_parse_verdicts(url, url_standard = "whatwg")
-      whole <- identical(verdict$layer1_syntax_verdict[[1L]], "pass") &&
-        !is.na(p$host[[1L]]) &&
-        identical(as.character(p$port[[1L]]), "1") &&
-        identical(p$path[[1L]], "/") &&
-        is.na(p$user[[1L]]) &&
-        is.na(p$password[[1L]]) &&
-        is.na(p$query[[1L]]) &&
-        is.na(p$fragment[[1L]])
-      if (whole) {
+      if (rule_host_whole(p, verdict)) {
         list(
           a_label = rurl::get_host(
             url,
@@ -319,6 +314,25 @@ rule_host <- function(name) {
     },
     error = function(e) NULL
   )
+}
+
+# Whether rule_host()'s probe parsed with the whole name as its host: the
+# syntax verdict passed, a host was read, the probe port and the empty path
+# survived, and no userinfo, query or fragment appeared.
+rule_host_whole <- function(p, verdict) {
+  identical(verdict$layer1_syntax_verdict[[1L]], "pass") &&
+    !is.na(p$host[[1L]]) &&
+    identical(as.character(p$port[[1L]]), "1") &&
+    identical(p$path[[1L]], "/") &&
+    rule_host_bare(p)
+}
+
+# Whether the probe's parse holds no userinfo, query or fragment.
+rule_host_bare <- function(p) {
+  is.na(p$user[[1L]]) &&
+    is.na(p$password[[1L]]) &&
+    is.na(p$query[[1L]]) &&
+    is.na(p$fragment[[1L]])
 }
 
 # Locale-independent ASCII case folding (§5.0).

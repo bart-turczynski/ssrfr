@@ -17,7 +17,9 @@
 #' exactly, unless it begins with `.`, in which case it matches every proper
 #' subdomain and not the bare name: `".corp"` matches `api.corp`, not `corp`.
 #' No other wildcard exists. An address literal is not a hostname rule; write
-#' it as a range. The policy stores the normalized rules.
+#' it as a range. A rule with an empty label (`"a..b"`), or an `xn--` label
+#' that is not a genuine A-label, is an error. The policy stores the normalized
+#' rules.
 #'
 #' Ranges are CIDR blocks read by `raddr`, such as `"10.0.0.0/8"` or
 #' `"2001:db8::/32"`. A single address is a `/32` or `/128`, and a block with
@@ -253,9 +255,11 @@ check_user_agent <- function(x) {
 
 # Hostname rules (§5.0): a name, or `.` and a name for its proper subdomains.
 # The name must be exactly one host that rurl's WHATWG parse admits as a
-# domain, never an address literal, and it is stored normalized: IDNA A-label,
-# ASCII-lowercased, one trailing root dot removed. rurl does the parsing and
-# the IDNA mapping; ssrfr only reads the result.
+# domain, never an address literal, with no empty label and no `xn--` label
+# that is not a genuine A-label, and it is stored normalized: IDNA A-label,
+# ASCII-lowercased, one trailing root dot removed. Such a rule could match no
+# host, a fail-open for a deny list (§5). rurl does the parsing, the IDNA
+# mapping and the label diagnostics; ssrfr only reads the result.
 check_host_rules <- function(x, field) {
   x <- check_entries(x, field)
   vapply(
@@ -288,13 +292,27 @@ normalize_host_rule <- function(rule, label) {
   if (!nzchar(normalized) || grepl("[^\\x21-\\x7e]", normalized, perl = TRUE)) {
     invalid("it has no IDNA A-label form.")
   }
+  diagnostics <- read_diagnostics(host$url)
+  if (is.null(diagnostics)) {
+    invalid("its labels could not be checked.")
+  }
+  if (empty_label_diagnostic %in% diagnostics) {
+    invalid("it has an empty label.")
+  }
+  if (ace_label_failure %in% diagnostics) {
+    invalid("it has an `xn--` label that is not a genuine A-label.")
+  }
   if (subdomains) paste0(".", normalized) else normalized
 }
 
-# Parses `http://<name>:1/` with rurl under WHATWG and returns the host, or
-# NULL unless the whole of `name` is the host: the probe port and the empty
-# path must survive, and no userinfo, query or fragment may appear. Any rurl
-# error is a NULL too.
+# rurl's diagnostic for a host with an empty label, such as `a..b`; one
+# trailing root dot is not one.
+empty_label_diagnostic <- "domain-empty-label"
+
+# Parses `http://<name>:1/` with rurl under WHATWG and returns that probe URL
+# with the host, or NULL unless the whole of `name` is the host: the probe port
+# and the empty path must survive, and no userinfo, query or fragment may
+# appear. Any rurl error is a NULL too.
 rule_host <- function(name) {
   url <- paste0("http://", name, ":1/")
   tryCatch(
@@ -303,6 +321,7 @@ rule_host <- function(name) {
       verdict <- rurl::get_parse_verdicts(url, url_standard = "whatwg")
       if (rule_host_whole(p, verdict)) {
         list(
+          url = url,
           a_label = rurl::get_host(
             url,
             host_encoding = "idna",

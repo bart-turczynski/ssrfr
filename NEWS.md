@@ -30,6 +30,7 @@ First release: an SSRF guard for R code that fetches URLs an attacker can influe
 ## Policy
 
 * `ssrf_policy()` builds a guard policy, by default `http` and `https` on ports 80 and 443 to public addresses, and raises `ssrfr_error_invalid_policy` on a malformed entry (SSRF-upyqnwmv).
+* A hostname rule with an empty label, or an `xn--` label that is not a genuine A-label, raises `ssrfr_error_invalid_policy` instead of matching nothing (SSRF-gtpebxfi).
 
 ## Results and vocabularies
 

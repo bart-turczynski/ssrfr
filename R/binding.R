@@ -531,9 +531,3 @@ format.ssrfr_binding <- function(x, ...) {
     if (!is.null(state$outcome)) paste0("  outcome: ", state$outcome)
   )
 }
-
-#' @export
-print.ssrfr_binding <- function(x, ...) {
-  cat(format(x, ...), sep = "\n")
-  invisible(x)
-}

@@ -385,9 +385,3 @@ format.ssrfr_policy <- function(x, ...) {
     paste0("  ", format(fields), "  ", vapply(x, show, character(1)))
   )
 }
-
-#' @export
-print.ssrfr_policy <- function(x, ...) {
-  cat(format(x, ...), sep = "\n")
-  invisible(x)
-}

@@ -287,9 +287,3 @@ format_ssrfr_inspection_addresses <- function(addresses) {
   }
   lines
 }
-
-#' @export
-print.ssrfr_inspection <- function(x, ...) {
-  cat(format(x, ...), sep = "\n")
-  invisible(x)
-}

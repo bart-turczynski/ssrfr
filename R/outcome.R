@@ -162,12 +162,6 @@ format.ssrfr_outcome <- function(x, ...) {
   )
 }
 
-#' @export
-print.ssrfr_outcome <- function(x, ...) {
-  cat(format(x, ...), sep = "\n")
-  invisible(x)
-}
-
 #' Project a refusal or failure for an untrusted party
 #'
 #' Reduces a refusal or an operational failure to one fixed value that names

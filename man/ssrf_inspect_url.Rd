@@ -75,10 +75,11 @@ So is a host with an \verb{xn--} label that is not a genuine A-label, such as
 \code{xn--a.example}, which \code{rurl} reports with its \code{domain-invalid-ace-label}
 diagnostic. So is a host with an empty label, such as \code{evil.example..},
 which \code{rurl} reports with its \code{domain-empty-label} diagnostic, on the URL
-or on its serialization; a single trailing root dot is no empty label. Checks run in the order of a
-guarded hop, and the first one that applies names the reason code: the
-length limit and the parse, the scheme, embedded credentials, the port, an
-ambiguous numeric host spelling, the hostname rules, and the address rules.
+or on its serialization; a single trailing root dot is no empty label.
+Checks run in the order of a guarded hop, and the first one that applies
+names the reason code: the length limit and the parse, the scheme, embedded
+credentials, the port, an ambiguous numeric host spelling, the hostname
+rules, and the address rules.
 A relative reference, such as a redirect's \code{Location}, is resolved against
 \code{base} first.
 

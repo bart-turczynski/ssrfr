@@ -57,10 +57,11 @@ inspect_hop <- function(url, policy, base = NULL, resolve = FALSE) {
 #' `xn--a.example`, which `rurl` reports with its `domain-invalid-ace-label`
 #' diagnostic. So is a host with an empty label, such as `evil.example..`,
 #' which `rurl` reports with its `domain-empty-label` diagnostic, on the URL
-#' or on its serialization; a single trailing root dot is no empty label. Checks run in the order of a
-#' guarded hop, and the first one that applies names the reason code: the
-#' length limit and the parse, the scheme, embedded credentials, the port, an
-#' ambiguous numeric host spelling, the hostname rules, and the address rules.
+#' or on its serialization; a single trailing root dot is no empty label.
+#' Checks run in the order of a guarded hop, and the first one that applies
+#' names the reason code: the length limit and the parse, the scheme, embedded
+#' credentials, the port, an ambiguous numeric host spelling, the hostname
+#' rules, and the address rules.
 #' A relative reference, such as a redirect's `Location`, is resolved against
 #' `base` first.
 #'

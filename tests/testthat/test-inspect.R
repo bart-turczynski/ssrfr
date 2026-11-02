@@ -394,6 +394,25 @@ test_that("unreadable diagnostics for the absolute URL refuse as parse", {
   expect_identical(resolver$seen$calls, 0L)
 })
 
+# §12 step 6 reads the diagnostics of the string the hop received, for its
+# numeric spellings: a reading that fails for that string alone refuses as
+# `parse` at step 6, before any resolver call.
+test_that("unreadable diagnostics for the received string refuse at step 6", {
+  resolver <- counting_resolver()
+  local_mocked_bindings(
+    dep_nslookup = resolver$fn,
+    dep_rurl_diagnostics = function(url) {
+      if (identical(url, "/x")) NULL else character()
+    }
+  )
+  res <- ssrf_inspect_url("/x", base = "http://example.com/", layer = "L1")
+  expect_identical(res$code, "parse")
+  expect_identical(res$step, 6L)
+  expect_identical(res$detail$check, "diagnostics")
+  expect_identical(res$host, "example.com")
+  expect_identical(resolver$seen$calls, 0L)
+})
+
 # §5.0: only an `xn--` label that is not a genuine A-label refuses as `parse`.
 # A genuine A-label, and the strict domain-to-ASCII failures WHATWG accepts (an
 # underscore, an edge hyphen, a label over 63 octets), reach the address gates

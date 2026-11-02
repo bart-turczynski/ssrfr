@@ -811,9 +811,3 @@ format.ssrfr_response <- function(x, ...) {
     paste0("  body: ", length(x$body), " bytes (read it with $body)")
   )
 }
-
-#' @export
-print.ssrfr_response <- function(x, ...) {
-  cat(format(x, ...), sep = "\n")
-  invisible(x)
-}

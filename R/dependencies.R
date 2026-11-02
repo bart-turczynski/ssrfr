@@ -198,10 +198,7 @@ dep_curl_transfer <- function(opts, on_body, debug, progress) {
     },
     add = TRUE
   )
-  outcome <- new.env(parent = emptyenv())
-  outcome$stopped <- FALSE
-  outcome$failed <- NULL
-  outcome$events <- 0L
+  outcome <- dep_curl_transfer_outcome()
   handle <- curl::new_handle()
   received <- function() curl::handle_data(handle)$headers
   callbacks <- dep_curl_transfer_callbacks(
@@ -243,6 +240,17 @@ dep_curl_transfer <- function(opts, on_body, debug, progress) {
   dep_curl_transfer_result(outcome, curl::handle_data(handle))
 }
 
+# A transfer's shared state before its first round, which its callbacks and
+# loop record into: no stop, no failed callback, no event yet. curl's `fail`
+# callback adds `fail`, the error of a failed transfer.
+dep_curl_transfer_outcome <- function() {
+  outcome <- new.env(parent = emptyenv())
+  outcome$stopped <- FALSE
+  outcome$failed <- NULL
+  outcome$events <- 0L
+  outcome
+}
+
 # The three callbacks of one transfer, as a list: `watch` (progress),
 # `deliver` (body bytes) and `trace` (debug). Each records into `outcome`,
 # the transfer's shared state, and decides whether the transfer goes on.
@@ -270,7 +278,41 @@ dep_curl_transfer_callbacks <- function(
     }
     TRUE
   }
-  deliver <- function(x, final = FALSE) {
+  deliver <- dep_curl_transfer_callbacks_deliver(
+    outcome,
+    on_body,
+    received,
+    answers_true
+  )
+  # The trace is the pin's only evidence (R/fetch.R), so a `debug` that
+  # fails stops the transfer as well.
+  trace <- function(type, msg) {
+    suspendInterrupts({
+      outcome$events <- outcome$events + 1L
+      traced <- answers_true("debug", function() {
+        debug(type, msg)
+        TRUE
+      })
+      if (!traced) {
+        outcome$stopped <- TRUE
+      }
+    })
+    NULL
+  }
+  list(watch = watch, deliver = deliver, trace = trace)
+}
+
+# The write callback of dep_curl_transfer_callbacks(), which hands each
+# delivery to `on_body` through `answers_true` and ends a stopped transfer.
+# Its `abort` restart is looked up when curl calls it, so the jump still
+# ends at curl's R_tryEval() (see dep_curl_transfer()).
+dep_curl_transfer_callbacks_deliver <- function(
+  outcome,
+  on_body,
+  received,
+  answers_true
+) {
+  function(x, final = FALSE) {
     # curl's final delivery carries no bytes and is not a write callback;
     # curl makes one after an abort as well, and it is never aborted.
     if (final) {
@@ -293,22 +335,6 @@ dep_curl_transfer_callbacks <- function(
     }
     invisible()
   }
-  # The trace is the pin's only evidence (R/fetch.R), so a `debug` that
-  # fails stops the transfer as well.
-  trace <- function(type, msg) {
-    suspendInterrupts({
-      outcome$events <- outcome$events + 1L
-      traced <- answers_true("debug", function() {
-        debug(type, msg)
-        TRUE
-      })
-      if (!traced) {
-        outcome$stopped <- TRUE
-      }
-    })
-    NULL
-  }
-  list(watch = watch, deliver = deliver, trace = trace)
 }
 
 # How long the transfer loop waits before its next round, and the wait

@@ -96,6 +96,19 @@ test_that("an invalid hostname rule is a construction error", {
   expect_invalid_policy(deny_hosts = 1)
 })
 
+# §5.0: a rule is matched in its A-label form. A rule WHATWG reads as a host
+# that is only the root dot, however it is spelled, has none.
+test_that("a rule whose host is only the root dot has no A-label form", {
+  for (rule in c("..", ".%2e", "。", ".。")) {
+    expect_error(
+      ssrf_policy(deny_hosts = rule),
+      regexp = "has no IDNA A-label form",
+      class = "ssrfr_error_invalid_policy",
+      label = rule
+    )
+  }
+})
+
 test_that("a range raddr cannot parse is a construction error", {
   expect_invalid_policy(deny_ranges = "10.0.0.1")
   expect_invalid_policy(deny_ranges = "192.168.1.1/24")

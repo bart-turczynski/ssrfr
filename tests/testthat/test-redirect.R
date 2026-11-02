@@ -1705,3 +1705,45 @@ test_that("a redirect chain works through webfakes::httpbin_app()", {
   expect_identical(chain$result$status, 200L)
   expect_match(body_text(chain$result), "\"n\": *42")
 })
+
+# §6.6: a binding prints header field names and the body's size, never a
+# value or a byte; a redirect hop names its status, origin change and what
+# it dropped.
+test_that("a binding prints field names and sizes, never values", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  policy <- loopback_policy(port)
+  to <- pinned_url(port, "/echo", host = other_host)
+  b <- ssrf_prepare_hop(
+    pinned_url(port, paste0("/r/307?to=", URLencode(to, TRUE))),
+    policy,
+    request = list(
+      method = "POST",
+      headers = c(`X-Token` = "token-value-s3", `X-Trace` = "trace-value-t1"),
+      body = charToRaw("payload-bytes"),
+      carry = "X-Trace"
+    )
+  )
+  first <- format(b)
+  expect_identical(capture.output(print(b)), first)
+  expect_match(
+    first,
+    "^  headers: X-Token, X-Trace \\(values withheld\\)$",
+    all = FALSE
+  )
+  expect_match(first, "^  body: 13 bytes \\(withheld\\)$", all = FALSE)
+  expect_match(first, "^  carry: x-trace$", all = FALSE, ignore.case = TRUE)
+  expect_false(any(grepl("token-value|trace-value|payload-bytes", first)))
+  expect_identical(ssrf_fetch(b)$status, 307L)
+  b2 <- ssrf_prepare_hop(b$state$location, policy, from = b)
+  second <- format(b2)
+  expect_match(
+    second,
+    "^  redirect: 307 from hop 1, cross-origin; dropped x-token; body dropped$",
+    all = FALSE
+  )
+  expect_match(second, "^  body: none$", all = FALSE)
+  expect_false(any(grepl("token-value|trace-value|payload-bytes", second)))
+})

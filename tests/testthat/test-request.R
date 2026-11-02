@@ -186,6 +186,24 @@ test_that("a plan of the wrong shape is an invalid argument", {
   }
 })
 
+test_that("a plan naming a field twice is an invalid argument", {
+  twice <- list(
+    stats::setNames(list("GET", "POST"), c("method", "method")),
+    stats::setNames(
+      list(c(`X-A` = "1"), "b", c(`X-B` = "2")),
+      c("headers", "body", "headers")
+    )
+  )
+  for (request in twice) {
+    expect_error(
+      prepare(request),
+      regexp = "`request` names a field more than once.",
+      fixed = TRUE,
+      class = "ssrfr_error_invalid_argument"
+    )
+  }
+})
+
 test_that("a plan is checked before the URL is parsed or resolved", {
   local_mocked_bindings(
     dep_rurl_verdicts = function(...) stop("parsed"),

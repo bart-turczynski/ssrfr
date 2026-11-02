@@ -431,6 +431,14 @@ scripted_transfer <- function(outcomes, env = parent.frame()) {
           base,
           list(error = "curl_error_peer_failed_verification", connect = 0.01)
         ),
+        ssl = modifyList(
+          base,
+          list(error = "curl_error_ssl_connect_error", connect = 0.01)
+        ),
+        recv = modifyList(
+          base,
+          list(error = "curl_error_recv_error", connect = 0.01)
+        ),
         ok = {
           headers <- charToRaw(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n"
@@ -564,6 +572,60 @@ test_that("pin-mismatch or an opened connection ends failover", {
   tls <- run(list("192.0.2.1" = "tls", "192.0.2.2" = "ok"))
   expect_identical(tls$cause, "tls-failed")
   expect_identical(tls$tried, "192.0.2.1")
+})
+
+# §6.6: a transport error once connected is mapped by its curl class. Every
+# curl_error_ssl_* class is `tls-failed` at step 10; a class with no mapping
+# of its own is `protocol-error` at step 12. Neither tries another address.
+test_that("a transport error after connecting maps by its curl class", {
+  cases <- list(
+    ssl = list(cause = "tls-failed", step = 10L),
+    recv = list(cause = "protocol-error", step = 12L)
+  )
+  for (outcome in names(cases)) {
+    local({
+      tried <- scripted_transfer(list(
+        "192.0.2.1" = outcome,
+        "192.0.2.2" = "ok"
+      ))
+      r <- failover_fetch(list("192.0.2.1" = 1, "192.0.2.2" = 1))$result
+      expect_s3_class(r, "ssrfr_failure")
+      expect_identical(r$cause, cases[[outcome]]$cause, label = outcome)
+      expect_identical(r$detail$step, cases[[outcome]]$step, label = outcome)
+      expect_identical(r$detail$check, "transport", label = outcome)
+      expect_identical(tried$addresses, "192.0.2.1", label = outcome)
+    })
+  }
+})
+
+# libcurl may call the write callback with no bytes, for an empty body. Such
+# a delivery is not the first body byte: the header is not read for it.
+test_that("an empty delivery does not start the body", {
+  seen <- new.env(parent = emptyenv())
+  seen$empty <- NULL
+  local_mocked_bindings(
+    dep_curl_transfer = function(opts, on_body, debug, progress) {
+      debug(0L, charToRaw("Trying 192.0.2.1:80...\n"))
+      headers <- wire("HTTP/1.1 200 OK\r\n", "Content-Type: text/plain\r\n\r\n")
+      seen$empty <- on_body(raw(), function() stop("header read"))
+      on_body(charToRaw("hello"), function() headers)
+      list(
+        aborted = FALSE,
+        error = NULL,
+        status = 200L,
+        headers = headers,
+        connect = 0.01
+      )
+    }
+  )
+  local_mocked_bindings(dep_nslookup = function(query) "192.0.2.1")
+  policy <- ssrf_policy(allow_ranges = "192.0.2.0/24")
+  b <- ssrf_prepare_hop("http://empty.invalid/", policy, request = list())
+  r <- ssrf_fetch(b)
+  expect_true(seen$empty)
+  expect_s3_class(r, "ssrfr_response")
+  expect_identical(r$status, 200L)
+  expect_identical(body_text(r), "hello")
 })
 
 test_that("failover reaches the listener after a dead address", {

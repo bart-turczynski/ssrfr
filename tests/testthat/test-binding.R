@@ -68,6 +68,39 @@ test_that("a refused hop returns a refusal with its reason code and hop", {
   expect_identical(r$address, "10.0.0.5")
 })
 
+# r-binding.md §2.6, §6.5: a literal's pin target is its canonical text. When
+# raddr classified the address and then fails to format it, the hop refuses
+# as `malformed-address` at gate 1b, naming the host, and binds nothing.
+test_that("a literal raddr cannot format once classified refuses", {
+  classified <- new.env(parent = emptyenv())
+  classified$yes <- FALSE
+  reachability <- ssrfr:::dep_raddr_reachability
+  format_address <- ssrfr:::dep_raddr_format
+  local_mocked_bindings(
+    dep_raddr_reachability = function(x) {
+      classified$yes <- TRUE
+      reachability(x)
+    },
+    dep_raddr_format = function(x) {
+      if (classified$yes) stop("raddr") else format_address(x)
+    }
+  )
+  hosts <- c(
+    "http://93.184.216.34/" = "93.184.216.34",
+    "http://[2606:4700:4700::1111]/" = "[2606:4700:4700::1111]"
+  )
+  for (url in names(hosts)) {
+    classified$yes <- FALSE
+    r <- ssrf_prepare_hop(url, ssrf_policy(), request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "malformed-address", label = url)
+    expect_identical(r$detail$step, 8L, label = url)
+    expect_identical(r$detail$gate, "1b", label = url)
+    expect_identical(r$detail$tier, 1L, label = url)
+    expect_identical(r$host, hosts[[url]], label = url)
+  }
+})
+
 # §4.2, INV-11: a zone-ID literal, and a host WHATWG cannot read, refuse at
 # prepare as `parse`, before any resolution, whatever address or name the
 # rest of the host spells. The percent-encoded trailing stops are V0541,

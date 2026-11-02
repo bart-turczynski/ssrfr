@@ -47,7 +47,9 @@ items 32–33, two gaps a review of the implementation tickets found.
 parsed host (§4.1, `SSRF-ljqshjmj`). **Ratified 2026-10-22:** the 2026-10-21
 amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
 **Ratified 2026-11-01:** the 2026-10-31 amendment to §5 gate 5, admitting bare
-`metadata` (`SSRF-figjvukt`).
+`metadata` (`SSRF-figjvukt`). **Ratified 2026-11-02:** the 2026-11-02
+amendment to §5.0, refusing a host with an empty label as `parse`
+(`SSRF-qopriinc`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -972,6 +974,24 @@ label does not carry the diagnostic, and is not refused on that ground.
 domain-to-ASCII fails", pending `RURL-vicyvlvh`; narrowed by the maintainer on
 2026-09-30; `SSRF-imtdxdym`).
 
+A host carrying an empty label refuses as `parse` at the parse boundary (§12
+step 2), before steps 3–6: `evil.example..`, `evil..example`, `.evil.example`,
+and a host whose empty label appears only after UTS #46 mapping, such as one
+ending in two ideographic full stops or holding a label of only ignored code
+points (`evil.example.\u{00AD}.`). One trailing root dot after a non-empty
+label is not an empty label; a host of dots alone (`.`, `..`) is. Only that
+one dot is removed for matching, so a host with an empty label would miss the
+exact rule for the name it spells and still be resolved. The parse-vector
+table MUST carry such hosts. `ssrfr` takes this signal from `rurl`'s
+`domain-empty-label` diagnostic under `url_standard = "whatwg"`, read from
+both the URL received and its serialization, which `rurl` 3.1.0 reports for
+each of them **[verified]** (`design/evidence/2026-09-25-parse-vectors.R`, rows
+P0121–P0126 and P0136), rather than splitting labels itself (§4). `rurl`
+3.1.0 fails a label of only ignored code points at layer 1 instead (rows
+P0127–P0135); a later `rurl` admits it, and only the serialization carries the
+diagnostic **[verified]** (rurl 3.1.0.9000, 2026-11-02). *Amended 2026-11-02* (was silent, so these hosts skipped
+gates 4 and 5; maintainer decision of 2026-11-02, `SSRF-qopriinc`).
+
 Case folding MUST be ASCII-only, as WHATWG host processing is, and MUST NOT depend
 on the session locale. `rurl` shipped the Turkish-I defect (`RURL-ugfpuotu`), and
 `stringi`'s `"root"` locale does not override the ambient one **[sourced]**
@@ -1657,6 +1677,16 @@ From 2026-09-30 they are also logged here:
 - **2026-11-01** (`SSRF-figjvukt`): the maintainer ratified the 2026-10-31
   amendment to §5, gate 5, as written. The source now also cites a
   2026-11-01 Wayback snapshot of Google's page. No rule changes, and no test.
+- **2026-11-02** (`SSRF-qopriinc`): §5.0 *Hostname matching* refuses a host
+  carrying an empty label as `parse`, as the maintainer decided on 2026-11-02,
+  read from `rurl`'s `domain-empty-label` diagnostic; a single trailing root
+  dot is not one. Such a host had skipped gates 4 and 5 and been resolved.
+  Parse vector P0094 is superseded by P0121, and verdict vector V0252 by V0553.
+  The diagnostic is read from the serialization as well as from the URL
+  received, since UTS #46 can empty a label by deleting ignored code points;
+  parse vectors P0127–P0136 cover it.
+- **2026-11-02** (`SSRF-qopriinc`): the maintainer ratified the 2026-11-02
+  amendment to §5.0 as written.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

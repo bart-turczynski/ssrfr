@@ -377,6 +377,104 @@ test_that("an xn-- label that is not an A-label refuses as parse", {
   expect_identical(resolver$seen$calls, 0L)
 })
 
+# §5.0: a host carrying an empty label refuses as `parse` at the parse
+# boundary, on rurl's `domain-empty-label` diagnostic, before any resolver
+# call. Only one trailing root dot is removed for matching, so `evil.com..`
+# would otherwise miss gate 4 and gate 5 and be resolved (SSRF-qopriinc).
+test_that("a host with an empty label refuses as parse, unresolved", {
+  seen <- mock_answers("93.184.216.34")
+  policy <- ssrf_policy(deny_hosts = "evil.com")
+  urls <- c(
+    "http://evil.com../",
+    "http://evil..com/",
+    "http://.evil.com/",
+    "http://metadata.google.internal../",
+    "http://evil.com。。/",
+    "http://evil.com．．/"
+  )
+  for (url in urls) {
+    r <- ssrf_prepare_hop(url, policy, request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "parse", label = url)
+    expect_identical(r$detail$step, 2L, label = url)
+    expect_identical(r$detail$check, "empty-label", label = url)
+    res <- ssrf_inspect_url(url, policy)
+    expect_identical(res$code, "parse", label = url)
+    expect_identical(res$step, 2L, label = url)
+    expect_identical(res$detail$check, "empty-label", label = url)
+  }
+  # A relative reference whose absolute URL carries one, at L1.
+  res <- ssrf_inspect_url(
+    "//evil.com../",
+    policy,
+    base = "http://example.com/",
+    layer = "L1"
+  )
+  expect_identical(res$detail$check, "empty-label")
+  expect_identical(seen$queries, character())
+
+  # A single trailing root dot is no empty label: it is stripped for matching
+  # and the deny rule refuses, still without resolving.
+  r <- ssrf_prepare_hop("http://evil.com./", policy, request = list())
+  expect_identical(r$code, "host-denied")
+  expect_identical(seen$queries, character())
+})
+
+# §5.0: UTS #46 deletes ignored code points, so a label holding only those is
+# empty in the serialization alone. rurl 3.1.0 fails these at layer 1
+# (`syntax`); a later rurl admits them, and the wire's diagnostics refuse them
+# (`empty-label`). Either way: `parse` at step 2, never resolved.
+test_that("a label emptied by IDNA mapping refuses as parse, unresolved", {
+  seen <- mock_answers("93.184.216.34")
+  policy <- ssrf_policy(deny_hosts = "evil.com")
+  urls <- c(
+    "http://evil.com.%C2%AD./",
+    "http://metadata.google.internal.%C2%AD./",
+    "http://evil.com%2E%2E/",
+    "http://­.evil.com/",
+    "http://evil.­.com/",
+    "http://evil.com.­./",
+    "http://evil.com.​./",
+    "http://evil.com.͏./",
+    "http://evil.com.︀./",
+    "http://evil.com.⁠./"
+  )
+  for (url in urls) {
+    r <- ssrf_prepare_hop(url, policy, request = list())
+    expect_s3_class(r, "ssrfr_refusal")
+    expect_identical(r$code, "parse", label = url)
+    expect_identical(r$detail$step, 2L, label = url)
+    expect_true(
+      r$detail$check %in% c("syntax", "empty-label"),
+      label = url
+    )
+  }
+  expect_identical(seen$queries, character())
+})
+
+# The wire's diagnostics are read as well as the input's: a finding there
+# alone refuses, and so does a reading that fails there alone.
+test_that("the serialization's diagnostics are read too", {
+  resolver <- counting_resolver()
+  wire_only <- function(answer) {
+    function(url) {
+      if (identical(url, "http://example.com/")) answer else character()
+    }
+  }
+  local_mocked_bindings(
+    dep_nslookup = resolver$fn,
+    dep_rurl_diagnostics = wire_only("domain-empty-label")
+  )
+  res <- ssrf_inspect_url("http://EXAMPLE.com/", layer = "L1")
+  expect_identical(res$code, "parse")
+  expect_identical(res$detail$check, "empty-label")
+  local_mocked_bindings(dep_rurl_diagnostics = wire_only(NULL))
+  res <- ssrf_inspect_url("http://EXAMPLE.com/", layer = "L1")
+  expect_identical(res$code, "parse")
+  expect_identical(res$detail$check, "diagnostics")
+  expect_identical(resolver$seen$calls, 0L)
+})
+
 # The diagnostics are read for the absolute URL as well as for the string the
 # hop received: a reading that fails for the absolute URL alone refuses.
 test_that("unreadable diagnostics for the absolute URL refuse as parse", {

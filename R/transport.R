@@ -60,14 +60,15 @@ never_set_options <- c(
 # libcurl 7.85 added the string forms of the protocol restriction. Below it,
 # or where R's curl does not list them, the bitmasks restrict to the same two
 # schemes: CURLPROTO_HTTP (1) and CURLPROTO_HTTPS (2) (r-binding.md §5,
-# "Minimum libcurl").
-protocols_str_since <- numeric_version("7.85.0")
+# "Minimum libcurl"). A string, not a numeric_version: cyclocomp walks a
+# top-level numeric_version without end (gaborcsardi/cyclocomp#33).
+protocols_str_since <- "7.85.0"
 curlproto_http_https <- 3L
 
 protocol_options <- function(capabilities) {
   modern <- !is.null(capabilities) &&
     isTRUE(capabilities$protocols_str) &&
-    capabilities$version >= protocols_str_since
+    capabilities$version >= numeric_version(protocols_str_since)
   if (modern) {
     list(protocols_str = "http,https", redir_protocols_str = "http,https")
   } else {

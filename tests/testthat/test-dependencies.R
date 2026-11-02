@@ -158,6 +158,28 @@ test_that("raddr failing on embedding reachability refuses as malformed", {
   )
 })
 
+test_that("an embedding record of the wrong shape refuses as malformed", {
+  embeddings <- ssrfr:::dep_raddr_embeddings
+  rows <- unclass(embeddings(raddr::addr_pton("64:ff9b::5db8:d822"))[[1L]])
+  record <- function(fields) {
+    function(x) list(structure(fields, class = "raddr_embedding"))
+  }
+  shapes <- list(
+    "no address" = rows[c("kind", "role")],
+    "an NA kind" = modifyList(rows, list(kind = NA_character_)),
+    "a short role" = modifyList(rows, list(role = character()))
+  )
+  for (shape in names(shapes)) {
+    local({
+      local_mocked_bindings(dep_raddr_embeddings = record(shapes[[shape]]))
+      expect_malformed_at_1b(
+        ssrf_inspect_url("http://[64:ff9b::5db8:d822]/"),
+        shape
+      )
+    })
+  }
+})
+
 test_that("raddr failing on a caller range refuses with the facts it read", {
   within <- ssrfr:::dep_raddr_within_any
   local_mocked_bindings(

@@ -397,13 +397,8 @@ classify_lines_walk <- function(state, scan) {
   next_empty <- scan$next_empty
   opens <- scan$opens
   codes <- scan$codes
-  blocks <- state$blocks
-  more <- sum(opens)
-  start <- c(blocks$start, integer(more))
-  end <- c(blocks$end, integer(more))
-  status <- c(blocks$status, integer(more))
-  complete <- c(blocks$complete, logical(more))
-  count <- length(blocks$start)
+  blocks <- classify_lines_walk_grow(state$blocks, sum(opens))
+  count <- length(state$blocks$start)
   trailers <- state$trailers
   mode <- state$mode
   at <- 1L
@@ -411,8 +406,8 @@ classify_lines_walk <- function(state, scan) {
     if (mode == "start" && opens[[at]]) {
       mode <- "block"
       count <- count + 1L
-      start[[count]] <- at + skip
-      status[[count]] <- codes[[at]]
+      blocks$start[[count]] <- at + skip
+      blocks$status[[count]] <- codes[[at]]
       # The block's end is looked up from the line after its status line.
       at <- at + 1L
     } else if (mode == "start") {
@@ -421,14 +416,14 @@ classify_lines_walk <- function(state, scan) {
     ended <- next_empty[[at]]
     if (is.na(ended)) {
       if (mode == "block") {
-        end[[count]] <- to
+        blocks$end[[count]] <- to
       }
       break
     }
     if (mode == "block") {
-      end[[count]] <- ended + skip
-      complete[[count]] <- TRUE
-      if (status[[count]] >= 200L) {
+      blocks$end[[count]] <- ended + skip
+      blocks$complete[[count]] <- TRUE
+      if (blocks$status[[count]] >= 200L) {
         trailers <- c(trailers, seq_len(n - ended) + ended + skip)
         mode <- "trailer"
         break
@@ -440,13 +435,19 @@ classify_lines_walk <- function(state, scan) {
   kept <- seq_len(count)
   list(
     mode = mode,
-    blocks = list(
-      start = start[kept],
-      end = end[kept],
-      status = status[kept],
-      complete = complete[kept]
-    ),
+    blocks = lapply(blocks, `[`, kept),
     trailers = trailers
+  )
+}
+
+# `blocks`, header_segments()'s blocks, each vector grown by `more` unset
+# entries: the room classify_lines_walk() fills, one per status line.
+classify_lines_walk_grow <- function(blocks, more) {
+  list(
+    start = c(blocks$start, integer(more)),
+    end = c(blocks$end, integer(more)),
+    status = c(blocks$status, integer(more)),
+    complete = c(blocks$complete, logical(more))
   )
 }
 

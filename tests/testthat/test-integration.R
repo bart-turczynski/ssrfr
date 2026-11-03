@@ -32,7 +32,7 @@ integration_policy <- function(connect_timeout = 10, ...) {
 # The real resolver behind the internal seam, counting its calls: the guard
 # still resolves through the system resolver, and the test sees each query.
 local_counting_resolver <- function(env = parent.frame()) {
-  real <- ssrfr:::dep_nslookup
+  real <- dep_nslookup
   seen <- new.env(parent = emptyenv())
   seen$queries <- character()
   local_mocked_bindings(
@@ -152,7 +152,7 @@ test_that("real DNS: a name with a loopback address refuses, never connects", {
   skip_unless_integration()
   skip_if_not_installed("withr")
   local_answers <- tryCatch(
-    ssrfr:::dep_nslookup("localhost."),
+    dep_nslookup("localhost."),
     error = function(e) character()
   )
   skip_if(
@@ -184,7 +184,7 @@ test_that("real DNS: a name with a loopback address refuses, never connects", {
 # store decides; verification is bound to the URL's hostname through the pin.
 test_that("TLS: a real valid chain verifies; verification is not weakened", {
   skip_unless_integration()
-  builder <- ssrfr:::transport_options
+  builder <- transport_options
   seen <- new.env(parent = emptyenv())
   seen$opts <- list()
   local_mocked_bindings(

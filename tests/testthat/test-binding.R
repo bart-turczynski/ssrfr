@@ -74,8 +74,8 @@ test_that("a refused hop returns a refusal with its reason code and hop", {
 test_that("a literal raddr cannot format once classified refuses", {
   classified <- new.env(parent = emptyenv())
   classified$yes <- FALSE
-  reachability <- ssrfr:::dep_raddr_reachability
-  format_address <- ssrfr:::dep_raddr_format
+  reachability <- dep_raddr_reachability
+  format_address <- dep_raddr_format
   local_mocked_bindings(
     dep_raddr_reachability = function(x) {
       classified$yes <- TRUE
@@ -417,7 +417,7 @@ test_that("binding state is read-only fields over a store set_state() writes", {
     every
   )
 
-  set <- ssrfr:::set_state
+  set <- set_state
   set(b, status = 302L, location = "/next", location_count = 1L)
   expect_identical(b$state$status, 302L)
   expect_identical(b$state$location, "/next")

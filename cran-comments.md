@@ -7,7 +7,10 @@ This is the first submission of ssrfr, version 1.0.0.
 The note is the incoming-feasibility one:
 
 * This is a new submission.
-* The `BugReports` suggestion, explained below.
+* "Possibly misspelled words in DESCRIPTION: hostname". It is spelled as
+  intended: the standard networking term for the name of a host on a network.
+* The `BugReports` suggestion, explained below. R-devel (r90827) no longer
+  prints it; R 4.6.2 and R 4.5.3 still do.
 
 ## BugReports
 
@@ -34,6 +37,10 @@ instead.
 * local: macOS 26.7.1 (aarch64-apple-darwin), R 4.6.1, `R CMD check --as-cran`
   with remote incoming checks
 * Docker: Linux (aarch64-unknown-linux-gnu), R 4.6.1
+* GitLab CI, Linux: R release, oldrel and devel, and the R 4.1 floor; also
+  `--as-cran` with remote incoming checks and the PDF manual
+* win-builder: R 4.6.2, R 4.5.3 and R-devel (r90827), all ucrt
+* R-hub: Windows, Linux, macOS (x86_64) and macOS (arm64), R-devel
 
 ## Downstream dependencies
 

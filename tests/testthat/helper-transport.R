@@ -340,7 +340,7 @@ skip_if_test_ca_ignored <- function() {
 
 local_trust_test_ca <- function(env = parent.frame()) {
   skip_if_test_ca_ignored()
-  builder <- ssrfr:::transport_options
+  builder <- transport_options
   ca <- test_path("certs", "ca.crt")
   local_mocked_bindings(
     transport_options = function(...) c(builder(...), list(cainfo = ca)),
@@ -352,7 +352,7 @@ local_trust_test_ca <- function(env = parent.frame()) {
 # Records libcurl's text trace of every attempt, alongside ssrfr's own
 # debug callback, which still runs.
 local_trace_recorder <- function(env = parent.frame()) {
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   seen <- new.env(parent = emptyenv())
   seen$lines <- character()
   local_mocked_bindings(
@@ -724,7 +724,7 @@ option_problems <- function(opts, host, address) {
     address
   }
   want("connect_to", paste0(host, "::", target, ":"))
-  for (name in names(ssrfr:::fixed_transport_options)) {
+  for (name in names(fixed_transport_options)) {
     if (!name %in% names(opts)) {
       found$problems <- c(found$problems, paste("missing", name))
     }
@@ -768,7 +768,7 @@ option_problems <- function(opts, host, address) {
       problems <- c(problems, paste("missing", name))
     }
   }
-  set_never <- intersect(names(opts), ssrfr:::never_set_options)
+  set_never <- intersect(names(opts), never_set_options)
   if (length(set_never)) {
     problems <- c(problems, paste("sets", set_never))
   }

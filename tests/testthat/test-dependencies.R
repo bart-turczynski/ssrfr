@@ -78,7 +78,7 @@ test_that("a failing raddr wrapper refuses as malformed-address", {
 })
 
 test_that("canonical_address() tells a name from a raddr failure", {
-  canonical <- ssrfr:::canonical_address
+  canonical <- canonical_address
   expect_identical(canonical("0:0:0:0:0:0:0:1"), "::1")
   expect_identical(canonical("127.0.0.1"), "127.0.0.1")
   expect_null(canonical("pinned.example.invalid"))
@@ -128,7 +128,7 @@ test_that("raddr failing on an embedded address refuses as malformed-address", {
   for (url in urls) {
     expect_identical(ssrf_inspect_url(url)$code, "cloud-metadata", label = url)
   }
-  pton <- ssrfr:::dep_raddr_pton
+  pton <- dep_raddr_pton
   local_mocked_bindings(
     dep_raddr_pton = function(text) {
       if (identical(text, "169.254.169.254")) stop("raddr") else pton(text)
@@ -140,7 +140,7 @@ test_that("raddr failing on an embedded address refuses as malformed-address", {
 })
 
 test_that("raddr failing on embedding reachability refuses as malformed", {
-  reachability <- ssrfr:::dep_raddr_reachability
+  reachability <- dep_raddr_reachability
   local_mocked_bindings(
     dep_raddr_reachability = function(x) {
       if (inherits(x, "raddr_embedding")) stop("raddr") else reachability(x)
@@ -159,7 +159,7 @@ test_that("raddr failing on embedding reachability refuses as malformed", {
 })
 
 test_that("an embedding record of the wrong shape refuses as malformed", {
-  embeddings <- ssrfr:::dep_raddr_embeddings
+  embeddings <- dep_raddr_embeddings
   rows <- unclass(embeddings(raddr::addr_pton("64:ff9b::5db8:d822"))[[1L]])
   record <- function(fields) {
     function(x) list(structure(fields, class = "raddr_embedding"))
@@ -181,7 +181,7 @@ test_that("an embedding record of the wrong shape refuses as malformed", {
 })
 
 test_that("raddr failing on a caller range refuses with the facts it read", {
-  within <- ssrfr:::dep_raddr_within_any
+  within <- dep_raddr_within_any
   local_mocked_bindings(
     dep_raddr_within_any = function(x, blocks) {
       if ("10.0.0.0/8" %in% blocks) stop("raddr") else within(x, blocks)

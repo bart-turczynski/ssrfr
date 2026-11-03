@@ -155,7 +155,7 @@ test_that("each hop is prepared from the recorded Location, as a loop would", {
   log$fetch <- list()
   expect_error(ssrf_fetch_chain("http://10.0.0.1/", policy), "request")
   expect_length(log$prepare, 0L)
-  refused <- ssrfr:::new_ssrf_refusal("private", 1L)
+  refused <- new_ssrf_refusal("private", 1L)
   outcomes$prepare <- list(refused)
   expect_identical(
     ssrf_fetch_chain("http://10.0.0.1/", policy, request = list()),
@@ -169,7 +169,7 @@ test_that("each hop is prepared from the recorded Location, as a loop would", {
   # the body is decoded (§5.3), ends the chain: only a response is followed.
   log$prepare <- list()
   log$fetch <- list()
-  late <- ssrfr:::new_ssrf_failure("timeout", 1L)
+  late <- new_ssrf_failure("timeout", 1L)
   outcomes$prepare <- list(hop("/next"))
   outcomes$fetch <- list(late)
   expect_identical(

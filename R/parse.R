@@ -154,6 +154,25 @@ parse_boundary <- function(url) {
   # other `#` is percent-encoded; a host rurl left holding one (RURL-crsrkcoh)
   # is cut short here and then fails the agreement check below.
   wire <- sub("#.*$", "", wire, useBytes = TRUE)
+  refused <- parse_boundary_wire(wire)
+  if (!is.null(refused)) {
+    return(refused)
+  }
+  theirs <- read_curl_parse(wire)
+  if (is.null(theirs)) {
+    return(parse_boundary_refuse("parse", "transport-parse"))
+  }
+  refused <- parse_boundary_agreement(ours, theirs)
+  if (!is.null(refused)) {
+    return(refused)
+  }
+  parse_boundary_fields(wire, ours, theirs)
+}
+
+# The checks on the serialization `wire` before libcurl sees it (§5.0, §4.1):
+# a parse_boundary() refusal when its diagnostics cannot be read, a label is
+# empty or it is not printable ASCII; NULL when it may be handed to libcurl.
+parse_boundary_wire <- function(wire) {
   # §5.0: UTS #46 mapping deletes ignored code points, so a label holding only
   # those is empty in the serialization alone (`evil.example.­.` becomes
   # `evil.example..`). The wire's diagnostics are read as well as the input's.
@@ -170,10 +189,13 @@ parse_boundary <- function(url) {
   if (!printable_ascii(wire)) {
     return(parse_boundary_refuse("parse", "wire-ascii"))
   }
-  theirs <- read_curl_parse(wire)
-  if (is.null(theirs)) {
-    return(parse_boundary_refuse("parse", "transport-parse"))
-  }
+  NULL
+}
+
+# The two parsers' agreement on the host (§4.2): a parse_boundary() refusal
+# when rurl's `ours` and libcurl's `theirs` disagree, or when agreement cannot
+# be decided; NULL when they agree.
+parse_boundary_agreement <- function(ours, theirs) {
   agree <- hosts_agree(ours$host, theirs$host)
   if (is.na(agree)) {
     return(parse_boundary_refuse("malformed-address", "agreement"))
@@ -181,7 +203,7 @@ parse_boundary <- function(url) {
   if (!agree) {
     return(parse_boundary_refuse("parse", "agreement"))
   }
-  parse_boundary_fields(wire, ours, theirs)
+  NULL
 }
 
 # A parse_boundary() refusal: the finding alone, at step 3 for `scheme` and

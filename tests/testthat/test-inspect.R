@@ -274,12 +274,12 @@ test_that("every spelling of an address gives one verdict", {
 # (ipaddress and raddr read it as 177.0.0.1; libcurl dials 127.0.0.1). The
 # address layer is fed libcurl's parse of the wire string, never raw input.
 test_that("the address layer reads libcurl's host, never the raw input", {
-  hop <- ssrfr:::parse_hop("http://0177.0.0.1/", ssrf_policy())
+  hop <- parse_hop("http://0177.0.0.1/", ssrf_policy())
   expect_null(hop$finding)
   expect_identical(hop$address, "127.0.0.1")
   expect_identical(hop$wire, "http://127.0.0.1/")
   expect_identical(
-    ssrfr:::address_gates(hop$address, ssrf_policy())$finding$code,
+    address_gates(hop$address, ssrf_policy())$finding$code,
     "loopback"
   )
   # The raw spelling itself refuses first, whatever it decodes to.
@@ -302,7 +302,7 @@ test_that("the wire string carries an ASCII A-label host", {
     "http://BÜCHER.EXAMPLE/x",
     "http://ß.example/"
   )) {
-    hop <- ssrfr:::parse_hop(url, ssrf_policy())
+    hop <- parse_hop(url, ssrf_policy())
     expect_null(hop$finding)
     host <- curl::curl_parse_url(hop$wire)$host
     expect_false(grepl("[^\\x21-\\x7e]", host, perl = TRUE), label = url)
@@ -315,7 +315,7 @@ test_that("the wire string carries an ASCII A-label host", {
     "xn--bcher-kva.example"
   )
   # A host rurl leaves without an A-label never reaches the wire.
-  expect_false(ssrfr:::hosts_agree("bücher.example", "bücher.example"))
+  expect_false(hosts_agree("bücher.example", "bücher.example"))
 })
 
 # A resolver wrapper that answers one public address and counts its calls.
@@ -583,7 +583,7 @@ test_that("scheme, userinfo and port come from libcurl's parse", {
 })
 
 test_that("the wire string drops the fragment and keeps port and query", {
-  hop <- ssrfr:::parse_hop(
+  hop <- parse_hop(
     "http://Example.COM:8080/a/../b?q=1#frag",
     ssrf_policy(allow_ports = 8080)
   )
@@ -635,20 +635,20 @@ test_that("the URL length limit counts octets before any parse", {
 
 test_that("address_gates() classifies one resolved address for L1", {
   policy <- ssrf_policy(allow_ranges = "10.0.0.0/8")
-  expect_null(ssrfr:::address_gates("10.1.2.3", policy)$finding)
+  expect_null(address_gates("10.1.2.3", policy)$finding)
   expect_identical(
-    ssrfr:::address_gates("10.1.2.3", ssrf_policy())$finding$code,
+    address_gates("10.1.2.3", ssrf_policy())$finding$code,
     "private"
   )
   expect_identical(
-    ssrfr:::address_gates("::ffff:169.254.169.254", policy)$finding$code,
+    address_gates("::ffff:169.254.169.254", policy)$finding$code,
     "cloud-metadata"
   )
   expect_identical(
-    ssrfr:::address_gates("not an address", policy)$finding$code,
+    address_gates("not an address", policy)$finding$code,
     "malformed-address"
   )
-  expect_null(ssrfr:::address_gates("93.184.216.34", policy)$finding)
+  expect_null(address_gates("93.184.216.34", policy)$finding)
 })
 
 test_that("an inspection prints its facts without userinfo", {

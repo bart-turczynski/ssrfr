@@ -53,7 +53,10 @@
 # the offline allow-list tests still run.
 
 test_that("the OSS Index allow-list is well formed", {
-  expect_equal(oss_index_allowlist_violations(oss_index_allowlist), character())
+  expect_identical(
+    oss_index_allowlist_violations(oss_index_allowlist),
+    character()
+  )
 })
 
 test_that("the allow-list validator rejects rows that are not decisions", {
@@ -67,7 +70,7 @@ test_that("the allow-list validator rejects rows that are not decisions", {
       "naming the advisory, the exposure assessed and why it is accepted."
     )
   )
-  expect_equal(oss_index_allowlist_violations(list(sound)), character())
+  expect_identical(oss_index_allowlist_violations(list(sound)), character())
 
   broken <- function(field, value) {
     row <- sound
@@ -165,11 +168,11 @@ test_that("hard dependencies report only allow-listed OSS Index advisories", {
   expect_gt(nrow(audit), 0)
 
   # Rule A -- an advisory reported and not allow-listed.
-  expect_equal(sort(setdiff(found$id, allowed)), character())
+  expect_identical(sort(setdiff(found$id, allowed)), character())
 
   # Rule B -- an allow-listed advisory no longer reported. The list may not
   # over-permit, so a row that has outlived its justification fails here.
-  expect_equal(sort(setdiff(allowed, found$id)), character())
+  expect_identical(sort(setdiff(allowed, found$id)), character())
 
   # Rule C -- drift warns, never fails. See helper-security.R.
   for (row in oss_index_allowlist) {

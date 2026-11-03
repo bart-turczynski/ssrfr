@@ -188,9 +188,9 @@ test_that("a name is resolved as absolute, with one trailing root dot", {
     expect_identical(seen$queries, cases[[url]][["query"]], label = url)
     expect_identical(res$host, cases[[url]][["host"]], label = url)
   }
-  hop <- ssrfr:::parse_hop("http://intranet/", ssrf_policy())
+  hop <- parse_hop("http://intranet/", ssrf_policy())
   expect_identical(
-    ssrfr:::resolve_hop(hop, ssrf_policy())$query,
+    resolve_hop(hop, ssrf_policy())$query,
     "intranet."
   )
   expect_identical(hop$wire, "http://intranet/")
@@ -239,8 +239,8 @@ test_that("one bad address refuses the whole answer set", {
   expect_identical(res$addresses[[2L]]$detail$gate, "1a")
 
   # The internal step L2 reuses: nothing validated from a refused set.
-  hop <- ssrfr:::parse_hop("http://dual.example/", ssrf_policy())
-  resolved <- ssrfr:::resolve_hop(hop, ssrf_policy())
+  hop <- parse_hop("http://dual.example/", ssrf_policy())
+  resolved <- resolve_hop(hop, ssrf_policy())
   expect_identical(resolved$finding$code, "loopback")
   expect_identical(resolved$finding$address, "::1")
   expect_identical(resolved$validated, character())
@@ -268,8 +268,8 @@ test_that("L1 returns per-address evidence and no roll-up boolean", {
   expect_match(out, "93.184.216.34: none", fixed = TRUE)
 
   # The internal step L2 reuses returns the validated set with its facts.
-  hop <- ssrfr:::parse_hop("https://example.com/", ssrf_policy())
-  resolved <- ssrfr:::resolve_hop(hop, ssrf_policy())
+  hop <- parse_hop("https://example.com/", ssrf_policy())
+  resolved <- resolve_hop(hop, ssrf_policy())
   expect_null(resolved$finding)
   expect_identical(
     resolved$validated,
@@ -372,7 +372,7 @@ test_that("a failing raddr wrapper refuses an answer as malformed-address", {
 # is not an address is a raddr failure, `malformed-address`, not an answer
 # that is no address (`unresolvable`, §6.6).
 test_that("an answer raddr cannot report missing or not is malformed", {
-  pton <- ssrfr:::dep_raddr_pton
+  pton <- dep_raddr_pton
   # One raddr_address whose is.na() is no single flag.
   unreadable <- structure(
     data.frame(x = integer()),

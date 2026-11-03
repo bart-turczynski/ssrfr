@@ -79,7 +79,7 @@ test_that("a missing trace or another peer is pin-mismatch", {
   web <- local_test_server()
   port <- web$get_port()
   mock_answers("127.0.0.1")
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   rewrite <- function(fn) {
     local_mocked_bindings(
       dep_curl_transfer = function(opts, on_body, debug, progress) {
@@ -233,7 +233,7 @@ test_that("the transport sends no field the plan did not carry", {
 # runs them as top-level calls, where no handler of the caller's sees a
 # warning: R prints it later, header bytes and all.
 local_callback_warnings <- function(env = parent.frame()) {
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   seen <- new.env(parent = emptyenv())
   seen$warnings <- character()
   record <- function(f) {
@@ -353,7 +353,7 @@ test_that("a status that disagrees with the header block is a protocol error", {
 # of the header buffer: the bytes are segmented once, not once for each.
 test_that("a completed transfer's header is segmented once", {
   mock_answers("127.0.0.1")
-  segmenter <- ssrfr:::header_segments
+  segmenter <- header_segments
   calls <- new.env(parent = emptyenv())
   calls$n <- 0L
   local_mocked_bindings(
@@ -680,7 +680,7 @@ test_that("an error in ssrfr's own callback fails closed and says so", {
   hook <- new.env(parent = emptyenv())
   hook$runs <- 0L
   withr::local_options(error = function() hook$runs <- hook$runs + 1L)
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   broken <- list(
     data = function(on_body, progress) {
       list(on_body = function(x, ...) stop("a defect"), progress = progress)
@@ -730,7 +730,7 @@ test_that("an error in the trace callback fails closed as pin-mismatch", {
   hook <- new.env(parent = emptyenv())
   hook$runs <- 0L
   withr::local_options(error = function() hook$runs <- hook$runs + 1L)
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   delivered <- new.env(parent = emptyenv())
   delivered$bytes <- 0L
   local_mocked_bindings(
@@ -784,7 +784,7 @@ test_that("a progress callback that fails on its first call is named", {
   hook$runs <- 0L
   withr::local_options(error = function() hook$runs <- hook$runs + 1L)
   listener <- local_listener()
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   seen <- new.env(parent = emptyenv())
   seen$calls <- 0L
   seen$trying <- FALSE
@@ -1239,7 +1239,7 @@ test_that("a user interrupt pending when ssrfr stops at a limit propagates", {
     wire("HTTP/1.1 200 OK\r\n"),
     wire("X-Field: ", strrep("v", 50), "\r\n")
   ))
-  transfer <- ssrfr:::dep_curl_transfer
+  transfer <- dep_curl_transfer
   sent <- new.env(parent = emptyenv())
   sent$signal <- FALSE
   local_mocked_bindings(

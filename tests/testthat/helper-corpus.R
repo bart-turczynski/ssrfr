@@ -99,7 +99,7 @@ inspect_row <- function(row) {
 # Steps 1-3 of a parse-vector row under the default policy (§7 component 2):
 # "parse", "scheme" or "agree", and the host the guard acts on.
 parse_row <- function(input) {
-  hop <- ssrfr:::parse_hop(unescape_field(input), ssrf_policy())
+  hop <- parse_hop(unescape_field(input), ssrf_policy())
   code <- hop$finding$code
   step <- hop$finding$detail$step
   outcome <- if (

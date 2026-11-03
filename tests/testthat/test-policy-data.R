@@ -25,9 +25,9 @@ test_that("every metadata hostname is normalized and names a table endpoint", {
   names <- ssrf_vocabulary("metadata_hostnames")
   endpoints <- ssrf_vocabulary("provider_endpoints")$address
   # Stored in matching form: ASCII-lowercase, no trailing root dot (§5.0).
-  expect_identical(names$hostname, ssrfr:::normalize_host_name(names$hostname))
+  expect_identical(names$hostname, normalize_host_name(names$hostname))
   for (name in names$hostname) {
-    expect_identical(ssrfr:::normalize_host_rule(name, name), name)
+    expect_identical(normalize_host_rule(name, name), name)
   }
   # §5 gate 5: a name is admitted only as the name of a gate 2 endpoint.
   expect_true(all(names$address %in% endpoints))

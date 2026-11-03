@@ -310,7 +310,8 @@ test_that("the Location is compared as bytes, not as strings", {
   location <- b$state$location
   expect_identical(Encoding(location), "UTF-8")
   latin <- iconv(location, "UTF-8", "latin1")
-  expect_identical(latin, location)
+  # The premise is base identical()'s own verdict, so it is asserted as such.
+  expect_true(identical(latin, location))
   expect_error(
     ssrf_prepare_hop(latin, policy, from = b),
     class = "ssrfr_error_invalid_from"

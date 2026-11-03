@@ -1,7 +1,6 @@
 # General helpers (R/utils.R).
 
 test_that("default_if_null() falls back only on NULL", {
-  default_if_null <- default_if_null
   expect_identical(default_if_null(NULL, "fallback"), "fallback")
   expect_identical(default_if_null("given", "fallback"), "given")
   # Values that are empty or missing but not NULL pass through.
@@ -11,7 +10,6 @@ test_that("default_if_null() falls back only on NULL", {
 })
 
 test_that("default_if_null() evaluates `default` only when `x` is NULL", {
-  default_if_null <- default_if_null
   expect_identical(
     default_if_null("given", stop("`default` was evaluated")),
     "given"

@@ -53,14 +53,15 @@ Documented deviations from the goodpractice set:
 - `object_name_linter` / `object_usage_linter`: not part of the goodpractice set
   and deliberately NOT added. The testthat helpers read as undefined globals to
   `object_usage_linter`.
-- `expect_identical_linter`: off. `expect_equal()`'s numeric tolerance and
-  string-encoding normalization are routinely relied on.
+- `expect_identical_linter`: off. A test about base `identical()` itself asserts
+  `expect_true(identical(...))`, which the linter would rewrite.
 - `implicit_assignment_linter`: off. Tests use the standard
   `expect_warning(res <- f(), "msg")` idiom.
 - `library_require_linter`: off. `tests/testthat.R` and vignette setup chunks
   legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
-  allow `:::`, which tests use to reach internal functions. It also flags
+  allow `:::`. Tests need it nowhere: they run with the namespace as parent, so
+  they call internal functions by name. It also flags
   `%||%`, which base R has only from 4.4: on the R 4.1 floor it is undefined,
   so spell out the `is.null()` check instead.
 - `case_folding_linter`: an addition. It bans `tolower()`, `toupper()` and

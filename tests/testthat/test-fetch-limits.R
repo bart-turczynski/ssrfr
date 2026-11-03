@@ -819,7 +819,8 @@ test_that("a stop in the write callback aborts, without the error hook", {
       seen$stopped <- FALSE
       seen$after <- 0
       seen$cleanup <- FALSE
-      transfer <- dep_curl_transfer
+      # A subprocess has no test environment: reach the internal by namespace.
+      transfer <- asNamespace("ssrfr")$dep_curl_transfer
       policy <- ssrfr::ssrf_policy(
         allow_ranges = "127.0.0.0/8",
         allow_ports = port,

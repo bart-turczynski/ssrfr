@@ -60,8 +60,9 @@ Documented deviations from the goodpractice set:
 - `library_require_linter`: off. `tests/testthat.R` and vignette setup chunks
   legitimately call `library()`.
 - `undesirable_operator_linter`: configured to keep flagging `<<-`/`->>` but
-  allow `:::`. Tests need it nowhere: they run with the namespace as parent, so
-  they call internal functions by name. It also flags
+  allow `:::`. Tests call internal functions by name: they run with the
+  namespace as parent. Code a test runs in a subprocess has no such parent,
+  and reaches them through `asNamespace("ssrfr")`. It also flags
   `%||%`, which base R has only from 4.4: on the R 4.1 floor it is undefined,
   so spell out the `is.null()` check instead.
 - `case_folding_linter`: an addition. It bans `tolower()`, `toupper()` and

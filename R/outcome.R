@@ -187,12 +187,16 @@ format.ssrfr_outcome <- function(x, ...) {
 #' @return The single string `"refused"`, whatever `x` holds.
 #'
 #' @examples
-#' refusal <- ssrfr:::new_ssrf_refusal("loopback", hop = 1, address = "::1")
+#' # A loopback literal is refused at prepare, before any resolution.
+#' refusal <- ssrf_prepare_hop(
+#'   "http://127.0.0.1/admin",
+#'   ssrf_policy(),
+#'   request = list()
+#' )
 #' refusal$code
 #' ssrf_public_reason(refusal)
 #'
-#' failure <- ssrfr:::new_ssrf_failure("timeout", hop = 2)
-#' ssrf_public_reason(failure)
+#' # An operational failure, a timeout say, gives the same string.
 #'
 #' @export
 ssrf_public_reason <- function(x) {

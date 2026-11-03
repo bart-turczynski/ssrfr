@@ -30,7 +30,7 @@
   "version_unique_status": "Met",
   "version_unique_justification": "ssrfr has not been released yet. The development version carries the DESCRIPTION Version 0.0.0.9000, and the release checklist in design/release-deltas.md sets a new X.Y.Z for each release, which CRAN refuses to accept twice: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/release-deltas.md",
   "version_semver_status": "Met",
-  "version_semver_justification": "Uses semantic-style x.y.z versioning, with R's .9000 suffix for development versions (0.0.0.9000 today): https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/DESCRIPTION",
+  "version_semver_justification": "Uses semantic-style x.y.z versioning, with R's .9000 suffix for development versions: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/DESCRIPTION",
   "version_tags_status": "Unmet",
   "version_tags_justification": "No release has been made yet, so there are no version tags; the release checklist in design/release-deltas.md requires tagging each released commit vX.Y.Z: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/design/release-deltas.md",
   "release_notes_status": "Met",

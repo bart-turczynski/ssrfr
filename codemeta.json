@@ -8,7 +8,7 @@
   "codeRepository": "https://gitlab.com/bart-turczynski/ssrfr",
   "issueTracker": "https://gitlab.com/bart-turczynski/ssrfr/-/work_items",
   "license": "https://spdx.org/licenses/MIT",
-  "version": "0.0.0.9000",
+  "version": "1.0.0",
   "programmingLanguage": {
     "@type": "ComputerLanguage",
     "name": "R",
@@ -241,7 +241,7 @@
       ],
       "name": "{ssrfr}: Server-Side Request Forgery Guard for Outbound Requests",
       "url": "https://gitlab.com/bart-turczynski/ssrfr",
-      "description": "R package version 0.0.0.9000"
+      "description": "R package version 1.0.0"
     }
   ]
 }

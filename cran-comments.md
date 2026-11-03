@@ -1,3 +1,14 @@
+This is the first submission of ssrfr, version 1.0.0.
+
+## R CMD check results
+
+0 errors | 0 warnings | 1 note
+
+The note is the incoming-feasibility one:
+
+* This is a new submission.
+* The `BugReports` suggestion, explained below.
+
 ## BugReports
 
 `BugReports:` is `https://gitlab.com/bart-turczynski/ssrfr/-/work_items`. The
@@ -18,17 +29,12 @@ which should likely be
 instead.
 ```
 
-## R CMD check results
-
-0 errors | 0 warnings | 1 note
-
-* This is a new submission.
-
 ## Test environments
 
-* local: <your OS>, R <version>
-* GitHub Actions: macOS, Windows, Ubuntu (R devel, release, oldrel-1)
+* local: macOS 26.7.1 (aarch64-apple-darwin), R 4.6.1, `R CMD check --as-cran`
+  with remote incoming checks
+* Docker: Linux (aarch64-unknown-linux-gnu), R 4.6.1
 
 ## Downstream dependencies
 
-None — this is a new package.
+None: this is a new package.

@@ -1,7 +1,7 @@
 {
   "upload_type": "software",
   "title": "ssrfr: Server-Side Request Forgery Guard for Outbound Requests",
-  "version": "0.0.0.9000",
+  "version": "1.0.0",
   "language": "eng",
   "access_right": "open",
   "license": "MIT",

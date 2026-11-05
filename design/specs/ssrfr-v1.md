@@ -49,7 +49,8 @@ amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
 **Ratified 2026-11-01:** the 2026-10-31 amendment to §5 gate 5, admitting bare
 `metadata` (`SSRF-figjvukt`). **Ratified 2026-11-02:** the 2026-11-02
 amendment to §5.0, refusing a host with an empty label as `parse`
-(`SSRF-qopriinc`).
+(`SSRF-qopriinc`). **Ratified 2026-11-05:** the 2026-11-05 amendment to
+§5.3, the opt-in `truncate_body` (`SSRF-pnzhhlve`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -1730,6 +1731,10 @@ From 2026-09-30 they are also logged here:
   `response-too-large`; any other status and the default are unchanged. §2.2,
   §2.3 and §6.6 point to it. No reason code or cause changes. For RFC 9309
   §2.5's parsing limit, which `robotstxtr` applies.
+- **2026-11-05** (`SSRF-pnzhhlve`): the maintainer ratified the 2026-11-05
+  amendment to §5.3 as written, since it brings `robotstxtr` closer to RFC
+  9309 §2.5 and to Google's documented 500 KiB prefix. No rule changes, and
+  no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

@@ -25,7 +25,8 @@ test_that("the default policy builds with every §5.3 default", {
       "max_header_bytes",
       "max_header_fields",
       "max_url_length",
-      "user_agent"
+      "user_agent",
+      "truncate_body"
     )
   )
   expect_identical(p$allow_schemes, c("http", "https"))
@@ -42,6 +43,8 @@ test_that("the default policy builds with every §5.3 default", {
   expect_identical(p$max_header_bytes, 16 * 1024)
   expect_identical(p$max_header_fields, 128)
   expect_identical(p$max_url_length, 8000)
+  # SSRF-pnzhhlve: truncation is opt-in.
+  expect_false(p$truncate_body)
 })
 
 test_that("the default user agent is assembled from DESCRIPTION", {
@@ -363,5 +366,6 @@ test_that("a policy prints every field", {
   expect_match(out, "deny_hosts +\"\\.corp\"", all = FALSE)
   expect_match(out, "max_response_size +10485760", all = FALSE)
   expect_match(out, "allow_ports +80, 443", all = FALSE)
-  expect_length(out, 16L)
+  expect_match(out, "truncate_body +FALSE", all = FALSE)
+  expect_length(out, 17L)
 })

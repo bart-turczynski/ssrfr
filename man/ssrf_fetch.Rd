@@ -25,6 +25,16 @@ body, a raw vector; \code{rawToChar(response$body)} reads text). Its
 \code{print()} and \code{format()} show only the status, the media type and the
 body size, never the body or another header value.
 
+Under a policy with \code{truncate_body = TRUE}, a response also carries
+\code{truncated}, \code{TRUE} when \code{body} holds only the first
+\code{max_response_size} decoded bytes of a longer \verb{2xx} body, and
+\code{observed_bytes}, the decoded body bytes reached: for a truncated body,
+the bytes up to the end of the delivery that exceeded the limit, so
+more than \code{max_response_size} but not the full size, which is never
+read; otherwise the body's size. The cut falls at a byte, so text may
+end inside a multi-byte character. Under the default policy a response
+has neither field.
+
 A failure carries \code{cause}, from \code{ssrf_vocabulary("causes")}:
 \code{"connect-failed"}, \code{"timeout"}, \code{"tls-failed"}, \code{"pin-mismatch"},
 \code{"response-too-large"} or \code{"protocol-error"}. Its \code{detail} lists each
@@ -72,7 +82,10 @@ exceed it; \code{max_header_bytes} and \code{max_header_fields} bound the header
 including any interim \verb{1xx} responses and the trailer fields of a chunked
 body, as it arrives;
 \code{connect_timeout} bounds each connection attempt and \code{total_timeout} the
-time spent in \code{ssrfr} for the chain, decoding included.
+time spent in \code{ssrfr} for the chain, decoding included. Under the policy's
+\code{truncate_body = TRUE}, a \verb{2xx} body over \code{max_response_size} is the one
+exception to a whole body: the transfer still stops at the limit, and
+the response keeps the body's first \code{max_response_size} decoded bytes.
 
 A redirect is returned, not followed: its status and \code{Location} are in the
 response, and the next hop is prepared with

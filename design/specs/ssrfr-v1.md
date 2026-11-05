@@ -1126,8 +1126,8 @@ max_response_size default: 10 MiB of decoded body, per hop
 max_header_bytes  default: 16 KiB of response header, per hop
 max_header_fields default: 128 response header fields, per hop
 max_url_length    default: 8000 octets of the URL string, per hop
-truncate_body     default: false; true keeps a 2xx body's first max_response_size bytes
 user_agent        default: "ssrfr/<version> (+https://gitlab.com/bart-turczynski/ssrfr)"
+truncate_body     default: false; true keeps a 2xx body's first max_response_size bytes
 ```
 
 `max_header_bytes` and `max_header_fields` also count a chunked body's trailer

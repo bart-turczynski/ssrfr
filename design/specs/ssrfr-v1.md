@@ -231,6 +231,10 @@ the connection is closed (§14, no reuse). The response is a plain R value —
 status, response headers, decoded body — holding no handle, connection or file,
 so the caller has nothing to close. The transport facts stay on the spent
 binding (§2.5). Streaming the body or writing it to a file is beyond v1.
+The one exception to a whole body is §5.3's opt-in `truncate_body`: a 2xx
+body over `max_response_size` then comes back cut at the limit, and the
+response says so. *Amended 2026-11-05* (maintainer decision of 2026-11-05,
+`SSRF-pnzhhlve`).
 
 The response's `print` and `format` methods show the status, the media type
 without its parameters, and the decoded body size. They show no body and no
@@ -330,7 +334,10 @@ also records the status of a fetch that ended without one: a 3xx refused as
 `redirect-limit` (§12 step 13), and a body that exceeded `max_response_size`
 (§6.6). Success is recorded separately, and only a binding that records it is
 accepted as `from`, so neither of these is, whatever its status. *Amended
-2026-10-21* (`SSRF-hotiouqk`).
+2026-10-21* (`SSRF-hotiouqk`). A 2xx body that §5.3's `truncate_body` returns
+cut at the limit is a response, and its binding records success; a 2xx is
+never a followed redirect, so it is not accepted as `from` either. *Amended
+2026-11-05* (`SSRF-pnzhhlve`).
 
 A response is a *followed redirect* when its status is 301, 302,
 303, 307 or 308 (the Fetch Standard's redirect statuses) and it carries exactly
@@ -1119,6 +1126,7 @@ max_response_size default: 10 MiB of decoded body, per hop
 max_header_bytes  default: 16 KiB of response header, per hop
 max_header_fields default: 128 response header fields, per hop
 max_url_length    default: 8000 octets of the URL string, per hop
+truncate_body     default: false; true keeps a 2xx body's first max_response_size bytes
 user_agent        default: "ssrfr/<version> (+https://gitlab.com/bart-turczynski/ssrfr)"
 ```
 
@@ -1198,6 +1206,29 @@ most one delivery is held beyond it (libcurl delivers at most
 fails as `response-too-large` (§6.6), so none of it is returned. There is no
 limit on the number of resolved addresses: INV-4 forbids truncating the set, and
 failover over it is bounded by `total_timeout`.
+
+**Truncation is opt-in, and only for a 2xx body.** Under `truncate_body =
+true`, a hop whose final status is 2xx and whose decoded body exceeds
+`max_response_size` does not fail. The transfer ends on the same delivery
+as without the option, decoding with it, and the response holds the first
+`max_response_size` decoded bytes. Nothing more than the limit and that
+one delivery is ever held. The response then also carries `truncated`,
+true, and `observed_bytes`, the decoded bytes reached, counting the
+delivery that exceeded the limit, as §6.6 counts them; the full size is
+not known. Under the option, a response within the limit carries
+`truncated` false and `observed_bytes`, its body's size. The cut falls
+at a byte. A multi-byte character or any other unit of the media type
+that straddles the limit is left as cut, for the consumer to handle.
+The status is transport-observed (§2.3), so a body is kept only when
+libcurl's status and the final status line agree on a 2xx. A body over
+the limit under any other status, a header limit, and every body over
+the limit under the default still fail as `response-too-large`, with no
+body. Like the limit it qualifies, the field applies per hop and is not
+a chain budget (§2.5). RFC 9309 §2.5 lets a crawler parse only the
+first part of a robots.txt file over its parsing limit, which must be at
+least 500 KiB; `robotstxtr` needs that first part rather than a refusal.
+*Amended 2026-11-05* (was: every body over the limit fails whole;
+maintainer decision of 2026-11-05, `SSRF-pnzhhlve`).
 
 `max_url_length` defaults to 8000 octets per hop, RFC 9110 §4.1's
 minimum-support recommendation; no standard sets a maximum. It counts the UTF-8
@@ -1388,6 +1419,10 @@ A separate closed enum, `kebab-case`:
 
 When several limits trip during one transfer, the first one reached ends it and
 names the cause.
+
+Under §5.3's `truncate_body`, a 2xx body over `max_response_size` is a
+response cut at the limit, not a `response-too-large` failure. *Amended
+2026-11-05* (`SSRF-pnzhhlve`).
 
 A `response-too-large` failure's operator detail names the `step`, the
 `check` (`decoded-bytes` for the body, `header` for header bytes or fields, the
@@ -1687,6 +1722,13 @@ From 2026-09-30 they are also logged here:
   parse vectors P0127–P0136 cover it.
 - **2026-11-02** (`SSRF-qopriinc`): the maintainer ratified the 2026-11-02
   amendment to §5.0 as written.
+- **2026-11-05** (`SSRF-pnzhhlve`): §5.3 adds the policy field
+  `truncate_body`, default false, as the maintainer decided on 2026-11-05.
+  Under it a 2xx body over `max_response_size` is returned cut at the limit,
+  marked `truncated` with `observed_bytes`, instead of failing as
+  `response-too-large`; any other status and the default are unchanged. §2.2,
+  §2.3 and §6.6 point to it. No reason code or cause changes. For RFC 9309
+  §2.5's parsing limit, which `robotstxtr` applies.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

@@ -61,7 +61,10 @@ connected_cause <- function(error) {
 #' including any interim `1xx` responses and the trailer fields of a chunked
 #' body, as it arrives;
 #' `connect_timeout` bounds each connection attempt and `total_timeout` the
-#' time spent in `ssrfr` for the chain, decoding included.
+#' time spent in `ssrfr` for the chain, decoding included. Under the policy's
+#' `truncate_body = TRUE`, a `2xx` body over `max_response_size` is the one
+#' exception to a whole body: the transfer still stops at the limit, and
+#' the response keeps the body's first `max_response_size` decoded bytes.
 #'
 #' A redirect is returned, not followed: its status and `Location` are in the
 #' response, and the next hop is prepared with
@@ -105,6 +108,16 @@ connected_cause <- function(error) {
 #'   body, a raw vector; `rawToChar(response$body)` reads text). Its
 #'   `print()` and `format()` show only the status, the media type and the
 #'   body size, never the body or another header value.
+#'
+#'   Under a policy with `truncate_body = TRUE`, a response also carries
+#'   `truncated`, `TRUE` when `body` holds only the first
+#'   `max_response_size` decoded bytes of a longer `2xx` body, and
+#'   `observed_bytes`, the decoded body bytes reached: for a truncated body,
+#'   the bytes up to the end of the delivery that exceeded the limit, so
+#'   more than `max_response_size` but not the full size, which is never
+#'   read; otherwise the body's size. The cut falls at a byte, so text may
+#'   end inside a multi-byte character. Under the default policy a response
+#'   has neither field.
 #'
 #'   A failure carries `cause`, from `ssrf_vocabulary("causes")`:
 #'   `"connect-failed"`, `"timeout"`, `"tls-failed"`, `"pin-mismatch"`,
@@ -354,6 +367,9 @@ attempt_address_seen <- function() {
   seen$bytes <- 0
   # The decoded bytes reached by the delivery that passed max_response_size.
   seen$observed_bytes <- NULL
+  # Whether the body kept is a 2xx body's first max_response_size bytes, cut
+  # there under the policy's truncate_body (§5.3).
+  seen$truncated <- FALSE
   seen$body_started <- FALSE
   seen$body_since_progress <- FALSE
   seen$abort <- NULL
@@ -427,9 +443,18 @@ attempt_address_on_body <- function(seen, policy, remaining, header_check) {
       return(attempt_address_abort(seen, "timeout", "total", "total_timeout"))
     }
     # §5.3: decoded bytes, counted on each delivery; the delivery that passes
-    # the limit is not kept, but the bytes it reached are (§6.6).
+    # the limit is not kept, but the bytes it reached are (§6.6). The
+    # transfer ends here either way. Under truncate_body, a 2xx body keeps
+    # the part of that delivery up to the limit, cut at a byte;
+    # attempt_address_recorded() decides once libcurl's status is known.
     if (seen$bytes + length(x) > policy$max_response_size) {
       seen$observed_bytes <- seen$bytes + length(x)
+      if (isTRUE(policy$truncate_body) && is_success(final_status_line(seen))) {
+        keep <- policy$max_response_size - seen$bytes
+        seen$body[[length(seen$body) + 1L]] <- x[seq_len(keep)]
+        seen$bytes <- seen$bytes + keep
+        seen$truncated <- TRUE
+      }
       return(attempt_address_abort(
         seen,
         "response-too-large",
@@ -538,7 +563,10 @@ attempt_address_ended_at_limit <- function(record) {
 # left decides, unless it is a 3xx past the redirect budget: one recorded in
 # flight is decided once more by attempt_address_completed(), with a
 # completed transfer's, now that libcurl's status is known (§2.3), so the
-# same bytes end the same way whenever the transfer stopped.
+# same bytes end the same way whenever the transfer stopped. The ending is a
+# failure, with one exception: under truncate_body, a decoded-bytes record
+# whose kept body is a 2xx's, on libcurl's status too, ends as the response
+# (§5.3). It is the only transfer a callback stopped that is ever one.
 attempt_address_recorded <- function(seen, transfer, binding) {
   record <- seen$abort
   if (is.null(record)) {
@@ -569,9 +597,14 @@ attempt_address_recorded <- function(seen, transfer, binding) {
   # cancels, as that record says. At the decoded-body check the header was
   # whole and passed its limits, so the failure carries the final status,
   # which the binding records too, and the decoded bytes reached (§6.6).
-  # The binding still records no response (§2.3).
+  # The binding still records no response (§2.3), unless truncate_body kept
+  # a 2xx body's first max_response_size bytes and the status libcurl
+  # reports is that 2xx: then the cut body is the response (§5.3).
   if (identical(record$check, "decoded-bytes")) {
     status <- observed_status(seen, transfer$status)
+    if (seen$truncated && is_success(status)) {
+      return(attempt_address_response(seen, transfer, binding))
+    }
     set_state(binding, status = status)
     out <- attempt_address_ended_at_limit(record)
     out$status <- status
@@ -607,13 +640,16 @@ attempt_address_completed <- function(seen, transfer, policy, binding) {
     step <- if (cause == "tls-failed") 10L else 12L
     return(attempt_address_ended(cause, step, "transport", limit))
   }
-  # INV-11: a transfer the wrapper reports stopped is never a response, and
-  # `stopped` alone decides that, whatever the parse would read: a stopped
-  # transfer is never parsed, and ends here before a status or a response
-  # is recorded. Only one stopped at a 3xx past the redirect budget gets
-  # here, and only when libcurl reports a status other than the status
-  # line's, so step 13 decided nothing (§12): it ends as any transfer whose
-  # two statuses disagree.
+  # INV-11: a transfer the wrapper reports stopped is never a response here,
+  # and `stopped` alone decides that, whatever the parse would read: a
+  # stopped transfer is never parsed, and ends here before a status or a
+  # response is recorded. The one stopped transfer that is a response, a
+  # 2xx body truncate_body cut at max_response_size (§5.3), never gets here:
+  # attempt_address_recorded() decided it from its record, and only on
+  # libcurl's status agreeing. Only one stopped at a 3xx past the redirect
+  # budget gets here, and only when libcurl reports a status other than the
+  # status line's, so step 13 decided nothing (§12): it ends as any transfer
+  # whose two statuses disagree.
   if (transfer$aborted) {
     return(attempt_address_ended("protocol-error", 12L, "header"))
   }
@@ -644,14 +680,19 @@ attempt_address_response <- function(seen, transfer, binding) {
   if (length(locations) > 1L) {
     return(attempt_address_ended("protocol-error", 12L, "location"))
   }
-  list(
-    ending = "connected",
-    response = new_ssrf_response(
-      transfer$status,
-      headers,
-      if (length(seen$body)) do.call(c, seen$body) else raw()
-    )
-  )
+  body <- if (length(seen$body)) do.call(c, seen$body) else raw()
+  response <- new_ssrf_response(transfer$status, headers, body)
+  # Under truncate_body, every response says whether its body was cut, and
+  # the decoded bytes reached (§5.3); the default response is unchanged.
+  if (isTRUE(binding$policy$truncate_body)) {
+    response$truncated <- seen$truncated
+    response$observed_bytes <- if (seen$truncated) {
+      seen$observed_bytes
+    } else {
+      as.numeric(length(body))
+    }
+  }
+  list(ending = "connected", response = response)
 }
 
 # What the header buffer measure_header() last measured ends the transfer
@@ -725,13 +766,24 @@ header_stop_redirect <- function(seen, policy, final, reported) {
 # body byte arrived. The status is transport-observed (§2.3): when the two
 # disagree, or libcurl reports none, none is recorded.
 observed_status <- function(seen, reported) {
-  blocks <- seen$segments$blocks
-  final <- which(blocks$complete & blocks$status >= 200L)
-  if (!length(final) || !is.numeric(reported) || reported == 0) {
+  status <- final_status_line(seen)
+  if (is.null(status) || !is.numeric(reported) || reported == 0) {
     return(NULL)
   }
-  status <- blocks$status[[final[[1L]]]]
   if (status != reported) NULL else as.integer(status)
+}
+
+# The status of the final header block measure_header() last measured,
+# its first complete block that is not 1xx, or NULL when it has none yet.
+final_status_line <- function(seen) {
+  blocks <- seen$segments$blocks
+  final <- which(blocks$complete & blocks$status >= 200L)
+  if (length(final)) blocks$status[[final[[1L]]]]
+}
+
+# Whether `status` is a 2xx; NULL, an unknown status, is not.
+is_success <- function(status) {
+  !is.null(status) && status >= 200L && status <= 299L
 }
 
 header_limit_stop <- function(limit) {

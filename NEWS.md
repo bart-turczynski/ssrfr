@@ -1,3 +1,7 @@
+# ssrfr (development version)
+
+* `ssrf_policy(truncate_body = TRUE)` returns a `2xx` body over `max_response_size` cut at the limit, marked `truncated` with `observed_bytes`, instead of failing as `"response-too-large"` (RFC 9309 §2.5).
+
 # ssrfr 1.0.0
 
 First release: an SSRF guard for R code that fetches URLs an attacker can influence.

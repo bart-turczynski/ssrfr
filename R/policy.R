@@ -51,6 +51,13 @@
 #' @param user_agent The `User-Agent` header value. The default names the
 #'   package version and repository. It must be a valid HTTP field value;
 #'   CR, LF and other control characters are refused, never stripped.
+#' @param truncate_body What a `2xx` response does with a body over
+#'   `max_response_size`. `FALSE`, the default, fails the hop whole as
+#'   `"response-too-large"`, with no body. `TRUE` returns the response with
+#'   the body's first `max_response_size` decoded bytes, cut at a byte even
+#'   inside a multi-byte character, and marks it `truncated` (see
+#'   [ssrf_fetch()]). The transfer stops at the limit either way, and a body
+#'   over it under any other status still fails whole.
 #'
 #' @return An object of class `ssrfr_policy`: a list holding every field above,
 #'   with hostname rules normalized and ports and limits as numbers.
@@ -80,7 +87,8 @@ ssrf_policy <- function(
   max_header_bytes = 16 * 1024,
   max_header_fields = 128,
   max_url_length = 8000,
-  user_agent = default_user_agent()
+  user_agent = default_user_agent(),
+  truncate_body = FALSE
 ) {
   structure(
     list(
@@ -98,7 +106,8 @@ ssrf_policy <- function(
       max_header_bytes = check_limit(max_header_bytes, "max_header_bytes"),
       max_header_fields = check_limit(max_header_fields, "max_header_fields"),
       max_url_length = check_limit(max_url_length, "max_url_length"),
-      user_agent = check_user_agent(user_agent)
+      user_agent = check_user_agent(user_agent),
+      truncate_body = check_flag(truncate_body, "truncate_body")
     ),
     class = "ssrfr_policy"
   )

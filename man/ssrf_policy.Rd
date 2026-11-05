@@ -19,7 +19,8 @@ ssrf_policy(
   max_header_bytes = 16 * 1024,
   max_header_fields = 128,
   max_url_length = 8000,
-  user_agent = default_user_agent()
+  user_agent = default_user_agent(),
+  truncate_body = FALSE
 )
 }
 \arguments{
@@ -59,6 +60,14 @@ address refusals for the matched addresses only.}
 \item{user_agent}{The \code{User-Agent} header value. The default names the
 package version and repository. It must be a valid HTTP field value;
 CR, LF and other control characters are refused, never stripped.}
+
+\item{truncate_body}{What a \verb{2xx} response does with a body over
+\code{max_response_size}. \code{FALSE}, the default, fails the hop whole as
+\code{"response-too-large"}, with no body. \code{TRUE} returns the response with
+the body's first \code{max_response_size} decoded bytes, cut at a byte even
+inside a multi-byte character, and marks it \code{truncated} (see
+\code{\link[=ssrf_fetch]{ssrf_fetch()}}). The transfer stops at the limit either way, and a body
+over it under any other status still fails whole.}
 }
 \value{
 An object of class \code{ssrfr_policy}: a list holding every field above,

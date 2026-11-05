@@ -1203,7 +1203,8 @@ ship.
 transport, so the transfer ends on the first delivery that passes the limit: at
 most one delivery is held beyond it (libcurl delivers at most
 `CURL_MAX_WRITE_SIZE`, 16 KiB, per write callback **[sourced]**), and the hop
-fails as `response-too-large` (§6.6), so none of it is returned. There is no
+fails as `response-too-large` (§6.6), so none of it is returned, unless
+`truncate_body` applies (below). There is no
 limit on the number of resolved addresses: INV-4 forbids truncating the set, and
 failover over it is bounded by `total_timeout`.
 
@@ -1414,7 +1415,7 @@ A separate closed enum, `kebab-case`:
 | `connect-failed` | no validated address accepted a connection |
 | `tls-failed` | certificate or hostname verification failed |
 | `timeout` | a connect or total deadline elapsed, including work done after bytes arrived |
-| `response-too-large` | a size or count limit was reached: decoded body bytes, header bytes or header fields (§5.3); operator detail names which |
+| `response-too-large` | a size or count limit was reached: decoded body bytes, header bytes or header fields (§5.3); operator detail names which. Not a 2xx body cut under `truncate_body`, which is a response (§5.3) |
 | `protocol-error` | a malformed, truncated or undecodable response |
 
 When several limits trip during one transfer, the first one reached ends it and

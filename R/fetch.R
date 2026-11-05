@@ -563,7 +563,10 @@ attempt_address_ended_at_limit <- function(record) {
 # left decides, unless it is a 3xx past the redirect budget: one recorded in
 # flight is decided once more by attempt_address_completed(), with a
 # completed transfer's, now that libcurl's status is known (§2.3), so the
-# same bytes end the same way whenever the transfer stopped.
+# same bytes end the same way whenever the transfer stopped. The ending is a
+# failure, with one exception: under truncate_body, a decoded-bytes record
+# whose kept body is a 2xx's, on libcurl's status too, ends as the response
+# (§5.3). It is the only transfer a callback stopped that is ever one.
 attempt_address_recorded <- function(seen, transfer, binding) {
   record <- seen$abort
   if (is.null(record)) {
@@ -637,13 +640,16 @@ attempt_address_completed <- function(seen, transfer, policy, binding) {
     step <- if (cause == "tls-failed") 10L else 12L
     return(attempt_address_ended(cause, step, "transport", limit))
   }
-  # INV-11: a transfer the wrapper reports stopped is never a response, and
-  # `stopped` alone decides that, whatever the parse would read: a stopped
-  # transfer is never parsed, and ends here before a status or a response
-  # is recorded. Only one stopped at a 3xx past the redirect budget gets
-  # here, and only when libcurl reports a status other than the status
-  # line's, so step 13 decided nothing (§12): it ends as any transfer whose
-  # two statuses disagree.
+  # INV-11: a transfer the wrapper reports stopped is never a response here,
+  # and `stopped` alone decides that, whatever the parse would read: a
+  # stopped transfer is never parsed, and ends here before a status or a
+  # response is recorded. The one stopped transfer that is a response, a
+  # 2xx body truncate_body cut at max_response_size (§5.3), never gets here:
+  # attempt_address_recorded() decided it from its record, and only on
+  # libcurl's status agreeing. Only one stopped at a 3xx past the redirect
+  # budget gets here, and only when libcurl reports a status other than the
+  # status line's, so step 13 decided nothing (§12): it ends as any transfer
+  # whose two statuses disagree.
   if (transfer$aborted) {
     return(attempt_address_ended("protocol-error", 12L, "header"))
   }

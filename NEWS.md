@@ -1,5 +1,6 @@
 # ssrfr (development version)
 
+* `ssrf_policy(allow_downgrade = TRUE)` lets an `https` hop redirect to `http`, which is still refused as `"downgrade"` by default (SSRF-euaruryp).
 * `ssrf_policy(truncate_body = TRUE)` returns a `2xx` body over `max_response_size` cut at the limit, marked `truncated` with `observed_bytes`, instead of failing as `"response-too-large"` (RFC 9309 §2.5).
 
 # ssrfr 1.0.0

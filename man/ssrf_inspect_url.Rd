@@ -13,7 +13,8 @@ ssrf_inspect_url(url, policy = ssrf_policy(), base = NULL, layer = "L0")
 
 \item{base}{The URL of the previous hop, a single string, when \code{url} came
 from a redirect: \code{url} may then be a relative reference, and an \code{https}
-\code{base} makes an \code{http} \code{url} a \code{"downgrade"}. \code{NULL}, the default, for a
+\code{base} makes an \code{http} \code{url} a \code{"downgrade"} unless the policy sets
+\code{allow_downgrade}. \code{NULL}, the default, for a
 first hop, which must be an absolute URL.}
 
 \item{layer}{\code{"L0"} (the default) for structural inspection with no

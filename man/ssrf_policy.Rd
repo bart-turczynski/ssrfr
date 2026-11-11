@@ -20,7 +20,8 @@ ssrf_policy(
   max_header_fields = 128,
   max_url_length = 8000,
   user_agent = default_user_agent(),
-  truncate_body = FALSE
+  truncate_body = FALSE,
+  allow_downgrade = FALSE
 )
 }
 \arguments{
@@ -68,6 +69,14 @@ the body's first \code{max_response_size} decoded bytes, cut at a byte even
 inside a multi-byte character, and marks it \code{truncated} (see
 \code{\link[=ssrf_fetch]{ssrf_fetch()}}). The transfer stops at the limit either way, and a body
 over it under any other status still fails whole.}
+
+\item{allow_downgrade}{Whether a redirect from an \code{https} hop may go to an
+\code{http} URL. \code{FALSE}, the default, refuses it as \code{"downgrade"}. \code{TRUE}
+admits it as any other hop: every other check still applies, and
+\code{Authorization}, \code{Cookie} and every field not nominated in \code{carry} are
+still dropped, since the hop always crosses an origin. The request,
+with any fields nominated in \code{carry}, and the response then travel in
+plaintext, with no confidentiality or integrity protection.}
 }
 \value{
 An object of class \code{ssrfr_policy}: a list holding every field above,

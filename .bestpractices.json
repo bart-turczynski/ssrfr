@@ -100,7 +100,7 @@
   "crypto_weaknesses_status": "N/A",
   "crypto_weaknesses_justification": "ssrfr selects no algorithms, ciphers or key lengths; TLS parameters are those of the user's libcurl and TLS backend.",
   "crypto_used_network_status": "Unmet",
-  "crypto_used_network_justification": "ssrfr fetches the URL its caller supplies, and the default policy allows both http and https. It refuses an https-to-http redirect as a downgrade, and a policy can restrict schemes to https, but plain http is allowed by default.",
+  "crypto_used_network_justification": "ssrfr fetches the URL its caller supplies, and the default policy allows both http and https. By default it refuses an https-to-http redirect as a downgrade (a policy can opt in with allow_downgrade), and a policy can restrict schemes to https, but plain http is allowed by default.",
   "crypto_tls12_status": "Met",
   "crypto_tls12_justification": "https requests go through libcurl and its TLS backend, which support TLS 1.2 and later; ssrfr never sets or lowers the TLS version: https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/R/transport.R",
   "crypto_certificate_verification_status": "Met",

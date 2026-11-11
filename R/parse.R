@@ -116,11 +116,16 @@ parse_hop_start <- function(url, policy, base, base_scheme) {
 # Steps 3-5 for parse_hop() on a hop that parsed: the first finding among the
 # scheme, the https-to-http downgrade, userinfo and the port, or NULL.
 parse_hop_policy <- function(hop, policy, base_scheme) {
-  # Step 3: the scheme libcurl read, then no https-to-http redirect.
+  # Step 3: the scheme libcurl read, then no https-to-http redirect unless
+  # the policy opts in.
   if (!hop$scheme %in% policy$allow_schemes) {
     return(new_finding("scheme", 3L, host = hop$host))
   }
-  if (identical(base_scheme, "https") && identical(hop$scheme, "http")) {
+  if (
+    identical(base_scheme, "https") &&
+      identical(hop$scheme, "http") &&
+      !isTRUE(policy$allow_downgrade)
+  ) {
     return(new_finding("downgrade", 3L, host = hop$host))
   }
 

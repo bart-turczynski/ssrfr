@@ -88,7 +88,8 @@ now <- function() {
 #' such as a metadata-service marker, is an error of class
 #' `ssrfr_error_invalid_request`, whose message names the field by its
 #' place in `from$request`; a field the redirect dropped is not.
-#' An `https` hop that redirects to `http` is refused as `"downgrade"`.
+#' An `https` hop that redirects to `http` is refused as `"downgrade"`,
+#' unless the policy sets `allow_downgrade = TRUE`.
 #' [ssrf_fetch_chain()] runs this loop for a caller without one of its own,
 #' and returns only the chain's last outcome; a caller that must log every
 #' hop runs the loop in the examples below instead.

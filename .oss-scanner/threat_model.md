@@ -111,7 +111,8 @@ a connection goes and what it carries.
   a Unix socket) reached through the transport is Critical too.
 - **High**: the same bypass to private (RFC 1918, ULA), link-local, shared (RFC 6598), reserved or
   multicast space, or past a caller's `deny_ranges` or `deny_hosts`, a disallowed port or scheme,
-  embedded userinfo with `allow_userinfo = FALSE`, or an `https` to `http` redirect; an
+  embedded userinfo with `allow_userinfo = FALSE`, or an `https` to `http` redirect with
+  `allow_downgrade = FALSE`; an
   `allow_ranges` or `allow_hosts` entry that opens more than it names; a second resolution in one
   hop; a peer check that passes on absent evidence; `Authorization`, `Cookie`,
   `Proxy-Authorization`, a header the plan did not nominate in `carry`, or the body sent across an

@@ -1129,11 +1129,23 @@ max_header_fields default: 128 response header fields, per hop
 max_url_length    default: 8000 octets of the URL string, per hop
 user_agent        default: "ssrfr/<version> (+https://gitlab.com/bart-turczynski/ssrfr)"
 truncate_body     default: false; true keeps a 2xx body's first max_response_size bytes
+allow_downgrade   default: false; true lets an https hop redirect to http (§12 step 3)
 ```
 
 `max_header_bytes` and `max_header_fields` also count a chunked body's trailer
 fields, which the response header does not otherwise include. *Amended
 2026-09-26* (`SSRF-rgcijatt`).
+
+**A downgrade is opt-in.** Under `allow_downgrade = true`, a redirect hop
+whose previous hop was `https` may go to an `http` URL: step 3 of §12 then
+checks only `allow_schemes`, and every later step applies as on any other
+hop. The hop is always cross-origin, so INV-8 still drops credentials and
+every field the plan did not nominate in `carry`, and the field changes no
+reason code. What it gives up is transport protection for that hop: the
+request, with the fields `carry` nominated, and the response travel in
+plaintext, with no confidentiality or integrity. Public crawlers follow such
+redirects, and `robotstxtr`'s `crawler` safety level must too. *Amended
+2026-11-11* (maintainer decision of 2026-11-05, `SSRF-euaruryp`).
 
 There is no proxy field: v1 has no proxy mode (INV-10). The default `user_agent`
 is assembled at runtime from the package's `DESCRIPTION`, so no version or URL is
@@ -1371,7 +1383,7 @@ reference pages list the same set is unchecked.
 
 | Code | Meaning | Source |
 |---|---|---|
-| `downgrade` | redirect from a secure to an insecure scheme | ADR 0001 §4. Under INV-8 an `https`→`http` hop is always cross-origin, so credentials are already dropped; the refusal protects response integrity, not credentials. |
+| `downgrade` | redirect from a secure to an insecure scheme | ADR 0001 §4. Under INV-8 an `https`→`http` hop is always cross-origin, so credentials are already dropped; the refusal protects response integrity, not credentials. Not refused under §5.3's opt-in `allow_downgrade` (`SSRF-euaruryp`). |
 | `userinfo` | embedded credentials in the URL | §12 step 4 |
 | `port` | port not permitted | §12 step 5 |
 | `host-denied` | matched a caller `deny_hosts` rule | gate 4 |
@@ -1735,6 +1747,12 @@ From 2026-09-30 they are also logged here:
   amendment to §5.3 as written, since it brings `robotstxtr` closer to RFC
   9309 §2.5 and to Google's documented 500 KiB prefix. No rule changes, and
   no test.
+- **2026-11-11** (`SSRF-euaruryp`): §5.3 adds the policy field
+  `allow_downgrade`, default false, as the maintainer decided on 2026-11-05.
+  Under it an `https` hop may redirect to `http`; the default still refuses
+  it as `downgrade`, and every other check and INV-8 still apply. §12 step 3
+  and the `downgrade` row of §6.5 point to it. No reason code changes. For
+  `robotstxtr`'s `crawler` safety level (its ADR 0001 §3).
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:
@@ -1822,7 +1840,8 @@ are ordering errors.
  1. PARSE          with the parser whose result the transport will act on (INV-1, §4)
  2. PARSE STATUS    syntax failure or parser disagreement is a block      (INV-2)
  3. SCHEME          allowlist; http/https only by default; on a redirect hop,
-                    https → http refuses as `downgrade` (ADR 0001 §4)
+                    https → http refuses as `downgrade` (ADR 0001 §4),
+                    unless the policy sets allow_downgrade (§5.3)
  4. USERINFO        reject embedded credentials unless explicitly allowed
  5. PORT            allowlist (default 80, 443)
  6. HOST POLICY     a non-canonical numeric host spelling refuses as

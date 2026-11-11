@@ -355,7 +355,7 @@ test_that("every redirect verdict vector is decided through the guarded hop", {
   ports <- local_corpus_servers()
   v <- read_corpus("verdict-vectors.tsv")
   rows <- v[v$group == "redirect" & v$status == "active", ]
-  expect_identical(nrow(rows), 31L)
+  expect_identical(nrow(rows), 33L)
   via <- character()
   untrusted <- character()
   for (i in seq_len(nrow(rows))) {
@@ -380,7 +380,7 @@ test_that("every redirect verdict vector is decided through the guarded hop", {
       toString(untrusted)
     )
   )
-  expect_identical(sum(via == "from"), 28L)
+  expect_identical(sum(via == "from"), 30L)
   expect_identical(sum(via == "fetch"), 2L)
   expect_identical(sum(via == "first"), 1L)
 })

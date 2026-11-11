@@ -80,7 +80,8 @@ inspect_hop <- function(url, policy, base = NULL, resolve = FALSE) {
 #' @param policy The policy to inspect it under, from [ssrf_policy()].
 #' @param base The URL of the previous hop, a single string, when `url` came
 #'   from a redirect: `url` may then be a relative reference, and an `https`
-#'   `base` makes an `http` `url` a `"downgrade"`. `NULL`, the default, for a
+#'   `base` makes an `http` `url` a `"downgrade"` unless the policy sets
+#'   `allow_downgrade`. `NULL`, the default, for a
 #'   first hop, which must be an absolute URL.
 #' @param layer `"L0"` (the default) for structural inspection with no
 #'   network I/O, or `"L1"` to also resolve a name and classify every

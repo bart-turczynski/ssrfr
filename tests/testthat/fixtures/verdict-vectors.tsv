@@ -557,3 +557,5 @@ V0555	policy	http://evil..example/	-	deny_hosts=evil.example	first	refuse	parse	
 V0556	policy	http://.evil.example/	-	deny_hosts=evil.example	first	refuse	parse	L0	active	ssrfr-v1.md §5.0	empty first label refuses as parse, not past gate 4
 V0557	policy	http://evil.example。。/	-	deny_hosts=evil.example	first	refuse	parse	L0	active	ssrfr-v1.md §5.0	two ideographic full stops map to dots and leave an empty label
 V0558	policy	http://evil.example./	-	deny_hosts=evil.example	first	refuse	host-denied	L0	active	ssrfr-v1.md §5.0	a single trailing root dot is no empty label: stripped, and the deny rule matches
+V0559	redirect	http://legit.example/next	93.184.216.34	allow_downgrade=true	redirect:https://legit.example/	admit	-	L1	active	ssrfr-v1.md §5.3 ; ssrfr-v1.md §12	https to http redirect admitted under the opt-in allow_downgrade
+V0560	redirect	http://127.0.0.1/	-	allow_downgrade=true	redirect:https://legit.example/	refuse	loopback	L0	active	ssrfr-v1.md §5.3 ; ssrfr-v1.md §12	allow_downgrade lifts only the downgrade check: the address rules still refuse

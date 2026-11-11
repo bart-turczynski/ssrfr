@@ -1,7 +1,7 @@
 Package: ssrfr
 Type: Package
 Title: Server-Side Request Forgery Guard for Outbound Requests
-Version: 1.0.0.9000
+Version: 1.0.0.9001
 Authors@R:
     person("Bart", "Turczynski", email = "bartek@turczynski.pl", role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0002-8788-7980"))

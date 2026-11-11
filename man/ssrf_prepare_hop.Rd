@@ -115,7 +115,8 @@ the new name is resolved, so a field it keeps and that policy refuses,
 such as a metadata-service marker, is an error of class
 \code{ssrfr_error_invalid_request}, whose message names the field by its
 place in \code{from$request}; a field the redirect dropped is not.
-An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"}.
+An \code{https} hop that redirects to \code{http} is refused as \code{"downgrade"},
+unless the policy sets \code{allow_downgrade = TRUE}.
 \code{\link[=ssrf_fetch_chain]{ssrf_fetch_chain()}} runs this loop for a caller without one of its own,
 and returns only the chain's last outcome; a caller that must log every
 hop runs the loop in the examples below instead.

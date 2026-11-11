@@ -58,6 +58,11 @@
 #'   inside a multi-byte character, and marks it `truncated` (see
 #'   [ssrf_fetch()]). The transfer stops at the limit either way, and a body
 #'   over it under any other status still fails whole.
+#' @param allow_downgrade Whether a redirect from an `https` hop may go to an
+#'   `http` URL. `FALSE`, the default, refuses it as `"downgrade"`. `TRUE`
+#'   admits it as any other hop: every other check still applies, and
+#'   credentials are still dropped, since the hop always crosses an origin.
+#'   The response then travels in plaintext, with no integrity protection.
 #'
 #' @return An object of class `ssrfr_policy`: a list holding every field above,
 #'   with hostname rules normalized and ports and limits as numbers.
@@ -88,7 +93,8 @@ ssrf_policy <- function(
   max_header_fields = 128,
   max_url_length = 8000,
   user_agent = default_user_agent(),
-  truncate_body = FALSE
+  truncate_body = FALSE,
+  allow_downgrade = FALSE
 ) {
   structure(
     list(
@@ -107,7 +113,8 @@ ssrf_policy <- function(
       max_header_fields = check_limit(max_header_fields, "max_header_fields"),
       max_url_length = check_limit(max_url_length, "max_url_length"),
       user_agent = check_user_agent(user_agent),
-      truncate_body = check_flag(truncate_body, "truncate_body")
+      truncate_body = check_flag(truncate_body, "truncate_body"),
+      allow_downgrade = check_flag(allow_downgrade, "allow_downgrade")
     ),
     class = "ssrfr_policy"
   )

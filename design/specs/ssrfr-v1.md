@@ -50,7 +50,9 @@ amendments to §2.3 and §6.6 (`SSRF-hotiouqk`), after a second opinion.
 `metadata` (`SSRF-figjvukt`). **Ratified 2026-11-02:** the 2026-11-02
 amendment to §5.0, refusing a host with an empty label as `parse`
 (`SSRF-qopriinc`). **Ratified 2026-11-05:** the 2026-11-05 amendment to
-§5.3, the opt-in `truncate_body` (`SSRF-pnzhhlve`).
+§5.3, the opt-in `truncate_body` (`SSRF-pnzhhlve`). **Ratified 2026-11-11:**
+the 2026-11-11 amendment to §5.3, the opt-in `allow_downgrade`
+(`SSRF-euaruryp`).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -1753,6 +1755,14 @@ From 2026-09-30 they are also logged here:
   it as `downgrade`, and every other check and INV-8 still apply. §12 step 3
   and the `downgrade` row of §6.5 point to it. No reason code changes. For
   `robotstxtr`'s `crawler` safety level (its ADR 0001 §3).
+- **2026-11-11** (`SSRF-euaruryp`): the maintainer ratified the 2026-11-11
+  amendment to §5.3 as merged in `7c34c9d`, with the same-day revision that
+  names the `carry` fields among what travels in plaintext, and the §12 step
+  3 and §6.5 `downgrade` text that points to it. A guard that refuses every
+  downgrade can name the refusal but not fetch the body a public crawler goes
+  on to read when an `https` robots.txt or sitemap URL redirects to `http`.
+  `robotstxtr` and `sitemapr` exist to report that body, so the choice belongs
+  to the caller, with the safe default kept. No rule changes, and no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

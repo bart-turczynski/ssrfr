@@ -1756,11 +1756,13 @@ From 2026-09-30 they are also logged here:
   and the `downgrade` row of §6.5 point to it. No reason code changes. For
   `robotstxtr`'s `crawler` safety level (its ADR 0001 §3).
 - **2026-11-11** (`SSRF-euaruryp`): the maintainer ratified the 2026-11-11
-  amendment to §5.3 as written. A guard that refuses every downgrade cannot
-  report what a public crawler meets when an `https` robots.txt or sitemap
-  URL redirects to `http`. `robotstxtr` and `sitemapr` exist to report exactly
-  that, so the choice belongs to the caller, with the safe default kept. No
-  rule changes, and no test.
+  amendment to §5.3 as merged in `7c34c9d`, with the same-day revision that
+  names the `carry` fields among what travels in plaintext, and the §12 step
+  3 and §6.5 `downgrade` text that points to it. A guard that refuses every
+  downgrade can name the refusal but not fetch the body a public crawler goes
+  on to read when an `https` robots.txt or sitemap URL redirects to `http`.
+  `robotstxtr` and `sitemapr` exist to report that body, so the choice belongs
+  to the caller, with the safe default kept. No rule changes, and no test.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

@@ -67,7 +67,9 @@ corpus_policy <- function(spec, allow_ports = NULL) {
     values <- strsplit(sub("^[^=]*=", "", pair), "|", fixed = TRUE)[[1L]]
     args[[field]] <- if (field %in% numeric) {
       as.numeric(values)
-    } else if (field %in% c("allow_userinfo", "allow_downgrade")) {
+    } else if (
+      field %in% c("allow_userinfo", "allow_downgrade", "truncate_body")
+    ) {
       as.logical(values)
     } else {
       values

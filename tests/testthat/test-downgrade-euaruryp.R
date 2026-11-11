@@ -84,6 +84,19 @@ test_that("ssrf_prepare_hop() returns a binding for https to http under the flag
   up <- ssrf_prepare_hop(b$state$location, open, from = b)
   expect_s3_class(up, "ssrfr_binding")
   expect_identical(up$origin$scheme, "http")
+
+  # The flag is read from the redirect hop's own policy, not from `from`'s.
+  r <- ssrf_prepare_hop(b$state$location, closed, from = b)
+  expect_s3_class(r, "ssrfr_refusal")
+  expect_identical(r$code, "downgrade")
+  b <- ssrf_prepare_hop(
+    paste0("https://legit.example:", tport, "/"),
+    closed,
+    request = request
+  )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  up <- ssrf_prepare_hop(b$state$location, open, from = b)
+  expect_s3_class(up, "ssrfr_binding")
 })
 
 test_that("a chain under the flag follows https to http and drops credentials", {
@@ -101,7 +114,10 @@ test_that("a chain under the flag follows https to http and drops credentials", 
     "/r/302?to=",
     utils::URLencode(to, TRUE)
   )
-  request <- list(headers = c(Authorization = "Bearer secret"))
+  request <- list(
+    headers = c(Authorization = "Bearer secret", `X-Trace` = "t1"),
+    carry = "x-trace"
+  )
 
   refused <- ssrf_fetch_chain(
     start,
@@ -119,4 +135,6 @@ test_that("a chain under the flag follows https to http and drops credentials", 
   expect_identical(r$status, 200L)
   fields <- strsplit(r$headers[["x-echo-fields"]], ",", fixed = TRUE)[[1L]]
   expect_false("authorization" %in% fields)
+  # A field nominated in `carry` crosses, now in plaintext (§5.3).
+  expect_true("x-trace" %in% fields)
 })

@@ -1139,9 +1139,11 @@ fields, which the response header does not otherwise include. *Amended
 **A downgrade is opt-in.** Under `allow_downgrade = true`, a redirect hop
 whose previous hop was `https` may go to an `http` URL: step 3 of §12 then
 checks only `allow_schemes`, and every later step applies as on any other
-hop. The hop is always cross-origin, so INV-8 still drops credentials, and
-the field changes no reason code. What it gives up is the integrity of the
-response, which then travels in plaintext. Public crawlers follow such
+hop. The hop is always cross-origin, so INV-8 still drops credentials and
+every field the plan did not nominate in `carry`, and the field changes no
+reason code. What it gives up is transport protection for that hop: the
+request, with the fields `carry` nominated, and the response travel in
+plaintext, with no confidentiality or integrity. Public crawlers follow such
 redirects, and `robotstxtr`'s `crawler` safety level must too. *Amended
 2026-11-11* (maintainer decision of 2026-11-05, `SSRF-euaruryp`).
 

@@ -61,8 +61,10 @@
 #' @param allow_downgrade Whether a redirect from an `https` hop may go to an
 #'   `http` URL. `FALSE`, the default, refuses it as `"downgrade"`. `TRUE`
 #'   admits it as any other hop: every other check still applies, and
-#'   credentials are still dropped, since the hop always crosses an origin.
-#'   The response then travels in plaintext, with no integrity protection.
+#'   `Authorization`, `Cookie` and every field not nominated in `carry` are
+#'   still dropped, since the hop always crosses an origin. The request,
+#'   with any fields nominated in `carry`, and the response then travel in
+#'   plaintext, with no confidentiality or integrity protection.
 #'
 #' @return An object of class `ssrfr_policy`: a list holding every field above,
 #'   with hostname rules normalized and ports and limits as numbers.

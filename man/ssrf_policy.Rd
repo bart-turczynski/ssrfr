@@ -73,8 +73,10 @@ over it under any other status still fails whole.}
 \item{allow_downgrade}{Whether a redirect from an \code{https} hop may go to an
 \code{http} URL. \code{FALSE}, the default, refuses it as \code{"downgrade"}. \code{TRUE}
 admits it as any other hop: every other check still applies, and
-credentials are still dropped, since the hop always crosses an origin.
-The response then travels in plaintext, with no integrity protection.}
+\code{Authorization}, \code{Cookie} and every field not nominated in \code{carry} are
+still dropped, since the hop always crosses an origin. The request,
+with any fields nominated in \code{carry}, and the response then travel in
+plaintext, with no confidentiality or integrity protection.}
 }
 \value{
 An object of class \code{ssrfr_policy}: a list holding every field above,

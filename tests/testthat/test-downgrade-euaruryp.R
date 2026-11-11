@@ -54,7 +54,7 @@ test_that("the flag lifts only the downgrade check of step 3", {
   )
 })
 
-test_that("ssrf_prepare_hop() returns a binding for https to http under the flag", {
+test_that("ssrf_prepare_hop() binds an https to http hop under the flag", {
   skip_if_no_webfakes()
   mock_answers("127.0.0.1")
   tls <- local_redirect_server(tls = TRUE)
@@ -99,7 +99,7 @@ test_that("ssrf_prepare_hop() returns a binding for https to http under the flag
   expect_s3_class(up, "ssrfr_binding")
 })
 
-test_that("a chain under the flag follows https to http and drops credentials", {
+test_that("a chain under the flag follows https to http minus credentials", {
   skip_if_no_webfakes()
   mock_answers("127.0.0.1")
   plain <- local_redirect_server()

@@ -46,6 +46,26 @@ test_that("a failing raddr makes the field an error, never empty", {
     ssrf_policy(allow_provider_endpoints = "169.254.169.254"),
     class = "ssrfr_error_invalid_policy"
   )
+  # An exact range that cannot be checked against the list is refused too.
+  expect_error(
+    ssrf_policy(allow_ranges = "169.254.169.254/32"),
+    class = "ssrfr_error_invalid_policy"
+  )
+})
+
+test_that("the new field comes last, so positional calls keep working", {
+  formals <- names(formals(ssrf_policy))
+  expect_identical(formals[[length(formals)]], "allow_provider_endpoints")
+  p <- ssrf_policy(
+    c("http", "https"),
+    c(80, 443),
+    character(),
+    character(),
+    character(),
+    character(),
+    TRUE
+  )
+  expect_true(p$allow_userinfo)
 })
 
 test_that("an allow_ranges entry equal to a provider endpoint is an error", {

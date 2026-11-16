@@ -11,7 +11,6 @@ ssrf_policy(
   allow_hosts = character(),
   deny_ranges = character(),
   allow_ranges = character(),
-  allow_provider_endpoints = character(),
   allow_userinfo = FALSE,
   max_redirects = 20,
   connect_timeout = 3,
@@ -22,7 +21,8 @@ ssrf_policy(
   max_url_length = 8000,
   user_agent = default_user_agent(),
   truncate_body = FALSE,
-  allow_downgrade = FALSE
+  allow_downgrade = FALSE,
+  allow_provider_endpoints = character()
 )
 }
 \arguments{
@@ -43,14 +43,6 @@ hostname list for the matched name only.}
 address refusals for the matched addresses only. A range never reopens a
 provider endpoint, so a \verb{/32} or \verb{/128} entry equal to one is an error
 that points to \code{allow_provider_endpoints}.}
-
-\item{allow_provider_endpoints}{Provider endpoints to reopen: addresses of
-\code{ssrf_vocabulary("provider_endpoints")}, such as \code{"169.254.169.254"},
-written without a prefix length. Only this field reopens one, and a
-caller deny range still wins. When it names any endpoint, a request plan
-may also carry the metadata-service request markers of
-\code{ssrf_vocabulary("metadata_headers")}. Empty by default: a guard for
-untrusted URLs rarely has reason to reach a metadata service.}
 
 \item{allow_userinfo}{Whether a URL may carry embedded credentials
 (\verb{user:password@}). \code{TRUE} or \code{FALSE}.}
@@ -88,6 +80,14 @@ admits it as any other hop: every other check still applies, and
 still dropped, since the hop always crosses an origin. The request,
 with any fields nominated in \code{carry}, and the response then travel in
 plaintext, with no confidentiality or integrity protection.}
+
+\item{allow_provider_endpoints}{Provider endpoints to reopen: addresses of
+\code{ssrf_vocabulary("provider_endpoints")}, such as \code{"169.254.169.254"},
+written without a prefix length. Only this field reopens one, and a
+caller deny range still wins. When it names any endpoint, a request plan
+may also carry the metadata-service request markers of
+\code{ssrf_vocabulary("metadata_headers")}. Empty by default: a guard for
+untrusted URLs rarely has reason to reach a metadata service.}
 }
 \value{
 An object of class \code{ssrfr_policy}: a list holding every field above,

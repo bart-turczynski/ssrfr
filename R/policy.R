@@ -42,13 +42,6 @@
 #'   address refusals for the matched addresses only. A range never reopens a
 #'   provider endpoint, so a `/32` or `/128` entry equal to one is an error
 #'   that points to `allow_provider_endpoints`.
-#' @param allow_provider_endpoints Provider endpoints to reopen: addresses of
-#'   `ssrf_vocabulary("provider_endpoints")`, such as `"169.254.169.254"`,
-#'   written without a prefix length. Only this field reopens one, and a
-#'   caller deny range still wins. When it names any endpoint, a request plan
-#'   may also carry the metadata-service request markers of
-#'   `ssrf_vocabulary("metadata_headers")`. Empty by default: a guard for
-#'   untrusted URLs rarely has reason to reach a metadata service.
 #' @param allow_userinfo Whether a URL may carry embedded credentials
 #'   (`user:password@`). `TRUE` or `FALSE`.
 #' @param max_redirects Redirects a chain may follow. `0` refuses any redirect.
@@ -75,6 +68,13 @@
 #'   still dropped, since the hop always crosses an origin. The request,
 #'   with any fields nominated in `carry`, and the response then travel in
 #'   plaintext, with no confidentiality or integrity protection.
+#' @param allow_provider_endpoints Provider endpoints to reopen: addresses of
+#'   `ssrf_vocabulary("provider_endpoints")`, such as `"169.254.169.254"`,
+#'   written without a prefix length. Only this field reopens one, and a
+#'   caller deny range still wins. When it names any endpoint, a request plan
+#'   may also carry the metadata-service request markers of
+#'   `ssrf_vocabulary("metadata_headers")`. Empty by default: a guard for
+#'   untrusted URLs rarely has reason to reach a metadata service.
 #'
 #' @return An object of class `ssrfr_policy`: a list holding every field above,
 #'   with hostname rules normalized and ports and limits as numbers.
@@ -96,7 +96,6 @@ ssrf_policy <- function(
   allow_hosts = character(),
   deny_ranges = character(),
   allow_ranges = character(),
-  allow_provider_endpoints = character(),
   allow_userinfo = FALSE,
   max_redirects = 20,
   connect_timeout = 3,
@@ -107,7 +106,8 @@ ssrf_policy <- function(
   max_url_length = 8000,
   user_agent = default_user_agent(),
   truncate_body = FALSE,
-  allow_downgrade = FALSE
+  allow_downgrade = FALSE,
+  allow_provider_endpoints = character()
 ) {
   structure(
     list(
@@ -117,9 +117,6 @@ ssrf_policy <- function(
       allow_hosts = check_host_rules(allow_hosts, "allow_hosts"),
       deny_ranges = check_ranges(deny_ranges, "deny_ranges"),
       allow_ranges = check_allow_ranges(allow_ranges),
-      allow_provider_endpoints = check_provider_endpoints(
-        allow_provider_endpoints
-      ),
       allow_userinfo = check_flag(allow_userinfo, "allow_userinfo"),
       max_redirects = check_limit(max_redirects, "max_redirects", zero = TRUE),
       connect_timeout = check_limit(connect_timeout, "connect_timeout"),
@@ -130,7 +127,10 @@ ssrf_policy <- function(
       max_url_length = check_limit(max_url_length, "max_url_length"),
       user_agent = check_user_agent(user_agent),
       truncate_body = check_flag(truncate_body, "truncate_body"),
-      allow_downgrade = check_flag(allow_downgrade, "allow_downgrade")
+      allow_downgrade = check_flag(allow_downgrade, "allow_downgrade"),
+      allow_provider_endpoints = check_provider_endpoints(
+        allow_provider_endpoints
+      )
     ),
     class = "ssrfr_policy"
   )
@@ -441,6 +441,12 @@ check_allow_ranges <- function(x) {
       next
     }
     row <- endpoint_row_of(parts[[2L]])
+    if (is.null(row)) {
+      policy_error(paste0(
+        entry_label(field, i),
+        " could not be checked against the provider-endpoint list."
+      ))
+    }
     width <- if (grepl(":", row, fixed = TRUE)) "128" else "32"
     if (!is.na(row) && identical(parts[[3L]], width)) {
       policy_error(paste0(
@@ -464,7 +470,7 @@ check_provider_endpoints <- function(x) {
   out <- character(length(x))
   for (i in seq_along(x)) {
     row <- endpoint_row_of(x[[i]])
-    if (is.na(row)) {
+    if (is.null(row) || is.na(row)) {
       policy_error(paste0(
         entry_label(field, i),
         " is not an address on the provider-endpoint list; see ",
@@ -477,13 +483,20 @@ check_provider_endpoints <- function(x) {
   unique(out)
 }
 
-# The provider-endpoint row that an address text names, or NA_character_
-# when the text is not an address or names no row.
+# The provider-endpoint row that an address text names: the row,
+# NA_character_ when the text is no address or names no row, or NULL when
+# raddr fails, which a caller refuses (INV-11).
 endpoint_row_of <- function(text) {
+  is_address <- read_is_address(text)
+  if (is.null(is_address)) {
+    return(NULL)
+  }
+  if (!is_address) {
+    return(NA_character_)
+  }
   addr <- read_address(text)
   family <- if (is.null(addr)) NULL else read_family(addr)
-  row <- if (is.null(family)) NULL else provider_endpoint_of(addr, family)
-  if (is.null(row)) NA_character_ else row
+  if (is.null(family)) NULL else provider_endpoint_of(addr, family)
 }
 
 #' @export

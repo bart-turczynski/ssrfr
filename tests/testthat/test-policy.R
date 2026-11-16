@@ -17,7 +17,6 @@ test_that("the default policy builds with every §5.3 default", {
       "allow_hosts",
       "deny_ranges",
       "allow_ranges",
-      "allow_provider_endpoints",
       "allow_userinfo",
       "max_redirects",
       "connect_timeout",
@@ -28,7 +27,8 @@ test_that("the default policy builds with every §5.3 default", {
       "max_url_length",
       "user_agent",
       "truncate_body",
-      "allow_downgrade"
+      "allow_downgrade",
+      "allow_provider_endpoints"
     )
   )
   expect_identical(p$allow_schemes, c("http", "https"))

@@ -218,22 +218,24 @@ address_gates_tier2 <- function(read, policy) {
 # Tiers 3 and 4 on an address no deny range holds: a refusal, or the
 # admission.
 address_gates_tiers34 <- function(read, policy) {
-  addr <- read$addr
   endpoint <- read$endpoint
 
-  # Tier 3: a caller allow range overrides tier 4 for this address, except
-  # that only an exact entry reopens a provider endpoint.
-  allowed <- read_within_any(addr, policy$allow_ranges)
-  family <- read$family
-  exact <- if (is.na(endpoint)) FALSE else exact_allow(addr, family, policy)
-  if (is.null(allowed) || is.null(exact)) {
+  # A provider endpoint (gate 2): only allow_provider_endpoints reopens it at
+  # tier 3, never an allow range.
+  if (!is.na(endpoint)) {
+    if (endpoint %in% policy$allow_provider_endpoints) {
+      return(list(finding = NULL, facts = read$facts))
+    }
+    return(address_gates_refuse(read, "cloud-metadata", "2", 4L))
+  }
+
+  # Tier 3: a caller allow range overrides tier 4 for this address.
+  allowed <- read_within_any(read$addr, policy$allow_ranges)
+  if (is.null(allowed)) {
     return(address_gates_malformed(read$text, read$facts))
   }
 
-  # Tier 4: the built-ins, gate 2's table and gate 1a.
-  if (!is.na(endpoint) && !exact) {
-    return(address_gates_refuse(read, "cloud-metadata", "2", 4L))
-  }
+  # Tier 4: the built-ins, gate 1a.
   if (allowed || read$reach) {
     return(list(finding = NULL, facts = read$facts))
   }
@@ -297,12 +299,4 @@ provider_endpoint_of <- function(addr, family) {
 provider_kind <- function(row) {
   table <- domain_provider_endpoints()
   table$kind[match(row, table$address)]
-}
-
-# Whether an allow_ranges entry names this provider endpoint exactly: a /32
-# or /128 block that contains it (§5.0). NULL when raddr fails.
-exact_allow <- function(addr, family, policy) {
-  width <- if (identical(family, "v4")) "32" else "128"
-  ranges <- policy$allow_ranges
-  read_within_any(addr, ranges[sub("^.*/", "", ranges) == width])
 }

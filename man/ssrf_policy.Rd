@@ -11,6 +11,7 @@ ssrf_policy(
   allow_hosts = character(),
   deny_ranges = character(),
   allow_ranges = character(),
+  allow_provider_endpoints = character(),
   allow_userinfo = FALSE,
   max_redirects = 20,
   connect_timeout = 3,
@@ -39,7 +40,17 @@ hostname list for the matched name only.}
 \item{deny_ranges}{Address ranges that refuse an address.}
 
 \item{allow_ranges}{Address ranges that override the determinate built-in
-address refusals for the matched addresses only.}
+address refusals for the matched addresses only. A range never reopens a
+provider endpoint, so a \verb{/32} or \verb{/128} entry equal to one is an error
+that points to \code{allow_provider_endpoints}.}
+
+\item{allow_provider_endpoints}{Provider endpoints to reopen: addresses of
+\code{ssrf_vocabulary("provider_endpoints")}, such as \code{"169.254.169.254"},
+written without a prefix length. Only this field reopens one, and a
+caller deny range still wins. When it names any endpoint, a request plan
+may also carry the metadata-service request markers of
+\code{ssrf_vocabulary("metadata_headers")}. Empty by default: a guard for
+untrusted URLs rarely has reason to reach a metadata service.}
 
 \item{allow_userinfo}{Whether a URL may carry embedded credentials
 (\verb{user:password@}). \code{TRUE} or \code{FALSE}.}
@@ -92,9 +103,10 @@ refuses more than it says.
 }
 \details{
 Allow fields are exceptions to the built-in refusals, not a destination
-allowlist: \code{allow_ranges} reopens addresses the built-in rules refuse, and
-\code{allow_hosts} reopens names the built-in metadata hostname list refuses. A
-caller deny rule always wins over a caller allow rule.
+allowlist: \code{allow_ranges} reopens addresses the built-in rules refuse,
+\code{allow_hosts} reopens names the built-in metadata hostname list refuses, and
+\code{allow_provider_endpoints} reopens cloud-metadata endpoints, which no range
+reopens. A caller deny rule always wins over a caller allow rule.
 
 Hostname rules match the host's normalized form: IDNA A-label,
 ASCII-lowercased, one trailing root dot removed. A rule matches that name

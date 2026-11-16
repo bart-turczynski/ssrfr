@@ -51,7 +51,8 @@ now <- function() {
 #'     `Trailer`, `Upgrade`, `Content-Length`, `Accept-Encoding`, `Expect`
 #'     and `User-Agent`, which the policy sets) are refused, and so are the
 #'     metadata-service request markers of `ssrf_vocabulary("metadata_headers")`
-#'     unless the policy's `allow_ranges` names a provider endpoint exactly.}
+#'     unless the policy's `allow_provider_endpoints` names a provider
+#'     endpoint.}
 #'   \item{`body`}{The request body: a raw vector or a single string, sent as
 #'     its UTF-8 bytes. `NULL` (the default) sends none.}
 #'   \item{`carry`}{Names of fields in `headers` the application asserts

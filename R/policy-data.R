@@ -304,8 +304,8 @@ domain_metadata_hostnames <- function() {
 # Metadata-service request markers (ssrfr-v1.md §2.3): header fields that
 # exist only to show a metadata service that a request was meant for it. A
 # request plan carrying one is refused at prepare, matched exactly and
-# case-insensitively, unless the policy's allow_ranges names a provider
-# endpoint exactly (§5.0). The names and their providers are the ratified list
+# case-insensitively, unless the policy's allow_provider_endpoints names a
+# provider endpoint (§5.0). The names and their providers are the ratified list
 # of §2.3, which admits a name only when vendor documentation shows it sent to
 # an endpoint of gate 2's table; the rows cite that section. The list cannot
 # be complete: Oracle's marker is `Authorization: Bearer Oracle`.

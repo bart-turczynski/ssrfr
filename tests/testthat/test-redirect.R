@@ -420,15 +420,16 @@ test_that("a changed chain budget raises budget_change", {
 })
 
 # §2.3, §2.5: the inherited plan is checked again under the redirect hop's
-# own policy. A metadata-service marker admitted where the policy named a
-# provider endpoint exactly is refused where the policy does not.
+# own policy. A metadata-service marker admitted where the policy reopened a
+# provider endpoint is refused where the policy does not.
 test_that("the inherited plan is checked under the redirect hop's policy", {
   skip_if_no_webfakes()
   web <- local_redirect_server()
   port <- web$get_port()
   mock_answers("127.0.0.1")
   named <- ssrf_policy(
-    allow_ranges = c("127.0.0.0/8", "169.254.169.254/32"),
+    allow_ranges = "127.0.0.0/8",
+    allow_provider_endpoints = "169.254.169.254",
     allow_ports = c(80, 443, port)
   )
   b <- ssrf_prepare_hop(

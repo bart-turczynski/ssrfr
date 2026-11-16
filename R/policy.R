@@ -8,9 +8,10 @@
 #' refuses more than it says.
 #'
 #' Allow fields are exceptions to the built-in refusals, not a destination
-#' allowlist: `allow_ranges` reopens addresses the built-in rules refuse, and
-#' `allow_hosts` reopens names the built-in metadata hostname list refuses. A
-#' caller deny rule always wins over a caller allow rule.
+#' allowlist: `allow_ranges` reopens addresses the built-in rules refuse,
+#' `allow_hosts` reopens names the built-in metadata hostname list refuses, and
+#' `allow_provider_endpoints` reopens cloud-metadata endpoints, which no range
+#' reopens. A caller deny rule always wins over a caller allow rule.
 #'
 #' Hostname rules match the host's normalized form: IDNA A-label,
 #' ASCII-lowercased, one trailing root dot removed. A rule matches that name
@@ -38,7 +39,16 @@
 #'   hostname list for the matched name only.
 #' @param deny_ranges Address ranges that refuse an address.
 #' @param allow_ranges Address ranges that override the determinate built-in
-#'   address refusals for the matched addresses only.
+#'   address refusals for the matched addresses only. A range never reopens a
+#'   provider endpoint, so a `/32` or `/128` entry equal to one is an error
+#'   that points to `allow_provider_endpoints`.
+#' @param allow_provider_endpoints Provider endpoints to reopen: addresses of
+#'   `ssrf_vocabulary("provider_endpoints")`, such as `"169.254.169.254"`,
+#'   written without a prefix length. Only this field reopens one, and a
+#'   caller deny range still wins. When it names any endpoint, a request plan
+#'   may also carry the metadata-service request markers of
+#'   `ssrf_vocabulary("metadata_headers")`. Empty by default: a guard for
+#'   untrusted URLs rarely has reason to reach a metadata service.
 #' @param allow_userinfo Whether a URL may carry embedded credentials
 #'   (`user:password@`). `TRUE` or `FALSE`.
 #' @param max_redirects Redirects a chain may follow. `0` refuses any redirect.
@@ -86,6 +96,7 @@ ssrf_policy <- function(
   allow_hosts = character(),
   deny_ranges = character(),
   allow_ranges = character(),
+  allow_provider_endpoints = character(),
   allow_userinfo = FALSE,
   max_redirects = 20,
   connect_timeout = 3,
@@ -105,7 +116,10 @@ ssrf_policy <- function(
       deny_hosts = check_host_rules(deny_hosts, "deny_hosts"),
       allow_hosts = check_host_rules(allow_hosts, "allow_hosts"),
       deny_ranges = check_ranges(deny_ranges, "deny_ranges"),
-      allow_ranges = check_ranges(allow_ranges, "allow_ranges"),
+      allow_ranges = check_allow_ranges(allow_ranges),
+      allow_provider_endpoints = check_provider_endpoints(
+        allow_provider_endpoints
+      ),
       allow_userinfo = check_flag(allow_userinfo, "allow_userinfo"),
       max_redirects = check_limit(max_redirects, "max_redirects", zero = TRUE),
       connect_timeout = check_limit(connect_timeout, "connect_timeout"),
@@ -413,6 +427,63 @@ check_ranges <- function(x, field) {
     }
   }
   x
+}
+
+# allow_ranges (§5.0): ranges, none of them a /32 or /128 equal to a
+# provider endpoint. allow_ranges never reopens one, so such an entry would
+# do nothing it says; the error names the field that does.
+check_allow_ranges <- function(x) {
+  field <- "allow_ranges"
+  x <- check_ranges(x, field)
+  for (i in seq_along(x)) {
+    parts <- regmatches(x[[i]], regexec("^(.*)/(32|128)$", x[[i]]))[[1L]]
+    if (!length(parts)) {
+      next
+    }
+    row <- endpoint_row_of(parts[[2L]])
+    width <- if (grepl(":", row, fixed = TRUE)) "128" else "32"
+    if (!is.na(row) && identical(parts[[3L]], width)) {
+      policy_error(paste0(
+        entry_label(field, i),
+        " is ",
+        row,
+        ", an address on the provider-endpoint list ",
+        "(ssrf_vocabulary(\"provider_endpoints\")), which `allow_ranges` ",
+        "never reopens. To reach it, name it in `allow_provider_endpoints`."
+      ))
+    }
+  }
+  x
+}
+
+# allow_provider_endpoints (§5.0): addresses of gate 2's table, in any
+# spelling raddr reads, stored as the table's rows.
+check_provider_endpoints <- function(x) {
+  field <- "allow_provider_endpoints"
+  x <- check_entries(x, field)
+  out <- character(length(x))
+  for (i in seq_along(x)) {
+    row <- endpoint_row_of(x[[i]])
+    if (is.na(row)) {
+      policy_error(paste0(
+        entry_label(field, i),
+        " is not an address on the provider-endpoint list; see ",
+        "ssrf_vocabulary(\"provider_endpoints\"). Write the address alone, ",
+        "with no prefix length."
+      ))
+    }
+    out[[i]] <- row
+  }
+  unique(out)
+}
+
+# The provider-endpoint row that an address text names, or NA_character_
+# when the text is not an address or names no row.
+endpoint_row_of <- function(text) {
+  addr <- read_address(text)
+  family <- if (is.null(addr)) NULL else read_family(addr)
+  row <- if (is.null(family)) NULL else provider_endpoint_of(addr, family)
+  if (is.null(row)) NA_character_ else row
 }
 
 #' @export

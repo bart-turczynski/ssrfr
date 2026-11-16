@@ -78,7 +78,8 @@ CR or LF. Fields the transport owns (\code{Host}, \code{Connection},
 \code{Trailer}, \code{Upgrade}, \code{Content-Length}, \code{Accept-Encoding}, \code{Expect}
 and \code{User-Agent}, which the policy sets) are refused, and so are the
 metadata-service request markers of \code{ssrf_vocabulary("metadata_headers")}
-unless the policy's \code{allow_ranges} names a provider endpoint exactly.}
+unless the policy's \code{allow_provider_endpoints} names a provider
+endpoint.}
 \item{\code{body}}{The request body: a raw vector or a single string, sent as
 its UTF-8 bytes. \code{NULL} (the default) sends none.}
 \item{\code{carry}}{Names of fields in \code{headers} the application asserts

@@ -696,10 +696,11 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
     case <- cases[[label]]
     local({
       server <- local_raw_server(case$bytes)
-      # Decided at the status line, so the budget only bounds a regression:
-      # wide enough that a loaded machine cannot spend it first, and under
-      # the stalling server's 10 s so a regression ends at ssrfr's budget,
-      # where the `stopped` checks below tell it apart, not at the close.
+      # Decided at the status line, not by time: ssrfr's clock is frozen, so
+      # no elapsed-time check can fire on a loaded machine before step 13.
+      # libcurl's own timer, set from the 8 s budget and under the stalling
+      # server's 10 s, still ends a regression, which the checks below catch.
+      local_mocked_bindings(elapsed_since = function(start) 0)
       policy <- loopback_policy(
         server$port,
         max_redirects = 0,
@@ -735,9 +736,13 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
     case <- cases[[label]]
     local({
       server <- local_raw_server(case$bytes)
-      # A stall must spend the budget, so it stays short; the other cases
-      # end before it, and get room a loaded machine cannot use up.
+      # A stall must spend the budget, so it keeps the real clock and a short
+      # budget; the other cases end before it, so their clock is frozen as
+      # above, and libcurl's 8 s timer bounds a regression.
       stalls <- identical(case$budget_left, "timeout")
+      if (!stalls) {
+        local_mocked_bindings(elapsed_since = function(start) 0)
+      }
       policy <- loopback_policy(
         server$port,
         max_redirects = 5,

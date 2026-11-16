@@ -436,8 +436,9 @@ check_allow_ranges <- function(x) {
   field <- "allow_ranges"
   x <- check_ranges(x, field)
   for (i in seq_along(x)) {
-    parts <- regmatches(x[[i]], regexec("^(.*)/(32|128)$", x[[i]]))[[1L]]
-    if (!length(parts)) {
+    # The prefix length as a number, so "/032" is a host route too (INV-3).
+    parts <- regmatches(x[[i]], regexec("^(.*)/([0-9]+)$", x[[i]]))[[1L]]
+    if (!length(parts) || !as.integer(parts[[3L]]) %in% c(32L, 128L)) {
       next
     }
     row <- endpoint_row_of(parts[[2L]])
@@ -447,8 +448,8 @@ check_allow_ranges <- function(x) {
         " could not be checked against the provider-endpoint list."
       ))
     }
-    width <- if (grepl(":", row, fixed = TRUE)) "128" else "32"
-    if (!is.na(row) && identical(parts[[3L]], width)) {
+    host_route <- if (grepl(":", row, fixed = TRUE)) 128L else 32L
+    if (!is.na(row) && as.integer(parts[[3L]]) == host_route) {
       policy_error(paste0(
         entry_label(field, i),
         " is ",

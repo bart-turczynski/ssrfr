@@ -73,7 +73,9 @@ test_that("an allow_ranges entry equal to a provider endpoint is an error", {
     "169.254.169.254/32",
     "fd00:ec2::254/128",
     "100.100.100.200/32",
-    "168.63.129.16/32"
+    "168.63.129.16/32",
+    "169.254.169.254/032",
+    "fd00:ec2::254/0128"
   )) {
     err <- expect_error(
       ssrf_policy(allow_ranges = entry),

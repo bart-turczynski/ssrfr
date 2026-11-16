@@ -52,7 +52,9 @@ amendment to §5.0, refusing a host with an empty label as `parse`
 (`SSRF-qopriinc`). **Ratified 2026-11-05:** the 2026-11-05 amendment to
 §5.3, the opt-in `truncate_body` (`SSRF-pnzhhlve`). **Ratified 2026-11-11:**
 the 2026-11-11 amendment to §5.3, the opt-in `allow_downgrade`
-(`SSRF-euaruryp`).
+(`SSRF-euaruryp`). **Ratified 2026-11-16:** the 2026-11-16 amendment to
+§2.3, §5.0 and §5.3, provider endpoints reopened only by
+`allow_provider_endpoints` (`SSRF-ntxhdswq`, ADR 0008).
 The transport findings are verified on macOS, Linux and Windows (§8 items 6
 and 7 closed; on Windows 2026-09-29, `SSRF-fjgfnaaq`). The suite ran there
 without a failure on 2026-09-30 but skipped the two `SIGINT` tests, and under
@@ -409,7 +411,9 @@ integrity; the carry allowlist handles unknown application fields without
 pretending that `ssrfr` can identify every secret-bearing name.
 
 Metadata-service request markers are refused at `prepare` the same
-way, unless the policy's `allow_ranges` names a provider endpoint exactly (§5.0):
+way, unless the policy's `allow_provider_endpoints` names a provider endpoint
+(§5.0, §5.3; *amended 2026-11-16*, was an exact `allow_ranges` entry,
+`SSRF-ntxhdswq`):
 `Metadata`, `Metadata-Flavor`, `X-Google-Metadata-Request`,
 `X-aws-ec2-metadata-token`, `X-aws-ec2-metadata-token-ttl-seconds`,
 `X-aliyun-ecs-metadata-token`, `X-aliyun-ecs-metadata-token-ttl-seconds`,
@@ -796,7 +800,7 @@ differently and MUST be separately testable.
 | 1a. Outer reachability | address | `raddr` fact | `addr_global_reachability(addr)` is `FALSE` | 4 |
 | 1b. Indeterminate reachability | address | `raddr` fact | the outer address, or any row of `addr_embeddings(addr)`, is `NA` | 1 |
 | 1c. Embedded reachability | address | `raddr` fact | any row of `addr_embeddings(addr)` is `FALSE` | 1 |
-| 2. Provider endpoints | address | built-in `ssrfr` data | the address is in the provider-endpoint table | 4, exact-entry override only (§5.0) |
+| 2. Provider endpoints | address | built-in `ssrfr` data | the address is in the provider-endpoint table | 4, reopened only by `allow_provider_endpoints` (§5.0) |
 | 3. Range rules | address | caller policy | matches `deny_ranges` | 2 |
 | 4. Hostname rules | hostname | caller policy | matches `deny_hosts` | 2 |
 | 5. Metadata hostnames | hostname | built-in `ssrfr` data | matches the built-in metadata hostname list | 4 |
@@ -844,7 +848,8 @@ the address. Both kinds report the one public code `cloud-metadata`
 `instance-metadata` rows it lacks: Scaleway's `169.254.42.42` and `fd00:42::42`,
 and Linode's `fd00:a9fe:a9fe::1` and `fe80::a9fe:a9fe`. Gate 1a already refuses
 all four; the rows give them the `cloud-metadata` code and §5.0's narrowing,
-under which only an exact `allow_ranges` entry reopens them. *Ratified 2026-09-25* (`SSRF-qttneqxp`). Ownership:
+under which only `allow_provider_endpoints` reopens them (*amended
+2026-11-16*, was an exact `allow_ranges` entry, `SSRF-ntxhdswq`). *Ratified 2026-09-25* (`SSRF-qttneqxp`). Ownership:
 `ssrfr`, per `raddr`'s architecture and the §4 amendment.
 
 Gate 2 also reads the rows of `addr_embeddings()` whose embedded address is the
@@ -914,11 +919,18 @@ otherwise a tier-3 match permits **within its own dimension**; otherwise tier 4
 applies. A request is permitted only when both dimensions permit.
 
 The address dimension's tier-4 built-ins also include the provider-endpoint
-table (§5, gate 2), with one narrowing: only an `allow_ranges` entry that names
-the endpoint exactly (a /32 or /128 equal to the table row) overrides it. A
-broader range, such as `169.254.0.0/16` authorized for a link-local appliance,
-leaves the provider endpoints inside it refused: opening a network does not open
-its metadata service. *Ratified 2026-09-24* (ADR 0004).
+table (§5, gate 2), with one narrowing: no `allow_ranges` entry overrides it.
+A range such as `169.254.0.0/16`, authorized for a link-local appliance, leaves
+the provider endpoints inside it refused: opening a network does not open its
+metadata service. Its tier-3 override is a field of its own,
+`allow_provider_endpoints` (§5.3), which names each endpoint it reopens. An
+`allow_ranges` entry equal to a table row (a /32 or /128) could reopen nothing,
+so it is a construction error that points to that field. *Ratified 2026-09-24*
+(ADR 0004). *Amended 2026-11-16* (was "only an `allow_ranges` entry that names
+the endpoint exactly overrides it"; ADR 0008, `SSRF-ntxhdswq`): several rows sit
+in space callers also use for ordinary hosts, such as `100.100.100.200` in
+`100.64.0.0/10`, so an exact entry for an internal host could reopen a metadata
+service by accident.
 
 This section is the only statement of precedence. §5.3 and INV-14 refer to it.
 
@@ -1121,6 +1133,7 @@ deny_hosts        hostname rules (INV-13)
 allow_hosts       exceptions to built-in hostname refusals; caller deny still wins
 deny_ranges       additional prohibited ranges
 allow_ranges      exceptions to determinate built-in address refusals; caller deny still wins
+allow_provider_endpoints  provider endpoints to reopen, by address; default: none (§5.0)
 allow_userinfo    default: false
 max_redirects     default: 20; 0 MUST be supported and MUST mean "refuse any 3xx"
 connect_timeout   default: 3 s, per connection attempt
@@ -1148,6 +1161,16 @@ request, with the fields `carry` nominated, and the response travel in
 plaintext, with no confidentiality or integrity. Public crawlers follow such
 redirects, and `robotstxtr`'s `crawler` safety level must too. *Amended
 2026-11-11* (maintainer decision of 2026-11-05, `SSRF-euaruryp`).
+
+**A provider endpoint is reopened by name.** Each `allow_provider_endpoints`
+entry is an address of gate 2's table, in any spelling `raddr` reads, stored as
+the table's row; anything else, a range included, is a construction error.
+Only this field reopens a provider endpoint (§5.0); a caller deny range still
+wins, and an endpoint inside another address still refuses at tier 1. Naming
+any endpoint also admits the metadata-service request markers of §2.3, on every
+hop of the policy: a guard for untrusted URLs rarely reaches a metadata service
+at all, and the default stays closed. *Amended 2026-11-16* (ADR 0008,
+`SSRF-ntxhdswq`).
 
 There is no proxy field: v1 has no proxy mode (INV-10). The default `user_agent`
 is assembled at runtime from the package's `DESCRIPTION`, so no version or URL is
@@ -1569,7 +1592,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 2 | `raddr` ↔ published reason-code alignment (§6.3) | **closed — resolved by verification**: a mapping layer is required; the mapping (§6.5) was ratified 2026-09-24 with a new `reserved` code (ADR 0004) |
 | 2a | The request plan as an input to `prepare` (§2.3) | **closed — ratified**, with transport-derived redirect status, mandatory plan inheritance, and constrained carryable-header nomination |
 | 2b | Allow/deny precedence (§5.0) | **closed — ratified** as a four-tier, dimension-local matrix; `allow_ranges` overrides determinate multicast classification |
-| 2c | The gate set itself (§5, table), including the provider-endpoint table and the §4 "no tables" amendment | **closed — ratified**; only an exact-endpoint `allow_ranges` entry overrides a provider endpoint (§5.0, ADR 0004) — `SSRF-aqrgqdhi` |
+| 2c | The gate set itself (§5, table), including the provider-endpoint table and the §4 "no tables" amendment | **closed — ratified**; only an exact-endpoint `allow_ranges` entry overrides a provider endpoint (§5.0, ADR 0004) — `SSRF-aqrgqdhi`; since 2026-11-16 only `allow_provider_endpoints` does (ADR 0008, `SSRF-ntxhdswq`) |
 | 3 | Limits: defaults, floors, decoding, per-hop header limits | **closed — ratified** (§5.3): finite and raisable, with no ceiling and no "unlimited" sentinel; `total_timeout` is chain-scoped and covers decoding. `curl::nslookup()` has no timeout of its own **[assumption]**, a documented residual — `SSRF-pffrmkdr` |
 | 4 | Search-domain resolution | **closed — ratified** (§5.0): names resolve as absolute, with no opt-out in v1 — `SSRF-ighscodn` |
 | 5 | Default User-Agent | **closed — ratified** (§5.3) — `SSRF-uitcvnif` |
@@ -1763,6 +1786,15 @@ From 2026-09-30 they are also logged here:
   on to read when an `https` robots.txt or sitemap URL redirects to `http`.
   `robotstxtr` and `sitemapr` exist to report that body, so the choice belongs
   to the caller, with the safe default kept. No rule changes, and no test.
+- **2026-11-16** (`SSRF-ntxhdswq`, ADR 0008): §5.0 and §5.3 add the policy
+  field `allow_provider_endpoints`, default empty, as the maintainer decided on
+  2026-11-16. Only it reopens a provider endpoint; `allow_ranges` never does,
+  and an `allow_ranges` entry equal to a table row is a construction error.
+  §2.3's metadata-service markers are admitted when the field names any
+  endpoint, where an exact `allow_ranges` entry admitted them before. §5 gate 2
+  and §8 item 2c point to it. Verdict vectors V0234, V0515, V0523 and V0529
+  are superseded by V0561 to V0564, and V0565 pins a broad range around
+  `100.100.100.200`. No reason code changes.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

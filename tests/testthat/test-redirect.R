@@ -696,11 +696,14 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
     case <- cases[[label]]
     local({
       server <- local_raw_server(case$bytes)
+      # Decided at the status line, so the budget only bounds a regression:
+      # wide enough that a loaded machine cannot spend it first, and under
+      # the stalling server's 10 s so a regression still ends.
       policy <- loopback_policy(
         server$port,
         max_redirects = 0,
         max_response_size = 100,
-        total_timeout = 2
+        total_timeout = 8
       )
       r <- guarded_get(pinned_url(server$port), policy)
       expect_s3_class(r, "ssrfr_refusal")

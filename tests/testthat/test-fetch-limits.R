@@ -25,15 +25,23 @@ test_that("total_timeout is re-checked after decoding", {
   port <- web$get_port()
   mock_answers("127.0.0.1")
   transfer <- dep_curl_transfer
-  # A transfer that returns in time, followed by decoding that does not.
+  elapsed <- elapsed_since
+  decoded <- new.env(parent = emptyenv())
+  decoded$done <- FALSE
+  # A transfer that returns in time, followed by decoding that does not: once
+  # the transfer returns, the clock reads past the budget. A fake clock, not
+  # a sleep, so a slow machine cannot spend the budget before step 12.
   local_mocked_bindings(
     dep_curl_transfer = function(opts, on_body, debug, progress) {
       out <- transfer(opts, on_body, debug, progress)
-      Sys.sleep(1.3)
+      decoded$done <- TRUE
       out
+    },
+    elapsed_since = function(start) {
+      if (decoded$done) 1e6 else elapsed(start)
     }
   )
-  r <- guarded_get(pinned_url(port), loopback_policy(port, total_timeout = 1))
+  r <- guarded_get(pinned_url(port), loopback_policy(port, total_timeout = 30))
   expect_s3_class(r, "ssrfr_failure")
   expect_identical(r$cause, "timeout")
   expect_identical(r$detail$step, 12L)

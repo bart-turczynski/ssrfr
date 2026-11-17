@@ -53,7 +53,9 @@ variables:
 #   under R < 4.2 ([64:ff9b::5db8:d822] serializes as [0064:ff9b::...]), and
 #   test-dependencies.R fails here on it. rurl's main has the fix (c659973,
 #   SEOR-nxycpzlk), so this job installs rurl from RURL_SHA, a commit on that
-#   main, in place of the CRAN release. Once CRAN serves the fixed rurl, put
+#   main, in place of the CRAN release. The archive is fetched with curl, which
+#   retries gitlab.com's rate limit (a 429, SEOR-bgvkdxyw) instead of failing
+#   the job on it, and is cached by SHA. Once CRAN serves the fixed rurl, put
 #   rurl back in the CRAN list, drop RURL_SHA and this item, and consider the
 #   template's t2-floor again.
 # - Only what the check needs is installed: the hard dependencies, the test
@@ -88,10 +90,24 @@ x-floor:
     key: floor-r41-2025-04-10-v2
     paths:
       - .cache/R-floor
+      - .cache/R-floor-src
   before_script:
     - mkdir -p "$R_LIBS_USER"
   script:
     - apt-get update -qq && apt-get install -y --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev curl
+    # rurl's archive, fetched here with the curl installed above, before the
+    # Rscript line uses it. curl retries the transient errors, a gitlab.com 429
+    # among them, seven times on its backoff (1 s, doubling, to 64 s): eight
+    # attempts within about two minutes. The curl on focal ignores Retry-After,
+    # so the backoff is the whole window. A 404, or a failure past the retries,
+    # fails the job here. The file is cached by SHA, so a cache hit does not
+    # touch gitlab.com.
+    - |
+      rurl_tgz="$CI_PROJECT_DIR/.cache/R-floor-src/rurl-$RURL_SHA.tar.gz"
+      mkdir -p "$CI_PROJECT_DIR/.cache/R-floor-src"
+      if [ ! -s "$rurl_tgz" ]; then
+        curl -fsSL --retry 7 --retry-max-time 150 -o "$rurl_tgz" "https://gitlab.com/bart-turczynski/rurl/-/archive/$RURL_SHA/rurl-$RURL_SHA.tar.gz" || { echo "rurl archive $RURL_SHA could not be fetched from gitlab.com (see curl's status above)"; exit 1; }
+      fi
     - >
       Rscript -e 'snap <- c("cli", "glue", "lifecycle", "stringi", "digest", "Rcpp", "cpp11",
       "callr", "httpuv", "knitr", "pkgload", "processx", "rmarkdown",
@@ -101,8 +117,7 @@ x-floor:
       install.packages(c("rlang", "vctrs", "curl", "punycoder", "pslr", "raddr",
       "webfakes"),
       repos = "https://cloud.r-project.org", dependencies = FALSE, Ncpus = 4L);
-      sha <- Sys.getenv("RURL_SHA"); tgz <- file.path(tempdir(), "rurl.tar.gz");
-      download.file(paste0("https://gitlab.com/bart-turczynski/rurl/-/archive/", sha, "/rurl-", sha, ".tar.gz"), tgz, mode = "wb");
+      tgz <- file.path(Sys.getenv("CI_PROJECT_DIR"), ".cache", "R-floor-src", paste0("rurl-", Sys.getenv("RURL_SHA"), ".tar.gz"));
       install.packages(tgz, repos = NULL, type = "source");
       stopifnot(all(vapply(c("curl", "raddr", "rurl", "testthat", "rcmdcheck", "webfakes"),
       requireNamespace, NA, quietly = TRUE)));

@@ -169,7 +169,7 @@ check_headers_shape <- function(headers, label) {
 
 # The rules on one header field, in order (\u00a72.3): a token name, not a
 # transport-owned field, no CR or LF in the value, and no metadata-service
-# marker unless the policy names a provider endpoint. `lower` is the name
+# marker unless the policy reopens a provider endpoint. `lower` is the name
 # ASCII-lowercased; `entry` names the field in a message.
 check_headers_entry <- function(field, lower, value, markers, policy, entry) {
   if (!grepl(http_token, field)) {
@@ -190,11 +190,11 @@ check_headers_entry <- function(field, lower, value, markers, policy, entry) {
       " has a value containing CR or LF; it is refused, never sanitized."
     ))
   }
-  if (lower %in% markers && !names_provider_endpoint(policy)) {
+  if (lower %in% markers && !length(policy$allow_provider_endpoints)) {
     request_error(paste0(
       entry,
       " is a metadata-service request marker; it is refused unless the ",
-      "policy's `allow_ranges` names a provider endpoint exactly."
+      "policy's `allow_provider_endpoints` names a provider endpoint."
     ))
   }
 }
@@ -253,22 +253,4 @@ check_carry <- function(carry, headers, label) {
     }
   }
   unique(carry)
-}
-
-# Whether an allow_ranges entry of the policy names a provider endpoint
-# exactly: a /32 or /128 block equal to a row of gate 2's table (§2.3, §5.0).
-# A raddr failure answers FALSE, so the marker stays refused (INV-11).
-names_provider_endpoint <- function(policy) {
-  if (!length(policy$allow_ranges)) {
-    return(FALSE)
-  }
-  for (row in domain_provider_endpoints()$address) {
-    addr <- read_address(row)
-    family <- if (is.null(addr)) NULL else read_family(addr)
-    exact <- if (is.null(family)) NULL else exact_allow(addr, family, policy)
-    if (isTRUE(exact)) {
-      return(TRUE)
-    }
-  }
-  FALSE
 }

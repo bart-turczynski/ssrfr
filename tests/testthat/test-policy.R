@@ -27,7 +27,8 @@ test_that("the default policy builds with every §5.3 default", {
       "max_url_length",
       "user_agent",
       "truncate_body",
-      "allow_downgrade"
+      "allow_downgrade",
+      "allow_provider_endpoints"
     )
   )
   expect_identical(p$allow_schemes, c("http", "https"))
@@ -369,5 +370,6 @@ test_that("a policy prints every field", {
   expect_match(out, "allow_ports +80, 443", all = FALSE)
   expect_match(out, "truncate_body +FALSE", all = FALSE)
   expect_match(out, "allow_downgrade +FALSE", all = FALSE)
-  expect_length(out, 18L)
+  expect_match(out, "allow_provider_endpoints +\\(none\\)", all = FALSE)
+  expect_length(out, 19L)
 })

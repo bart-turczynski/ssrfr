@@ -124,9 +124,9 @@ test_that("metadata markers are refused unless an endpoint is allowed", {
   markers <- ssrf_vocabulary("metadata_headers")$header
   expect_length(markers, 10L)
   expect_identical(anyDuplicated(ascii_lower(markers)), 0L)
-  exact <- ssrf_policy(allow_ranges = "169.254.169.254/32")
+  exact <- ssrf_policy(allow_provider_endpoints = "169.254.169.254")
   broad <- ssrf_policy(allow_ranges = "169.254.0.0/16")
-  v6 <- ssrf_policy(allow_ranges = "fd00:ec2::254/128")
+  v6 <- ssrf_policy(allow_provider_endpoints = "fd00:ec2::254")
   upper <- chartr(
     "abcdefghijklmnopqrstuvwxyz",
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -154,12 +154,6 @@ test_that("metadata markers are refused unless an endpoint is allowed", {
     `X-Security-Token` = "t"
   )
   expect_s3_class(prepare(list(headers = near)), "ssrfr_binding")
-  # A failing raddr wrapper leaves the marker refused (INV-11).
-  local_mocked_bindings(dep_raddr_within_any = function(...) stop("raddr"))
-  expect_error(
-    prepare(list(headers = c(Metadata = "true")), exact),
-    class = "ssrfr_error_invalid_request"
-  )
 })
 
 test_that("a plan of the wrong shape is an invalid argument", {

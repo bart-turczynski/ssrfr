@@ -16,7 +16,9 @@
 # scripts/check-urls.R, itself ported from sitemapr's `urls` stage in
 # tools/verify.R; the three functions below are its verify_classify_urls(),
 # verify_url_self_test() and verify_urls(), with the /-/issues 404 exemption
-# removed (SEOR-sptibjph, seor ADR 0011).
+# removed (SEOR-sptibjph, seor ADR 0011). The r-universe helpers below were
+# added here first (SEOR-uzqwlehl), and that fleet issue carries them to the
+# other copies.
 #
 # It runs in the gate's full tier ahead of R CMD check, so a dead link is
 # reported in seconds rather than after the full check.
@@ -57,16 +59,18 @@
 # `cf-mitigated: challenge`, Cloudflare's Turnstile, whether or not the page
 # exists. Its JSON API sits outside the challenge and answers 200 for a
 # package and 404 for none, so a 403 from a universe page or root is checked
-# there instead: "challenged" when the API confirms it, red otherwise. Only
-# the page forms r_universe_api_url() recognizes get this; any other
-# r-universe URL, and a 403 from any other host, stays red.
+# there instead: "challenged" when the page's 403 carries the challenge header
+# and the API confirms the package, red otherwise. Only the page forms
+# r_universe_api_url() recognizes get this; any other r-universe URL, a plain
+# 403, and a 403 from any other host stay red.
 #
-# There is no other exemption. Until SEOR-sptibjph, DESCRIPTION's BugReports kept
-# GitLab's `/-/issues` form, which 404s for a non-browser client, and its 404
-# was waved through (SEOR-ocbtrrnl). BugReports now names `/-/work_items`, as
-# CRAN invited on 2026-10-23 (seor ADR 0011), so a `/-/issues` 404 is red like
-# any other.
+# There is no other exemption. Until SEOR-sptibjph, DESCRIPTION's BugReports
+# kept GitLab's `/-/issues` form, which 404s for a non-browser client, and its
+# 404 was waved through (SEOR-ocbtrrnl). BugReports now names
+# `/-/work_items`, as CRAN invited on 2026-10-23 (seor ADR 0011), so a
+# `/-/issues` 404 is red like any other.
 verify_classify_urls <- function(bad, confirmed = logical(nrow(bad))) {
+  stopifnot(is.logical(confirmed), length(confirmed) == nrow(bad))
   absent <- setdiff(c("URL", "Status", "Message"), names(bad))
   if (length(absent)) {
     stop(
@@ -120,30 +124,51 @@ r_universe_api_url <- function(url) {
   )
 }
 
-# TRUE for each URL whose r-universe API answers 200; FALSE for anything
-# else, a URL r_universe_api_url() does not recognize included.
-r_universe_confirms <- function(url) {
+# TRUE for each URL whose page is behind Cloudflare's challenge (403 with
+# `cf-mitigated: challenge`) and whose r-universe API answers 200 itself, with
+# no redirect followed; FALSE for anything else, a failed request or a URL
+# r_universe_api_url() does not recognize included. A plain 403 on a page
+# that exists is a real refusal, so it stays red. `headers` is
+# curlGetHeaders() in the gate, a fake in the self-test.
+r_universe_confirms <- function(url, headers = curlGetHeaders) {
+  status_of <- function(u) {
+    h <- tryCatch(headers(u, redirect = FALSE), error = function(e) NULL)
+    if (is.null(h)) {
+      return(list(status = NA_integer_, challenge = FALSE))
+    }
+    list(
+      status = as.integer(attr(h, "status")),
+      challenge = any(grepl(
+        "^cf-mitigated:[ \t]*challenge\\b",
+        h,
+        ignore.case = TRUE
+      ))
+    )
+  }
   api <- r_universe_api_url(url)
+  verdict <- vapply(
+    unique(api[!is.na(api)]),
+    function(a) {
+      identical(status_of(a)$status, 200L)
+    },
+    NA
+  )
   vapply(
-    api,
-    function(u) {
-      if (is.na(u)) {
+    seq_along(url),
+    function(i) {
+      if (is.na(api[[i]]) || !verdict[[api[[i]]]]) {
         return(FALSE)
       }
-      status <- tryCatch(
-        attr(curlGetHeaders(u), "status"),
-        error = function(e) NA_integer_
-      )
-      identical(as.integer(status), 200L)
+      page <- status_of(url[[i]])
+      identical(page$status, 403L) && page$challenge
     },
-    NA,
-    USE.NAMES = FALSE
+    NA
   )
 }
 
-# Pins verify_classify_urls() offline. verify_urls() runs it before it touches
-# the network, so a classifier edit that would wave a dead link through fails
-# the gate on the spot.
+# Pins verify_classify_urls() and the r-universe helpers offline.
+# verify_urls() runs it before it touches the network, so a classifier edit
+# that would wave a dead link through fails the gate on the spot.
 verify_url_self_test <- function() {
   br <- "https://gitlab.com/o/p/-/issues"
   wi <- "https://gitlab.com/o/p/-/work_items"
@@ -229,8 +254,49 @@ verify_url_self_test <- function() {
       )
     }
   }
+  # r_universe_confirms() on a fake fetch: the page must carry the challenge
+  # and the API must answer 200 without a redirect.
+  fake <- function(u, redirect = TRUE) {
+    if (redirect) {
+      stop("redirect must be FALSE")
+    }
+    challenge <- "cf-mitigated: challenge\r\n"
+    answer <- switch(
+      u,
+      "https://o.r-universe.dev/pkg" = list(403L, challenge),
+      "https://o.r-universe.dev/plain" = list(403L, "server: x\r\n"),
+      "https://o.r-universe.dev/gone" = list(403L, challenge),
+      "https://o.r-universe.dev/moved" = list(403L, challenge),
+      "https://o.r-universe.dev/api/packages/pkg" = list(200L, ""),
+      "https://o.r-universe.dev/api/packages/plain" = list(200L, ""),
+      "https://o.r-universe.dev/api/packages/gone" = list(404L, ""),
+      "https://o.r-universe.dev/api/packages/moved" = list(301L, ""),
+      stop("unreachable")
+    )
+    structure(answer[[2L]], status = answer[[1L]])
+  }
+  got <- r_universe_confirms(
+    c(
+      ru,
+      "https://o.r-universe.dev/plain",
+      "https://o.r-universe.dev/gone",
+      "https://o.r-universe.dev/moved",
+      "https://o.r-universe.dev/down",
+      "https://gitlab.com/o/p"
+    ),
+    headers = fake
+  )
+  if (!identical(got, c(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE))) {
+    stop(
+      "URL classifier self-test: r_universe_confirms() gave ",
+      toString(got),
+      ", expected TRUE then five FALSE.",
+      call. = FALSE
+    )
+  }
   for (case in cases) {
     confirmed <- if (length(case) > 2L) case[[3L]] else FALSE
+    confirmed <- rep_len(confirmed, nrow(case[[1L]]))
     got <- verify_classify_urls(case[[1L]], confirmed)
     if (!identical(got, case[[2L]])) {
       stop(

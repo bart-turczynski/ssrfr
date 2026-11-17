@@ -1,0 +1,52 @@
+# Load test: two timing tests taken off the wall clock (SSRF-hldlecic),
+# 2026-11-16, under scripts/load-test.sh.
+#
+# Commands, each run from a worktree root (main at 357ea98; the branch
+# fix/SSRF-hldlecic-timing-tests at the commit named per cell; 2706d45 and
+# c6b65d6 were rebased onto 1807207 unchanged, as 9c022dc and f97885f):
+#
+#   scripts/load-test.sh -n 5 -l 8  -t default --only fetch-limits,redirect --out <dir>
+#   scripts/load-test.sh -n 5 -l 16 -t default --only fetch-limits,redirect --out <dir>
+#
+# Container: R 4.6.1, --cpus=4 of the VM's 6, --memory=4g; load N x 4 `yes`
+# processes inside it. Host: macOS arm64, shared with other sessions.
+
+## Summaries
+
+cell                                runs  start-timeout  raw-server  other    secs/run
+main 357ea98, 8x                       5        0/5 (0)     0/5 (0)  0/5 (0)       278
+main 357ea98, 16x                      5        0/5 (0)     0/5 (0)  3/5 (6)       559
+branch 2706d45, 8x                     5        0/5 (0)     0/5 (0)  0/5 (0)       263
+branch 2706d45, 16x                    5        0/5 (0)     1/5 (1)  4/5 (20)      568
+branch c6b65d6, 16x (see note)         5        0/5 (0)     0/5 (0)  5/5 (38)      776
+
+A class column reads <runs with at least one failure of that class>/<runs>
+(<failing expectations of that class>).
+
+## The two targeted tests
+
+                                                    main 16x  2706d45 16x  c6b65d6 16x
+total_timeout is re-checked after decoding               1/5          0/5          0/5
+past the budget, a 3xx refuses whatever follows          1/5          1/5          0/5
+
+At 2706d45 the redirect test's first loop still read the wall clock between
+the status and the decision; c6b65d6 mocks elapsed_since there too. Both
+tests now decide their timed step on a fake clock, so their outcome no
+longer depends on load.
+
+## Other failures at 16x (not addressed here)
+
+Seen on main and on the branch alike, never at 8x:
+  test-fetch-limits.R  total_timeout ends a slow response as timeout
+                       (elapsed 4.69 s against a 4.5 s ceiling)
+  test-fetch-limits.R  a truncated header at the field limit
+Seen in both branch cells at 16x, not in main's five runs; the branch does
+not touch them, so five runs are too few to tell them apart from main:
+  test-fetch-limits.R  a header that never ends stops at its limit
+  test-fetch-limits.R  a stop in the write callback aborts (2706d45, once)
+Seen only in the c6b65d6 cell, in its slowed runs 1-3 (2131, 1448 and
+776 s, against about 560 s otherwise), which overlapped another repository's
+scheduled CI pipeline on the same Docker VM:
+  test-redirect.R      the redirect budget refuses as redirect-limit
+  test-redirect.R      a spent budget refuses every 3xx
+  test-fetch-limits.R  trailer fields count against the header limits

@@ -129,6 +129,164 @@ test_that("the option checker fires on a planted violation", {
   }
 })
 
+# r-binding.md §5, §7: the exact set of libcurl options a hop is made with.
+# option_problems() checks the rows it knows, so an option added to the
+# builder would pass it unnoticed; here every name is written out, never
+# taken from fixed_transport_options, so an option added or removed anywhere
+# in transport_options(), or in the call that sets the rest on the handle,
+# turns this red with its name. The set varies with libcurl's capabilities
+# (the form of the protocol restriction) and the request plan (the method
+# and body options), never with a policy field: allow_userinfo, the
+# timeouts and user_agent change values only.
+#
+# `httpauth = 1L` (CURLAUTH_BASIC) is harmless: no `userpwd`, `username`,
+# `password` or auth-callback option is ever set, so the only credential
+# libcurl can send is URL userinfo, which only allow_userinfo = TRUE admits,
+# and Basic sends it once, with the one request, never after a 401 (§2.5).
+test_that("a hop carries exactly the pinned libcurl options", {
+  fixed <- list(
+    followlocation = 0L,
+    forbid_reuse = 1L,
+    dns_cache_timeout = 0L,
+    dns_shuffle_addresses = 0L,
+    proxy = "",
+    noproxy = "*",
+    unrestricted_auth = 0L,
+    httpauth = 1L,
+    http_version = 2L,
+    netrc = 0L,
+    cookiefile = NULL,
+    path_as_is = 1L,
+    ssl_verifypeer = 1L,
+    ssl_verifyhost = 2L
+  )
+  every_hop <- c(
+    "url",
+    "connect_to",
+    "followlocation",
+    "forbid_reuse",
+    "dns_cache_timeout",
+    "dns_shuffle_addresses",
+    "proxy",
+    "noproxy",
+    "unrestricted_auth",
+    "httpauth",
+    "http_version",
+    "netrc",
+    "cookiefile",
+    "path_as_is",
+    "ssl_verifypeer",
+    "ssl_verifyhost",
+    "accept_encoding",
+    "connecttimeout_ms",
+    "timeout_ms",
+    "useragent",
+    "httpheader"
+  )
+  restriction <- list(
+    modern = c("protocols_str", "redir_protocols_str"),
+    old = c("protocols", "redir_protocols"),
+    unknown = c("protocols", "redir_protocols")
+  )
+  capabilities <- list(modern = caps_modern, old = caps_old, unknown = NULL)
+  plans <- list(
+    GET = list(
+      request = list(method = "GET"),
+      names = "httpget"
+    ),
+    HEAD = list(
+      request = list(method = "HEAD"),
+      names = "nobody"
+    ),
+    `POST without a body` = list(
+      request = list(method = "POST"),
+      names = c("postfields", "postfieldsize_large")
+    ),
+    `POST with a body` = list(
+      request = list(method = "POST", body = "payload"),
+      names = c("postfields", "postfieldsize_large")
+    ),
+    `PATCH with a body` = list(
+      request = list(method = "PATCH", body = "payload"),
+      names = c("postfields", "postfieldsize_large", "customrequest")
+    ),
+    DELETE = list(
+      request = list(method = "DELETE"),
+      names = "customrequest"
+    )
+  )
+  local_mocked_bindings(dep_nslookup = function(query) "93.184.216.34")
+  policies <- list(
+    default = list(url = "https://pin.example/", policy = ssrf_policy()),
+    # URL userinfo reaches `url` alone: no auth option carries it.
+    userinfo = list(
+      url = "https://user:pw@pin.example/",
+      policy = ssrf_policy(allow_userinfo = TRUE)
+    )
+  )
+  for (p in names(policies)) {
+    for (m in names(plans)) {
+      b <- ssrf_prepare_hop(
+        policies[[p]]$url,
+        policies[[p]]$policy,
+        request = plans[[m]]$request
+      )
+      expect_s3_class(b, "ssrfr_binding")
+      for (cap in names(capabilities)) {
+        opts <- transport_options(b, "93.184.216.34", 10, capabilities[[cap]])
+        got <- names(opts)
+        want <- c(every_hop, restriction[[cap]], plans[[m]]$names)
+        expect_identical(
+          list(
+            added = setdiff(got, want),
+            missing = setdiff(want, got),
+            repeated = got[duplicated(got)]
+          ),
+          list(
+            added = character(),
+            missing = character(),
+            repeated = character()
+          ),
+          label = paste(p, m, cap)
+        )
+        expect_identical(opts[names(fixed)], fixed, label = paste(p, m, cap))
+      }
+    }
+  }
+
+  # The rest of the handle's options: dep_curl_transfer() makes a bare
+  # handle, sets the builder's list, then the trace and progress callbacks.
+  # curl::handle_data() cannot read options back (r-binding.md §7, Rules),
+  # so the calls themselves are read.
+  calls <- Filter(is.call, as.list(body(dep_curl_transfer)))
+  is_call_to <- function(call, fun) {
+    head <- call[[1L]]
+    identical(head, call("::", quote(curl), as.name(fun)))
+  }
+  steps <- lapply(calls, function(call) {
+    if (identical(call[[1L]], quote(`<-`))) call[[3L]] else call
+  })
+  steps <- Filter(is.call, steps)
+  made <- Filter(function(call) is_call_to(call, "new_handle"), steps)
+  expect_length(made, 1L)
+  expect_identical(sum(call_heads(dep_curl_transfer) == "new_handle"), 1L)
+  expect_length(as.list(made[[1L]]), 1L)
+  setopt <- Filter(function(call) is_call_to(call, "handle_setopt"), steps)
+  expect_identical(
+    sum(call_heads(dep_curl_transfer) == "handle_setopt"),
+    2L
+  )
+  expect_length(setopt, 2L)
+  expect_named(as.list(setopt[[1L]]), c("", "", ".list"))
+  expect_identical(setopt[[1L]]$.list, quote(opts))
+  expect_named(
+    as.list(setopt[[2L]]),
+    c("", "", "verbose", "debugfunction", "noprogress", "xferinfofunction")
+  )
+  expect_true(setopt[[2L]]$verbose)
+  expect_identical(setopt[[2L]]$noprogress, 0L)
+})
+
 test_that("limits and the request plan reach the options", {
   local_mocked_bindings(dep_nslookup = function(query) "93.184.216.34")
   policy <- ssrf_policy(

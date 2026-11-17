@@ -30,7 +30,7 @@ Only **[ratified]** text may be implemented against.
 | Marker | Meaning |
 |---|---|
 | **[ratified]** | Accepted by the maintainer. |
-| **[proposed]** | Recommended position awaiting ratification. None remains since §8 item 34 closed on 2026-09-29. |
+| **[proposed]** | Recommended position awaiting ratification. One is pending: the 2026-11-17 hop record (§2.2, §2.5, §6.1, §6.8; §8 item 35, `SSRF-lejbcwtz`). *Amended 2026-11-17* (was "None remains since §8 item 34 closed on 2026-09-29"). |
 | **[open]** | Undecided. |
 | **[inherited]** | Carried from the retired guard spec and not separately ratified. None remains since §8 item 14 closed on 2026-09-24. |
 | **[suspended]** | A ratified clause whose stated premise has since been found false. It is not implementable until re-ratified. The correction and a **[proposed]** replacement sit directly beside it. None remains since 2026-09-25. |
@@ -258,6 +258,40 @@ still holds: the per-hop primitives stay public, and the helper adds no
 capability they lack. Its purpose is §9's path of least resistance for plumber
 endpoints, Shiny apps and webhook receivers, which otherwise hand-roll a loop
 or skip the guard. *Ratified 2026-09-25* (§8 item 25, `SSRF-cnljaaek`).
+
+**The chain of hop records.** **[proposed]** The helper returns the chain
+it walked only when the caller asks for it, through one new argument,
+`records`, default `FALSE`: `ssrf_fetch_chain(url, policy, request, records =
+FALSE)`. Under the default the helper returns exactly what it returns today,
+the chain's last outcome with nothing attached, so `identical()`, `str()`,
+`dput()` and `serialize()` see no change. Under `records = TRUE` it returns a
+list of class `ssrfr_chain_result` with two fields: `result`, that same last
+outcome, unchanged, and `chain`, the hop records (§6.8), first hop first, one
+for every hop it prepared, each built by the exported `ssrf_hop_record()`
+from that hop's binding, if one was made, and its outcome. The chain is
+operator detail under §6.4 and INV-12: it names every hop's pin, attempts and
+URL, internal addresses included where `allow_ranges` opened them, so an
+application passes on `result` alone, projected with `ssrf_public_reason()`
+where it is a refusal or failure, and never `chain` or the whole list.
+`ssrf_hop_record()` adds no capability: it reads what a spent binding and an
+outcome already hold, so a caller's own loop builds the same records by
+calling it per hop.
+
+This amends three sentences of the ratified paragraph above: "It is built
+only on `ssrf_prepare_hop()` and `ssrf_fetch()`" gains `ssrf_hop_record()`;
+"it takes no argument those two do not" gains the exception of `records`;
+"It returns what the chain's last call returned" gains "or, under `records =
+TRUE`, that value and the chain of hop records". The ratified "The transport
+facts stay on the spent binding (§2.5)" is not amended: no response, refusal
+or failure carries a record, and the records are a separate value the caller
+asked for. *Alternatives, for the maintainer:* the chain as an attribute
+`chain` of the returned value, read by an accessor, rejected because a
+successful response has no public projection, applications hand it on
+(`plumber`'s RDS serializer, `saveRDS()`, `dput()`, `str()`), and every hop's
+pin, attempts and intermediate URLs would travel with it; or no change to the
+helper at all, a caller that wants records running its own loop with
+`ssrf_hop_record()`, which leaves the helper's callers without the chain the
+ticket asks for. *Proposed 2026-11-17* (`SSRF-lejbcwtz`).
 
 ### 2.3 What a binding contains, and what enters at `prepare`
 
@@ -502,6 +536,25 @@ and carries no ability to open a connection.
   **correctness, not security**: a stale binding still pins to an address that was
   validated, so using one late is not a bypass. It is a surprise, because the
   host's DNS answer may legitimately have moved since.
+
+**What a spent binding records for its hop record.** **[proposed]** This
+paragraph is the whole of the proposal in §2.5; the list above stays as
+ratified. A binding already holds, from `prepare`, its hop index, the URL it
+requests, its origin and, on a redirect hop, the record of the redirect that
+led to it: the previous hop, the status, whether the hop crossed an origin,
+the method before and after (a character vector named `from` and `to`),
+whether a body was dropped and the lowercase names of the fields dropped.
+`ssrf_fetch()` adds the transport facts: the status, the pin it connected
+to, each attempt as an address and how it ended, and the outcome, `response`
+or the refusal code or failure cause. The hop record (§6.8) reads only
+these, and one fact no binding records yet: whether the hop was an `https`
+to `http` downgrade that §5.3's `allow_downgrade` admitted. `prepare` sets
+it as a new top-level binding field, the logical `downgrade`: `TRUE` only
+for such a hop, `FALSE` on every other hop, the first included. Without it,
+a chain `https` → `http` → `https` ends on `https` and looks secure.
+*Alternative, for the maintainer:* the flag inside the redirect record,
+where §2.3's other per-redirect facts live, which leaves it `NULL` rather
+than `FALSE` on a first hop. *Proposed 2026-11-17* (`SSRF-lejbcwtz`).
 
 ### 2.6 The chain
 
@@ -1300,6 +1353,21 @@ bump fails, and a bump that leaves the pinned set stale fails. The package versi
 is named alongside, because data stamps do not cover detector logic (`linklint`
 `docs/guarantees.md` A3, A8).
 
+**The hop record's fields are API too.** **[proposed]** Consumers log them
+(§6.8), so their names, types and meaning are a compatibility surface like
+the codes. A test pins the set of field names at every level: the record's
+own, those of `origin` (`scheme`, `host`, `port`), those of `redirect`
+(`from_hop`, `status`, `cross_origin`, `method`, `body_dropped`, `dropped`),
+the names of `redirect$method` (`from`, `to`; a named character vector
+today), and those of the chain result (`result`, `chain`). A name is added
+only with a `NEWS.md` entry, and none is
+renamed or removed but in a major version. The record's code and cause come
+from the domains already versioned here; its check is operator detail as
+§6.6 names it, not a closed domain. *Alternative, for the
+maintainer:* a closed domain of field names with its own version stamp in
+`ssrf_vocabulary()`; a field list is a shape, not a vocabulary a consumer
+branches on. *Proposed 2026-11-17* (`SSRF-lejbcwtz`).
+
 ### 6.2 Two outcome classes **[ratified]**
 
 Callers MUST be able to branch on **refused by policy** versus **failed on the
@@ -1516,6 +1584,104 @@ the sibling TypeScript project's `snake_case` (its causes are already
 **deliberate**, to preserve the published values above. *Corrected 2026-09-25*
 (`SSRF-qttneqxp`).
 
+### 6.8 The hop record **[proposed]**
+
+OWASP Top 10:2021 A10 asks for every accepted and blocked network flow to be
+logged (REQ-073 in the requirement coverage, §7), and an investigation needs
+facts only `ssrfr` holds: the address it connected to, the status of each
+redirect, whether a hop was downgraded. Callers with their own loops keep
+their own hop logs today, each with other fields (§1.3, S6). The hop record
+is one standard, operator-side account of a hop, the same whether
+`ssrf_fetch_chain(records = TRUE)` (§2.2) or a caller's loop builds it.
+`ssrfr` itself still logs nothing: the record is the data an application's
+log is made from.
+
+**The builder.** `ssrf_hop_record(binding, outcome)` returns the record of one
+hop, a plain list of class `ssrfr_hop_record` that holds no environment and no
+binding. `outcome` is the response, refusal or failure the hop ended with.
+Every refusal and failure `ssrfr` builds names its lifecycle step (§12) in
+`detail$step`: 1 to 8 for one `ssrf_prepare_hop()` returned, 9 to 13 for one
+`ssrf_fetch()` returned. `binding` is that hop's binding, or `NULL` exactly
+when the outcome came from `ssrf_prepare_hop()`, which made none. The builder
+checks, and raises `ssrfr_error_invalid_argument` (§6.6; no misuse class is
+added) when one fails:
+
+- `outcome` is a response, a refusal or a failure.
+- Without a binding: the outcome is a refusal or failure whose step is 1 to
+  8. A response, or a refusal or failure from `ssrf_fetch()`, such as
+  `redirect-limit` or `connect-failed`, needs its binding.
+- With a binding: the binding is spent and records an outcome
+  (`state$outcome` is set), and the outcome agrees with it. A response:
+  `state$outcome` is `"response"` and the response's status equals
+  `state$status`. A refusal or failure: its step is 9 to 13, its hop equals
+  the binding's, and its code or cause equals `state$outcome`.
+
+These checks catch a mismatched pair, not every one: a response carries no
+hop index, so two successful hops with one status, or two fetch-side outcomes
+of one hop, code and step, cannot be told apart. Pairing them is the
+caller's, as passing the right `from` is.
+
+**Fields.** Every record has every field. The last column is the exact value
+of a field in a record built without a binding.
+
+| Field | Type | Value | Without a binding |
+|---|---|---|---|
+| `hop` | integer | the hop index, 1 for the first hop | the outcome's `hop` |
+| `url` | string | the hop's URL as scheme, host, port and path only: no userinfo, query or fragment, rendered from `rurl`'s parse of the binding's `url`; `NA_character_` when `rurl` cannot parse it | the same, from the outcome's `url`; `NA_character_` when the outcome withheld it |
+| `origin` | list | `scheme` (string), `host` (string), `port` (integer) of the binding's origin (§2.3) | `list(scheme = NA_character_, host = <the outcome's host>, port = NA_integer_)`, the host as the refusal or failure names it (§6.2), itself `NA_character_` when it names none |
+| `address` | string | the address the refusal or failure names (§6.2), such as the address refused or the one last attempted; `NA_character_` when it names none, and for a response | the same |
+| `pin_used` | string | the address the fetch connected to (`state$pin_used`); `NA_character_` when no connection opened | `NA_character_` |
+| `attempts` | character | each connection attempt as the address and how it ended (`state$attempts`); `character(0)` when none was made | `character(0)` |
+| `status` | integer | the transport-observed status the binding records (§2.3), including that of a `redirect-limit` refusal or a `decoded-bytes` failure (§6.6); `NA_integer_` when none | `NA_integer_` |
+| `redirect` | list or `NULL` | the binding's redirect record (§2.5): `from_hop`, `status`, `cross_origin`, `method` (named `from`, `to`), `body_dropped`, `dropped` (lowercase field names only); `NULL` on a first hop | `NULL` |
+| `downgrade` | logical | the binding's `downgrade` (§2.5): `TRUE` when the hop was an `https` to `http` redirect that `allow_downgrade` admitted (§5.3), `FALSE` otherwise | `NA` |
+| `result` | string | `"response"`, `"refusal"` or `"failure"`, the outcome's class, so a log branches without string matching on a code (§6.2) | the same |
+| `code` | string | the refusal's reason code (§6.5); `NA_character_` otherwise | the same |
+| `cause` | string | the failure's cause (§6.6); `NA_character_` otherwise | the same |
+| `check` | string | the outcome's `detail$check` when it is a string; `NA_character_` otherwise | the same |
+
+There is no `Location` field. A followed redirect's target is the next hop's
+`url`, resolved once, by `ssrf_prepare_hop()` (§3.2), so the record needs no
+second resolution that could drift from it; a redirect the caller's loop
+chose not to follow leaves its target on the binding, as `state$location`.
+
+**What a record never holds.** No body, and no response header value. No
+URL query or fragment: an intermediate redirect URL can carry a secret there,
+an OAuth `code`, a presigned signature or a magic-link token, and a record is
+what consumers are told to log. The path stays, so a secret a server puts in
+the path reaches the record; that residual is the application's to redact. No
+request-plan value: header values, the body and the `carry` nominations stay
+on the binding; only the method before and after a redirect and the names of
+dropped fields appear, in `redirect`. No operator `detail` field but `check`:
+the rest stays on the outcome, where §6.4 and the outcome's `format()`
+already govern it. No policy, TLS setting or validated address set; they
+stay readable on the binding (S4).
+
+**Printing.** The `print` and `format` methods of a record and of a chain
+result follow §2.2's rule for a response: no body and no header value. A
+record shows its hop, result, code or cause and check, status, URL, origin,
+address, pin, attempts, downgrade flag and redirect line, the last as
+`format()` of a binding shows it. A chain result prints its `result` as that
+value's own `format()` does, then one line per hop.
+
+**Who sees it.** A record names the predicate, the address, the pin and the
+hop, so it is operator detail under §6.4 and INV-12, and so is a chain. An
+application that reports a chain's end to an untrusted party passes the final
+outcome alone, a refusal or failure projected with `ssrf_public_reason()`,
+and never a record, the chain, or the chain result.
+
+*Alternatives, for the maintainer:* a `location` field, the followed
+redirect's `Location` resolved against the hop's URL and rendered as `url` is,
+which needs a second resolution in the builder and repeats the next record's
+`url`; the raw `Location`, byte for byte and marked `"bytes"` when it is not
+valid UTF-8 as a response header value is (§2.2), which keeps a relative
+reference but can carry userinfo and a query secret into a log; the query
+kept with its parameter names and its values withheld, which helps tell
+requests apart at the cost of a rendering rule of its own; and leaving
+`address` out, since the ticket's list of facts does not name it, though a
+blocked flow's log is incomplete without the address that was refused.
+*Proposed 2026-11-17* (`SSRF-lejbcwtz`).
+
 ---
 
 ## 7. Conformance **[ratified]**
@@ -1625,6 +1791,7 @@ superseded, with the reason, and stays in the file. *Ratified 2026-09-25* (`SSRF
 | 32 | The reason code when a `raddr` call fails on an address it has already parsed: INV-11 requires refusal, and §6.6's `unresolvable` covers only an answer `raddr` cannot parse | **closed — ratified** 2026-09-25 by the maintainer: `malformed-address`, the existing code for an address that could not be interpreted; no new code (§6.5). Raised by a GPT-6 Sol review of the implementation tickets — `SSRF-ifldwmnc` |
 | 33 | A 3xx without `Location` once the redirect budget is spent: §2.3 calls it a final response, while §5.3 and §6.5 refuse any 3xx | **closed — ratified** 2026-09-25 by the maintainer: every 3xx refuses as `redirect-limit` once the budget is spent, including under `max_redirects = 0` (§2.3). Raised by the same review — `SSRF-fvtqbanc` |
 | 34 | Whether the string handed to libcurl MUST be printable ASCII, enforced as a `parse` refusal, or whether A-label hosts stay a property of construction only (§4.1, INV-6) | **closed — ratified** 2026-09-29 by the maintainer, with one amendment: the host `curl_parse_url()` returns, the `connect_to` key, MUST be printable ASCII too, since libcurl percent-decodes the host (raised by a research agent, confirmed by a GPT-6 Sol review). The maintainer chose an enforced rule on the whole string over a check of its host component, which would need a third parser, and over a check at the `connect_to` key in L2. The `connect_to` key stays `curl_parse_url()`'s host, verbatim, in `"HOST::IP:"` form. Raised by the Linux transport re-run (item 6) — `SSRF-ljqshjmj` |
+| 35 | A standard hop record, buildable from a caller's own loop, and the chain of them from `ssrf_fetch_chain()` (§2.2, §2.5, §6.1, §6.8) | **open — proposed** 2026-11-17, awaiting ratification: the chain opt-in, returned beside the unchanged last outcome only under a new `records = TRUE` argument, never attached to it; an exported `ssrf_hop_record(binding, outcome)` the helper is built on beside the two primitives, with the checks §6.8 lists; the fields of §6.8, a URL without userinfo, query or fragment, no `Location` field, and a new top-level `downgrade` flag on the binding; a record from the outcome alone for a hop `ssrf_prepare_hop()` refused or failed; §2.2's print rule; records and chains are operator detail (§6.4, INV-12). Each passage names its alternative. Code waits on ratification — `SSRF-lejbcwtz` |
 
 **Closed by this document:** component-wise versus whole-URL API (§3.1,
 `SSRF-tnxmqvou`); whether the L2 result is a boolean (§2.1); the dependency
@@ -1795,6 +1962,20 @@ From 2026-09-30 they are also logged here:
   and §8 item 2c point to it. Verdict vectors V0234, V0515, V0523 and V0529
   are superseded by V0561 to V0564, and V0565 pins a broad range around
   `100.100.100.200`. No reason code changes.
+- **2026-11-17** (`SSRF-lejbcwtz`), **[proposed]**, awaiting ratification:
+  §6.8 defines a standard hop record, built by an exported
+  `ssrf_hop_record(binding, outcome)` from a spent binding and its outcome,
+  or from the outcome alone for a hop `ssrf_prepare_hop()` refused or
+  failed, as the maintainer asked on 2026-11-11. §2.2 gives
+  `ssrf_fetch_chain()` an opt-in `records` argument that returns the chain of
+  records beside its unchanged last outcome, and builds the helper on the
+  record builder beside the two primitives; by default its return is
+  unchanged. §2.5 adds a top-level `downgrade` flag to the binding. §6.1
+  makes the record's field names API, nested names included. §8 item 35
+  tracks it, and `r-binding.md` §7 lists the test. No reason code, cause or
+  misuse class changes, and §15 is unchanged. REQ-073 stays
+  enforced-by-application: the cited item is a firewall-log control
+  (§11.2), and `ssrfr` still logs nothing; it supplies the data.
 
 Where other documents or sibling repositories cite the retired guard spec, this
 is where the text now lives:

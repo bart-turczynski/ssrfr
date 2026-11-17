@@ -503,6 +503,45 @@ test_that("the inherited plan is checked under the redirect hop's policy", {
   expect_false(grepl("Metadata-Flavor", message, fixed = TRUE))
 })
 
+# §2.3: a message on a redirect hop names an entry by its place in
+# `from$request`, the inherited plan, through the label closure of
+# prepare_hop_redirect(). No policy refuses an inherited carry entry through
+# ssrf_prepare_hop(), so check_request() is mocked to capture the label. The
+# plan has a body-content carry, which the cross-origin hop drops before the
+# carry entry after it, so the carry entry's place shifts.
+test_that("an inherited entry is named by its place in from$request", {
+  skip_if_no_webfakes()
+  web <- local_redirect_server()
+  port <- web$get_port()
+  mock_answers("127.0.0.1")
+  to <- pinned_url(port, "/echo", host = other_host)
+  b <- ssrf_prepare_hop(
+    pinned_url(port, paste0("/r/302?to=", URLencode(to, TRUE))),
+    loopback_policy(port),
+    request = list(
+      headers = c(
+        `X-Dropped` = "d1",
+        `Content-Type` = "text/plain",
+        `X-B` = "b1"
+      ),
+      carry = c("Content-Type", "X-B")
+    )
+  )
+  expect_identical(ssrf_fetch(b)$status, 302L)
+  seen <- new.env(parent = emptyenv())
+  local_mocked_bindings(check_request = function(request, policy, label) {
+    seen$headers <- label("headers", 1L)
+    seen$carry <- label("carry", 1L)
+    seen$default <- label("method", 2L)
+    request
+  })
+  r <- ssrf_prepare_hop(b$state$location, loopback_policy(port), from = b)
+  expect_s3_class(r, "ssrfr_binding")
+  expect_identical(seen$headers, "`from$request$headers[3]`")
+  expect_identical(seen$carry, "`from$request$carry[2]`")
+  expect_identical(seen$default, "`from$request$method[2]`")
+})
+
 # --- chain budgets (§2.5, §5.3, §6.5, §8 item 33) ----------------------------
 
 test_that("the chain budgets are inherited through from", {

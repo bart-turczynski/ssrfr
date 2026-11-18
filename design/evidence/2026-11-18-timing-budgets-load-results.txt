@@ -1,0 +1,53 @@
+# Load test: the other tests with wall-clock budgets a loaded runner can
+# spend (SSRF-zkuqafoz), 2026-11-18, under scripts/load-test.sh.
+#
+# PENDING: every <...> below is filled in by the orchestrator's 8x run
+# after the branch is harvested. The implementer ran no load test; until
+# then this file records the shape of the run, not its results.
+#
+# Commands, each run from a worktree root (main at <main sha>; the branch
+# test/SSRF-zkuqafoz-timing-budgets at <branch sha>):
+#
+#   scripts/load-test.sh -n 5 -l 8 -t default --only fetch-limits,fetch,helper-transport,redirect --out <dir>
+#
+# Container: R <version>, --cpus=<n> of the VM's <n>, --memory=<m>; load N x 4
+# `yes` processes inside it. Host: macOS arm64, shared with other sessions.
+
+## Summaries
+
+cell                                runs  start-timeout  raw-server  other    secs/run
+main <sha>, 8x                         5      <a>/5 (<n>) <a>/5 (<n>) <a>/5 (<n>)    <s>
+branch <sha>, 8x                       5      <a>/5 (<n>) <a>/5 (<n>) <a>/5 (<n>)    <s>
+
+A class column reads <runs with at least one failure of that class>/<runs>
+(<failing expectations of that class>).
+
+## The targeted tests
+
+                                                        main 8x  branch 8x
+test-fetch-limits.R
+  total_timeout ends a slow response as timeout          <a>/5      <a>/5
+  a header that never ends stops at its limit            <a>/5      <a>/5
+  a truncated header at the field limit                  <a>/5      <a>/5
+  trailer fields count against the header limits         <a>/5      <a>/5
+  the header limits hold without the trace's lines       <a>/5      <a>/5
+test-fetch.R
+  total_timeout ends failover as timeout                 <a>/5      <a>/5
+test-helper-transport.R
+  wait_for_ready() fails naming the wait                 <a>/5      <a>/5
+test-redirect.R
+  past the budget, a 3xx refuses whatever follows        <a>/5      <a>/5
+
+What changed per test: the failover test and the truncated header's close
+case run on a fake clock (elapsed_since mocked), so no load can spend
+their budget before the step under test. The slow-response and the three
+header-limit tests keep the real clock with ceilings scaled to 15 s,
+against a 30 s budget or a 30 s answer: there the ceiling is the only
+assertion that tells a stop at the limit from one at the deadline. The
+wait_for_ready() ceiling is 30 s of a 60 s wait. The redirect test's
+stalling cases keep the real clock with a 4 s budget and now assert step
+12, which a budget spent before the transfer does not read.
+
+## Other failures (not addressed here)
+
+<per-test failures outside the targeted tests, or "none">

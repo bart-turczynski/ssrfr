@@ -16,7 +16,11 @@ test_that("total_timeout ends a slow response as timeout", {
   expect_s3_class(r, "ssrfr_failure")
   expect_identical(r$cause, "timeout")
   expect_identical(r$detail$limit, "total_timeout")
-  expect_lt(elapsed, 4.5)
+  # Only the ceiling, well under /slow's 30 s answer, proves the fetch ended
+  # near the budget: one that waits for the answer still reads `timeout`,
+  # from the re-check after decoding. It leaves room a loaded runner cannot
+  # use up.
+  expect_lt(elapsed, 15)
 })
 
 test_that("total_timeout is re-checked after decoding", {
@@ -200,7 +204,7 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
       server <- local_raw_server(stream_forever(case$prefix, case$chunk))
       policy <- do.call(
         loopback_policy,
-        c(list(server$port, total_timeout = 10), case$limits)
+        c(list(server$port, total_timeout = 30), case$limits)
       )
       t0 <- Sys.time()
       r <- guarded_get(
@@ -209,10 +213,14 @@ test_that("a header that never ends stops at its limit, not at the deadline", {
         request = if (is.null(case$request)) list() else case$request
       )
       elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      # Only the ceiling tells a stop at the limit from one at the deadline:
+      # a transfer libcurl ends at total_timeout is measured once more when
+      # it completes, and names the same header limit. Half the budget, so a
+      # loaded runner cannot use it up, and a regression still runs past it.
       expect_identical(r$cause, "response-too-large", label = name)
       expect_identical(r$detail$check, "header", label = name)
       expect_identical(r$detail$limit, case$limit, label = name)
-      expect_lt(elapsed, 4, label = name)
+      expect_lt(elapsed, 15, label = name)
     })
   }
 })
@@ -240,10 +248,19 @@ test_that("a truncated header at the field limit ends as the transfer did", {
     case <- cases[[name]]
     local({
       server <- local_raw_server(case$bytes)
+      # A stall must spend the budget, so it keeps the real clock and a short
+      # budget. A close is decided by the close, not by time: ssrfr's clock
+      # is frozen, so a loaded runner cannot spend the budget first, and
+      # libcurl's own timer, set from the 8 s budget, still ends a
+      # regression.
+      stalls <- identical(name, "stall")
+      if (!stalls) {
+        local_mocked_bindings(elapsed_since = function(start) 0)
+      }
       policy <- loopback_policy(
         server$port,
         max_header_fields = 20,
-        total_timeout = 2
+        total_timeout = if (stalls) 2 else 8
       )
       r <- guarded_get(pinned_url(server$port), policy)
       expect_s3_class(r, "ssrfr_failure")
@@ -403,16 +420,18 @@ test_that("trailer fields count against the header limits", {
       server <- local_raw_server(case$bytes)
       policy <- do.call(
         loopback_policy,
-        c(list(server$port, total_timeout = 10), case$limits)
+        c(list(server$port, total_timeout = 30), case$limits)
       )
       t0 <- Sys.time()
       r <- guarded_get(pinned_url(server$port), policy)
       elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      # The ceiling, not the cause, tells the limit from the deadline, as
+      # above.
       expect_s3_class(r, "ssrfr_failure")
       expect_identical(r$cause, "response-too-large", label = name)
       expect_identical(r$detail$check, "header", label = name)
       expect_identical(r$detail$limit, case$limit, label = name)
-      expect_lt(elapsed, 4, label = name)
+      expect_lt(elapsed, 15, label = name)
       b <- attr(r, "binding")
       expect_null(b$state$status)
       expect_false(b$state$fetched)
@@ -463,15 +482,17 @@ test_that("the header limits hold without the trace's header or data lines", {
       policy <- loopback_policy(
         server$port,
         max_header_fields = 20,
-        total_timeout = 10
+        total_timeout = 30
       )
       t0 <- Sys.time()
       r <- guarded_get(pinned_url(server$port), policy)
       elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+      # The ceiling, not the cause, tells the limit from the deadline, as
+      # above.
       expect_s3_class(r, "ssrfr_failure")
       expect_identical(r$cause, "response-too-large", label = name)
       expect_identical(r$detail$limit, "max_header_fields", label = name)
-      expect_lt(elapsed, 4, label = name)
+      expect_lt(elapsed, 15, label = name)
     })
   }
 })

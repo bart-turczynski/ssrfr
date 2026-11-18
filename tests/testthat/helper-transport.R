@@ -236,7 +236,7 @@ test_app <- function() {
   app$get("/slow", function(req, res) {
     if (is.null(res$locals$waited)) {
       res$locals$waited <- TRUE
-      res$delay(5)
+      res$delay(30)
     } else {
       res$send("late")
     }

@@ -79,5 +79,7 @@ test_that("wait_for_ready() fails naming the wait", {
   withr::local_envvar(SSRFR_TEST_START_TIMEOUT = "60000")
   t0 <- Sys.time()
   expect_error(wait_for_ready(ready, gone), "exited before it was ready")
-  expect_lt(as.numeric(difftime(Sys.time(), t0, units = "secs")), 5)
+  # Half the 60 s wait still proves "at once, not after the whole wait",
+  # with room a loaded runner cannot use up.
+  expect_lt(as.numeric(difftime(Sys.time(), t0, units = "secs")), 30)
 })

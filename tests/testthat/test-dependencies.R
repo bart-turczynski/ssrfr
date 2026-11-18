@@ -219,3 +219,80 @@ test_that("a provider endpoint outranks unknown reachability at gate 1b", {
     expect_identical(res$detail$embedding_kind, cases[[url]], label = url)
   }
 })
+
+# The transfer wrapper's answer keeps a failed transfer's curl class, and of
+# libcurl's message only whether it is libcurl 8.17's refusal of a second,
+# differing Location field, "Multiple Location headers", matched exactly: a
+# curl message may quote response bytes (INV-12). curl hands the `fail`
+# callback libcurl's own text after its generic message and the host, or
+# alone. Any other shape is no refusal, never an error.
+test_that("the transfer wrapper keeps libcurl's Location refusal as a flag", {
+  info <- list(
+    status_code = 302L,
+    headers = charToRaw("HTTP/1.1 302 Found\r\nLocation: /a\r\n"),
+    times = c(connect = 0.01)
+  )
+  weird <- c("curl_error_weird_server_reply", "curl_error")
+  as_fail <- function(message, class = weird) {
+    structure(message, class = c(class, "character"))
+  }
+  as_condition <- function(message) {
+    structure(
+      class = c(weird, "error", "condition"),
+      list(message = message, call = NULL)
+    )
+  }
+  refusal <- "Multiple Location headers"
+  invalid <- rawToChar(c(charToRaw(refusal), as.raw(0xff)))
+  cases <- list(
+    curl = list(
+      fail = as_fail(paste0("Weird server reply [127.0.0.1]:\n", refusal)),
+      flag = TRUE
+    ),
+    alone = list(fail = as_fail(refusal), flag = TRUE),
+    condition = list(
+      fail = as_condition(paste0("Weird server reply:\n", refusal)),
+      flag = TRUE
+    ),
+    none = list(fail = NULL, flag = FALSE),
+    other_class = list(
+      fail = as_fail(refusal, c("curl_error_recv_error", "curl_error")),
+      flag = FALSE
+    ),
+    other_case = list(
+      fail = as_fail("multiple location headers"),
+      flag = FALSE
+    ),
+    longer = list(fail = as_fail(paste(refusal, "seen")), flag = FALSE),
+    shorter = list(fail = as_fail("Multiple Location"), flag = FALSE),
+    invalid = list(fail = as_fail(invalid), flag = FALSE),
+    missing = list(fail = as_fail(NA_character_), flag = FALSE),
+    empty = list(fail = as_fail(character()), flag = FALSE),
+    two = list(fail = as_fail(c(refusal, refusal)), flag = FALSE),
+    number = list(fail = structure(8, class = weird), flag = FALSE),
+    bad_condition = list(fail = as_condition(8), flag = FALSE)
+  )
+  for (name in names(cases)) {
+    outcome <- dep_curl_transfer_outcome()
+    outcome$fail <- cases[[name]]$fail
+    r <- NULL
+    expect_no_condition(r <- dep_curl_transfer_result(outcome, info))
+    expect_identical(r$multiple_location, cases[[name]]$flag, label = name)
+    expect_true(read_transfer_valid(r), label = name)
+    expect_named(
+      r,
+      c(
+        "aborted",
+        "failed",
+        "error",
+        "multiple_location",
+        "status",
+        "headers",
+        "connect"
+      )
+    )
+    # Nothing of libcurl's message but the flag leaves the wrapper.
+    kept <- unlist(lapply(r[names(r) != "headers"], as.character))
+    expect_false(any(grepl("Location", kept, fixed = TRUE)), label = name)
+  }
+})

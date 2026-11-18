@@ -248,11 +248,12 @@ test_that("a truncated header at the field limit ends as the transfer did", {
     case <- cases[[name]]
     local({
       server <- local_raw_server(case$bytes)
-      # A stall must spend the budget, so it keeps the real clock and a short
-      # budget. A close is decided by the close, not by time: ssrfr's clock
-      # is frozen, so a loaded runner cannot spend the budget first, and
-      # libcurl's own timer, set from the 8 s budget, still ends a
-      # regression.
+      # A stall must spend the budget, so it keeps the real clock and a 4 s
+      # budget: under the server's 10 s stall, with room for a loaded runner
+      # to reach the transfer before it runs out. A close is decided by the
+      # close, not by time: ssrfr's clock is frozen, so a loaded runner
+      # cannot spend the budget first, and libcurl's own timer, set from the
+      # 8 s budget, still ends a regression.
       stalls <- identical(name, "stall")
       if (!stalls) {
         local_mocked_bindings(elapsed_since = function(start) 0)
@@ -260,7 +261,7 @@ test_that("a truncated header at the field limit ends as the transfer did", {
       policy <- loopback_policy(
         server$port,
         max_header_fields = 20,
-        total_timeout = if (stalls) 2 else 8
+        total_timeout = if (stalls) 4 else 8
       )
       r <- guarded_get(pinned_url(server$port), policy)
       expect_s3_class(r, "ssrfr_failure")
@@ -425,8 +426,10 @@ test_that("trailer fields count against the header limits", {
       t0 <- Sys.time()
       r <- guarded_get(pinned_url(server$port), policy)
       elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-      # The ceiling, not the cause, tells the limit from the deadline, as
-      # above.
+      # For `endless`, the ceiling, not the cause, tells the limit from the
+      # deadline, as above. `fields` and `bytes` close at once, so a missed
+      # in-flight check still ends fast and names the same limit at
+      # completion: the ceiling cannot catch that regression for them.
       expect_s3_class(r, "ssrfr_failure")
       expect_identical(r$cause, "response-too-large", label = name)
       expect_identical(r$detail$check, "header", label = name)

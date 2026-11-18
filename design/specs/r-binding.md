@@ -540,6 +540,27 @@ becomes 7.85. What the matrix found is in spec §8 item 6.
   handles **[sourced]**; R's `curl` has no share-handle API and types the option
   as a string **[verified]**, and the sharing that matters already happens in
   the multi handle (§4.1).
+- **libcurl 8.17.0 and later refuse a second `Location` themselves.** A
+  `Location` field whose value differs from an earlier one in the same
+  response fails the transfer with `CURLE_WEIRD_SERVER_REPLY` and the message
+  `Multiple Location headers`; an empty value or an exact repeat is ignored
+  (`lib/http.c` at `curl-8_17_0` and `curl-8_18_0`, curl commits 9596c4a
+  and 4be9db7) **[sourced]**. libcurl fails before it writes the second line
+  to the header buffer, after it has recorded the status line's code, so
+  `ssrfr` never sees that line, and spec §2.3's count of `Location` lines
+  cannot be read. Older libcurl (8.5.0, 8.14.1) delivers both lines, and
+  `ssrfr`'s own check refuses them. To keep one refusal on every libcurl,
+  `dep_curl_transfer()` reduces curl's message to a flag, never keeping the
+  text (INV-12), and `ssrfr` reads that flag, the curl class and a header
+  buffer whose final block, not yet ended, has a `3xx` status line and
+  already a `Location` as its own `protocol-error` with check `location`; it
+  records the status only when libcurl reports the status line's, and no
+  `Location` or count (`R/fetch.R`, `attempt_address_location_refused()`;
+  `SSRF-xhobpkza`). The mocked-transfer cases run on every libcurl
+  (`tests/testthat/test-fetch.R`); the wire test (`test-fetch-limits.R`,
+  "a redirect is returned with Location; two are a protocol error") proves
+  the mapping only where libcurl is 8.17.0 or later, which the fleet's
+  R-devel image carries (8.18.0) and the evidence build (8.14.1) does not.
 
 ### Protocol exposure — the motivating vulnerability
 

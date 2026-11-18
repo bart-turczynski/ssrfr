@@ -635,6 +635,10 @@ attempt_address_completed <- function(seen, transfer, policy, binding) {
     return(attempt_address_ended_at_limit(stop))
   }
   if (!is.null(transfer$error)) {
+    refused <- attempt_address_location_refused(seen, transfer, binding)
+    if (!is.null(refused)) {
+      return(refused)
+    }
     cause <- connected_cause(transfer$error)
     limit <- if (cause == "timeout") "total_timeout"
     step <- if (cause == "tls-failed") 10L else 12L
@@ -693,6 +697,63 @@ attempt_address_response <- function(seen, transfer, binding) {
     }
   }
   list(ending = "connected", response = response)
+}
+
+# libcurl 8.17.0 and later fail a transfer at a second Location field that
+# differs from the first (CURLE_WEIRD_SERVER_REPLY, "Multiple Location
+# headers"; curl commit 9596c4a), before writing that line to the header
+# buffer, where older libcurl let attempt_address_response() refuse it
+# (§2.3, §6.6). The ending of that refusal, the same `location` check, or
+# NULL. Both facts are required: the wrapper's `multiple_location`, its
+# reading of libcurl's message, and a buffer whose final header block, not
+# yet ended, has a 3xx status line and at least one Location field already.
+# The status is recorded only when libcurl reports the status line's
+# (transport-observed, §2.3). No Location and no count is: ssrfr read one
+# Location line, and libcurl refused the second, which ssrfr never saw.
+attempt_address_location_refused <- function(seen, transfer, binding) {
+  if (
+    !isTRUE(transfer$multiple_location) ||
+      !identical(transfer$error, "curl_error_weird_server_reply")
+  ) {
+    return(NULL)
+  }
+  status <- refused_location_status(seen, transfer$headers)
+  if (is.null(status)) {
+    return(NULL)
+  }
+  if (is.numeric(transfer$status) && transfer$status == status) {
+    set_state(binding, status = status)
+  }
+  attempt_address_ended("protocol-error", 12L, "location")
+}
+
+# The 3xx status of the final header block of `buffer`, libcurl's header
+# buffer, when that block is not yet ended and already holds a Location
+# field, or NULL. The buffer is read as attempt_address_response() reads
+# it: a NUL byte reads as no header, and every line after the status line
+# must be a header field line. `seen` holds the segments the measure took of
+# these same bytes, which are not segmented again.
+refused_location_status <- function(seen, buffer) {
+  if (!is.raw(buffer) || any(buffer == as.raw(0L))) {
+    return(NULL)
+  }
+  segments <- if (identical(seen$segmented, buffer)) {
+    seen$segments
+  } else {
+    header_segments(buffer)
+  }
+  blocks <- segments$blocks
+  n <- length(blocks$status)
+  if (!n || blocks$complete[[n]] || blocks$status[[n]] %/% 100L != 3L) {
+    return(NULL)
+  }
+  first <- blocks$start[[n]] + 1L
+  lines <- segments$lines[seq_len(blocks$end[[n]] - first + 1L) + first - 1L]
+  fields <- parse_response_headers_fields(lines)
+  if (!any(names(fields) == "location")) {
+    return(NULL)
+  }
+  blocks$status[[n]]
 }
 
 # What the header buffer measure_header() last measured ends the transfer

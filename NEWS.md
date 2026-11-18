@@ -3,6 +3,7 @@
 * A cloud-metadata endpoint is reopened only by the new `ssrf_policy(allow_provider_endpoints = )`; an `allow_ranges` entry equal to one is now an error (SSRF-ntxhdswq).
 * `ssrf_policy(allow_downgrade = TRUE)` lets an `https` hop redirect to `http`, which is still refused as `"downgrade"` by default (SSRF-euaruryp).
 * `ssrf_policy(truncate_body = TRUE)` returns a `2xx` body over `max_response_size` cut at the limit, marked `truncated` with `observed_bytes`, instead of failing as `"response-too-large"` (RFC 9309 §2.5).
+* A 3xx with two different `Location` fields now fails with `detail$check` `"location"` and its status on libcurl >= 8.17 too, not `"transport"` (SSRF-xhobpkza).
 
 # ssrfr 1.0.0
 

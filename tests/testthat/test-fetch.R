@@ -399,6 +399,96 @@ test_that("a status line with a tab for its space is a protocol error", {
   expect_null(attr(r, "binding")$state$status)
 })
 
+# libcurl 8.17.0 and later fail a transfer at a second Location field that
+# differs from the first (CURLE_WEIRD_SERVER_REPLY, "Multiple Location
+# headers"; curl commit 9596c4a), before writing that line to the header
+# buffer, which ends with the 3xx status line and the first Location, not
+# yet ended. The wrapper reduces libcurl's message to `multiple_location`;
+# with that buffer, it is the refusal ssrfr's own check makes on older
+# libcurl: `location`, at step 12 (§2.3). The status is kept only when
+# libcurl reports the status line's (transport-observed, §2.3), and no
+# Location is counted: ssrfr read one line, and libcurl refused the second.
+# Anything less, and the transport error ends the fetch as before.
+test_that("libcurl's refusal of a second Location is the location check", {
+  mock_answers("127.0.0.1")
+  redirect <- wire("HTTP/1.1 302 Found\r\nLocation: /a\r\n")
+  fetch_with <- function(...) {
+    transfer <- utils::modifyList(
+      list(
+        aborted = FALSE,
+        error = "curl_error_weird_server_reply",
+        multiple_location = TRUE,
+        status = 302L,
+        headers = redirect,
+        connect = 0.01
+      ),
+      list(...)
+    )
+    local_mocked_bindings(
+      dep_curl_transfer = function(opts, on_body, debug, progress) {
+        debug(0L, charToRaw("Trying 127.0.0.1:80...\n"))
+        transfer
+      }
+    )
+    guarded_get(paste0("http://", pinned_host, "/"), loopback_policy())
+  }
+  mapped <- list(
+    reported = list(status = 302L),
+    interim = list(
+      headers = wire(
+        "HTTP/1.1 100 Continue\r\n\r\n",
+        "HTTP/1.1 302 Found\r\nLocation: /a\r\n"
+      )
+    ),
+    unreported = list(status = 0L),
+    disagreeing = list(status = 301L)
+  )
+  for (name in names(mapped)) {
+    r <- do.call(fetch_with, mapped[[name]])
+    expect_s3_class(r, "ssrfr_failure")
+    expect_identical(r$cause, "protocol-error", label = name)
+    expect_identical(r$detail$step, 12L, label = name)
+    expect_identical(r$detail$check, "location", label = name)
+    b <- attr(r, "binding")
+    status <- if (name %in% c("reported", "interim")) 302L
+    expect_identical(b$state$status, status, label = name)
+    expect_null(b$state$location, label = name)
+    expect_null(b$state$location_count, label = name)
+    expect_false(b$state$fetched, label = name)
+  }
+  # Each lacks one of the two facts: libcurl's own refusal, or a 3xx status
+  # line already holding one Location in a header block not yet ended.
+  unmapped <- list(
+    unflagged = list(multiple_location = FALSE),
+    absent = list(multiple_location = NULL),
+    other_class = list(error = "curl_error_recv_error"),
+    success = list(
+      status = 200L,
+      headers = wire("HTTP/1.1 200 OK\r\nLocation: /a\r\n")
+    ),
+    no_location = list(headers = wire("HTTP/1.1 302 Found\r\nX-One: 1\r\n")),
+    ended = list(headers = wire("HTTP/1.1 302 Found\r\nLocation: /a\r\n\r\n")),
+    empty = list(headers = raw()),
+    nul = list(
+      headers = c(
+        wire("HTTP/1.1 302 Found\r\nLocation: /"),
+        as.raw(0L),
+        wire("a\r\n")
+      )
+    ),
+    not_fields = list(headers = wire("HTTP/1.1 302 Found\r\nLocation /a\r\n"))
+  )
+  for (name in names(unmapped)) {
+    r <- do.call(fetch_with, unmapped[[name]])
+    expect_s3_class(r, "ssrfr_failure")
+    expect_identical(r$cause, "protocol-error", label = name)
+    expect_identical(r$detail$check, "transport", label = name)
+    b <- attr(r, "binding")
+    expect_null(b$state$status, label = name)
+    expect_null(b$state$location_count, label = name)
+  }
+})
+
 # --- failover (§2.5, §6.6) ---------------------------------------------------
 
 # Replaces the transport with a script: `outcomes` maps each address to how
@@ -1120,10 +1210,29 @@ test_that("a request reaches the server once, whatever the response", {
 })
 
 test_that("a failing transport wrapper fails closed, never an R error", {
+  # A well-formed answer from a confirmed pin, but for its
+  # `multiple_location`, which must be NULL or a single, non-NA logical:
+  # never libcurl's message.
+  flagged <- function(flag) {
+    function(opts, on_body, debug, progress) {
+      debug(0L, charToRaw("Trying 127.0.0.1:1...\n"))
+      list(
+        aborted = FALSE,
+        error = "curl_error_weird_server_reply",
+        multiple_location = flag,
+        status = 302L,
+        headers = wire("HTTP/1.1 302 Found\r\nLocation: /a\r\n"),
+        connect = 0.01
+      )
+    }
+  }
   modes <- list(
     stop = function(...) stop("dependency failed"),
     null = function(...) NULL,
-    wrong_shape = function(...) list(unexpected = 42)
+    wrong_shape = function(...) list(unexpected = 42),
+    flag_text = flagged("Multiple Location headers"),
+    flag_na = flagged(NA),
+    flag_two = flagged(c(TRUE, TRUE))
   )
   mock_answers("127.0.0.1")
   for (mode in names(modes)) {
@@ -1138,6 +1247,7 @@ test_that("a failing transport wrapper fails closed, never an R error", {
       expect_no_error(r <- ssrf_fetch(b))
       expect_s3_class(r, "ssrfr_failure")
       expect_identical(r$cause, "pin-mismatch", label = mode)
+      expect_identical(r$detail$check, "no-transfer", label = mode)
     })
   }
 })

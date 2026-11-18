@@ -188,6 +188,8 @@ dep_nslookup <- function(query) {
 # they first did, or NULL: "data" for `on_body`, "progress" and "debug"),
 # `error` (the curl error class of a failed transfer, or NULL:
 # `curl_error_write_error` when the write callback ended a stopped one),
+# `multiple_location` (TRUE when that error is libcurl's refusal of a
+# second, differing Location field; dep_curl_multiple_location()),
 # `status`, `headers` (the raw response header bytes), and `connect`
 # (seconds until the TCP connection was established; 0 when it never was).
 dep_curl_transfer <- function(opts, on_body, debug, progress) {
@@ -354,14 +356,40 @@ dep_curl_transfer_pause <- function(pool, nap, idle) {
 # The wrapper's answer from the transfer's recorded `outcome` and the handle's
 # final `info` (curl::handle_data()).
 dep_curl_transfer_result <- function(outcome, info) {
+  error <- if (is.null(outcome$fail)) NULL else class(outcome$fail)[[1L]]
   list(
     aborted = outcome$stopped,
     failed = outcome$failed,
-    error = if (is.null(outcome$fail)) NULL else class(outcome$fail)[[1L]],
+    error = error,
+    multiple_location = identical(error, "curl_error_weird_server_reply") &&
+      dep_curl_multiple_location(outcome$fail),
     status = info$status_code,
     headers = info$headers,
     connect = unname(info$times[["connect"]])
   )
+}
+
+# Whether `fail`, the error curl's `fail` callback handed over, carries
+# libcurl's refusal of a second Location field that differs from the first
+# (libcurl 8.17.0 and later, curl commit 9596c4a: failf(data, "Multiple
+# Location headers") in lib/http.c). curl hands it a character string of
+# class curl_error, its generic message and the host, then libcurl's own
+# message on a line of its own (curl's raise_libcurl_error()); that last
+# line, or a message alone, must be the refusal, byte for byte. Only this
+# answer leaves the wrapper, never the text: a curl message may quote
+# response bytes (INV-12). Any other shape, a condition included whose
+# message is not a single string, is no refusal, and nothing here errors.
+dep_curl_multiple_location <- function(fail) {
+  text <- tryCatch(
+    if (inherits(fail, "condition")) conditionMessage(fail) else unclass(fail),
+    error = function(e) NULL
+  )
+  if (!is.character(text) || length(text) != 1L || is.na(text)) {
+    return(FALSE)
+  }
+  lines <- strsplit(text, "\n", fixed = TRUE, useBytes = TRUE)[[1L]]
+  length(lines) > 0L &&
+    identical(lines[[length(lines)]], "Multiple Location headers")
 }
 
 # libcurl's version and capabilities, for the option builder.
@@ -596,11 +624,13 @@ read_transfer_valid <- function(t) {
 }
 
 # Whether the fields saying how the transfer ended are well formed: `aborted`
-# a flag, `failed` NULL or callback labels, `error` NULL or a curl class.
+# a flag, `failed` NULL or callback labels, `error` NULL or a curl class,
+# `multiple_location` NULL (read as FALSE) or a flag, never curl's message.
 read_transfer_valid_ending <- function(t) {
   read_transfer_is_flag(t$aborted) &&
     (is.null(t$failed) || is.character(t$failed) && !anyNA(t$failed)) &&
-    (is.null(t$error) || is_string(t$error))
+    (is.null(t$error) || is_string(t$error)) &&
+    read_transfer_is_optional_flag(t$multiple_location)
 }
 
 # Whether the fields read from the response are well formed: `status` and
@@ -614,6 +644,11 @@ read_transfer_valid_response <- function(t) {
 # Whether `x` is a single, non-NA logical.
 read_transfer_is_flag <- function(x) {
   is.logical(x) && length(x) == 1L && !is.na(x)
+}
+
+# Whether `x` is NULL or a single, non-NA logical.
+read_transfer_is_optional_flag <- function(x) {
+  is.null(x) || read_transfer_is_flag(x)
 }
 
 # Whether `x` is a single, non-NA number.

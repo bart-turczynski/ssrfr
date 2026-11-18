@@ -516,9 +516,9 @@ test_that("a redirect is returned with Location; two are a protocol error", {
 
   # libcurl 8.17.0 and later fail a transfer whose second Location differs
   # from the first themselves (CURLE_WEIRD_SERVER_REPLY, "Multiple Location
-  # headers"; curl commit 9596c4a), before the header is whole. ssrfr then
-  # records no response, and the transport error ends the fetch: the cause
-  # is the same `protocol-error`, but no Location is counted. An exact
+  # headers"; curl commit 9596c4a), before the header is whole. ssrfr maps
+  # that refusal to its own: check `location` and the status, on every
+  # libcurl; only a Location count ssrfr read itself is recorded. An exact
   # repeat is ignored by libcurl (curl commit 4be9db7) and reaches ssrfr's
   # own check on every libcurl.
   libcurl <- sub("[^0-9.].*$", "", curl::curl_version()$version)
@@ -527,12 +527,12 @@ test_that("a redirect is returned with Location; two are a protocol error", {
     r <- guarded_get(pinned_url(port, path), loopback_policy(port))
     expect_s3_class(r, "ssrfr_failure")
     expect_identical(r$cause, "protocol-error", label = path)
+    expect_identical(r$detail$check, "location", label = path)
     b <- attr(r, "binding")
+    expect_identical(b$state$status, 302L, label = path)
     if (path == "/two-locations" && libcurl_refuses) {
-      expect_identical(r$detail$check, "transport", label = path)
       expect_null(b$state$location_count, label = path)
     } else {
-      expect_identical(r$detail$check, "location", label = path)
       expect_identical(b$state$location_count, 2L, label = path)
     }
     expect_null(b$state$location, label = path)

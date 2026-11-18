@@ -5,14 +5,20 @@
 #
 # WHY THESE ROWS. The contract this file implements is "every reported
 # advisory has a current, explicit disposition", replacing "the scan reports
-# nothing" (SEOR-fkvlzltx). ssrfr imports `curl` directly, and measured
-# 2026-10-18 with live OSS Index credentials the hard dependency closure
-# reports exactly four advisories, all against curl 8.1.0, CRAN's current
-# release, so no available version clears any of them. OSS Index matches the
-# R package's version number against libcurl's affected ranges. Each row
-# below says why the advisory does not reach a fetch made through ssrfr. Rows
-# are added only for advisories the audit reports today: rule B fails a row
-# that is not currently reported, so an anticipatory row is stale on arrival.
+# nothing" (SEOR-fkvlzltx). ssrfr imports `curl` directly, and its hard
+# dependency closure reports six advisories, all against curl 8.1.0, CRAN's
+# current release: four measured 2026-10-18 with live OSS Index credentials,
+# two more dispositioned 2026-10-23. These are the rows below; each says why
+# the advisory does not reach a fetch made through ssrfr. Rows are added only
+# for advisories the audit reports today: rule B fails a row that is not
+# currently reported, so an anticipatory row is stale on arrival.
+#
+# Each row's reason cites its CVE's section in seor's
+# design/oss-index-advisories.md, which holds the libcurl facts shared across
+# the fleet (weakness, affected range, prerequisites, why R's curl can or
+# cannot reach it), and argues only ssrfr's own route to curl: every option
+# an attempt carries comes from transport_options() (R/transport.R), and
+# dep_curl_transfer() (R/dependencies.R) is the one place that sets them.
 #
 # Three rules keep the list honest. test-security.R enforces them:
 #
@@ -38,13 +44,12 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-416 use-after-free on HTTP/2 server push over a shared",
-      "connection handle (CVSS 9.1). Names a libcurl range covering CRAN's",
-      "current curl 8.1.0, so no available version clears it. Unreachable",
-      "through ssrfr: the transport pins http_version to HTTP/1.1 and sets",
-      "forbid_reuse (R/transport.R), so there is no HTTP/2 connection to",
-      "push on, and R's curl cannot set CURLMOPT_PUSHFUNCTION. Re-check",
-      "R/transport.R before renewing this row."
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-18924.",
+      "Beyond R's curl having no push callback, ssrfr's transport pins",
+      "http_version to HTTP/1.1 and sets forbid_reuse (R/transport.R), and",
+      "each attempt runs alone in a pool with multiplex = FALSE",
+      "(R/dependencies.R), so there is no shared HTTP/2 connection to push",
+      "on. Re-check those two files before renewing this row."
     )
   ),
   list(
@@ -53,13 +58,12 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-522: an OAuth2 bearer token leaks to a redirect target when",
-      ".netrc carries a machine/default entry (CVSS 6.9). Names a libcurl",
-      "range covering CRAN's current curl 8.1.0, so no available version",
-      "clears it. Unreachable through ssrfr: the transport sets netrc = 0",
-      "and followlocation = 0 (R/transport.R), so libcurl neither reads",
-      ".netrc nor follows a redirect, and ssrfr's own redirect hop drops",
-      "Authorization on any cross-origin hop. Re-check before renewing."
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-3783.",
+      "ssrfr's transport sets netrc = 0 and followlocation = 0",
+      "(R/transport.R), so libcurl neither reads .netrc nor follows a",
+      "redirect; ssrfr's own redirect hop (redirect_plan(), R/redirect.R)",
+      "drops Authorization on any cross-origin hop. Re-check those two files",
+      "before renewing this row."
     )
   ),
   list(
@@ -68,15 +72,13 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-297: the curl command-line tool installs its SSH host",
-      "verification options only for a direct SFTP or SCP transfer, not for",
-      "one reached by a redirect (CVSS 5.1). curl.se states libcurl is not",
-      "affected; the tool's range covers CRAN's current curl 8.1.0, so no",
-      "available version clears it. Unreachable through ssrfr: it drives",
-      "libcurl, never the tool, and the transport restricts protocols and",
-      "redir_protocols to http,https and sets followlocation = 0",
-      "(R/transport.R), so no transfer is SFTP or SCP. Re-check",
-      "R/transport.R before renewing this row."
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-86410.",
+      "The flaw is in the curl command-line tool. ssrfr drives libcurl",
+      "through R's curl (R/dependencies.R) and never runs the tool; its",
+      "transport also limits protocols and redir_protocols to http,https and",
+      "sets followlocation = 0 (R/transport.R), so no transfer is SFTP or",
+      "SCP. Re-check with a search of R/ for system2()/processx calls to curl",
+      "before renewing this row."
     )
   ),
   list(
@@ -85,14 +87,12 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-295: libcurl built on libssh2, with a hashed known_hosts file,",
-      "can report a host-key mismatch as a missing key to a",
-      "CURLOPT_SSH_KEYFUNCTION callback (CVSS 6.9). Names a libcurl range",
-      "covering CRAN's current curl 8.1.0, so no available version clears",
-      "it. Unreachable through ssrfr: the transport restricts protocols and",
-      "redir_protocols to http,https (R/transport.R), so libcurl never opens",
-      "an SFTP or SCP transfer, and ssrfr sets no SSH key callback. Re-check",
-      "R/transport.R before renewing this row."
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-87865.",
+      "The SSH key callback cannot be set from R. Independently, ssrfr's",
+      "transport limits protocols and redir_protocols to http,https",
+      "(R/transport.R), so libcurl never opens an SFTP or SCP transfer, and",
+      "ssrfr sets no SSH option. Re-check R/transport.R before renewing this",
+      "row."
     )
   ),
   list(
@@ -101,12 +101,12 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-201: an HTTP proxy answering a CONNECT with 401 instead of 407",
-      "makes libcurl send the origin's credentials to the proxy (CVSS 6.5).",
-      "Names a libcurl range covering CRAN's current curl 8.1.0, so no",
-      "available version clears it. Unreachable through ssrfr: the",
-      "transport sets proxy = \"\" and noproxy = \"*\" (R/transport.R), so no",
-      "attempt goes through a proxy whatever the environment says.",
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-86414.",
+      "ssrfr can hand libcurl origin credentials: URL userinfo, when a",
+      "policy sets allow_userinfo, goes out as Basic auth (httpauth = 1).",
+      "But its transport sets proxy = \"\" and noproxy = \"*\" and netrc = 0",
+      "(R/transport.R), so no attempt goes through a proxy whatever the",
+      "environment says, and no caller can set another curl option.",
       "Re-check R/transport.R before renewing this row."
     )
   ),
@@ -116,14 +116,11 @@ oss_index_allowlist <- list(
     version_seen = "8.1.0",
     review = as.Date("2026-12-01"),
     reason = paste(
-      "CWE-130: with CURLOPT_CRLF set, curl advertises the raw byte count",
-      "in an IMAP APPEND literal but sends the expanded data, so the",
-      "overflow runs as pipelined IMAP commands (CVSS 3.7). Names a libcurl",
-      "range covering CRAN's current curl 8.1.0, so no available version",
-      "clears it. Unreachable through ssrfr: the transport restricts",
-      "protocols and redir_protocols to http,https (R/transport.R), so",
-      "libcurl never opens the IMAP transfer an APPEND needs, and nothing",
-      "sets crlf. Re-check R/transport.R before renewing this row."
+      "libcurl facts: seor design/oss-index-advisories.md#cve-2026-87864.",
+      "ssrfr's transport limits protocols and redir_protocols to http,https",
+      "(R/transport.R), so libcurl never opens the IMAP transfer an APPEND",
+      "needs; it sets neither upload nor crlf, and no caller can set another",
+      "curl option. Re-check R/transport.R before renewing this row."
     )
   )
 )

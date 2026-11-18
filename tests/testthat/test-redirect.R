@@ -776,9 +776,10 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
     case <- cases[[label]]
     local({
       server <- local_raw_server(case$bytes)
-      # A stall must spend the budget, so it keeps the real clock and a short
-      # budget; the other cases end before it, so their clock is frozen as
-      # above, and libcurl's 8 s timer bounds a regression.
+      # A stall must spend the budget, so it keeps the real clock and a
+      # budget under the stalling server's 10 s; the other cases end before
+      # it, so their clock is frozen as above, and libcurl's 8 s timer bounds
+      # a regression.
       stalls <- identical(case$budget_left, "timeout")
       if (!stalls) {
         local_mocked_bindings(elapsed_since = function(start) 0)
@@ -787,11 +788,18 @@ test_that("past the budget, a 3xx refuses whatever follows its status", {
         server$port,
         max_redirects = 5,
         max_response_size = 100,
-        total_timeout = if (stalls) 2 else 8
+        total_timeout = if (stalls) 4 else 8
       )
       r <- guarded_get(pinned_url(server$port), policy)
       expect_s3_class(r, "ssrfr_failure")
       expect_identical(r$cause, case$budget_left, label = label)
+      if (stalls) {
+        # Spent in the stall, on the connected transfer (step 12), not
+        # before it: a budget a loaded runner spends at prepare (step 7) or
+        # before or between attempts (step 10) reads `timeout` too.
+        expect_identical(r$detail$step, 12L, label = label)
+        expect_identical(r$detail$limit, "total_timeout", label = label)
+      }
     })
   }
 })

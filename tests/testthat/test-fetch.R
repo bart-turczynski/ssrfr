@@ -520,12 +520,15 @@ test_that("exhausted failover is timeout only when every connect timed out", {
 test_that("total_timeout ends failover as timeout", {
   tried <- new.env(parent = emptyenv())
   tried$addresses <- character()
+  # Each failed attempt costs 0.6 s on a fake clock, not a sleep, so a slow
+  # machine cannot spend the 1 s budget before the second attempt: the clock
+  # reads 0 until the first attempt, 0.6 after it and 1.2 after the second.
   local_mocked_bindings(
+    elapsed_since = function(start) 0.6 * length(tried$addresses),
     dep_curl_transfer = function(opts, on_body, debug, progress) {
       target <- sub("^multi[.]invalid::(.*):$", "\\1", opts$connect_to)
       tried$addresses <- c(tried$addresses, target)
       debug(0L, charToRaw(paste0("Trying ", target, ":80...\n")))
-      Sys.sleep(0.6)
       list(
         aborted = FALSE,
         error = "curl_error_couldnt_connect",

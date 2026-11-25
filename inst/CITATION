@@ -8,8 +8,6 @@ if (!length(year) || is.na(year) || !nzchar(year)) {
 }
 note <- sprintf("R package version %s", meta$Version)
 
-# After the package has a Zenodo DOI, add a
-# `doi = "10.5281/zenodo.XXXXXXXX"` argument to the bibentry below.
 bibentry(
   bibtype = "Manual",
   title   = "{ssrfr}: Server-Side Request Forgery Guard for Outbound Requests",
@@ -17,5 +15,6 @@ bibentry(
                    comment = c(ORCID = "0000-0002-8788-7980")),
   year    = year,
   note    = note,
-  url     = "https://gitlab.com/bart-turczynski/ssrfr"
+  url     = "https://gitlab.com/bart-turczynski/ssrfr",
+  doi     = "10.5281/zenodo.24539098"
 )

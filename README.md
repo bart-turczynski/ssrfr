@@ -5,10 +5,9 @@
 
 <!-- badges: start -->
 
-<!-- The row follows seor's design/fleet-standard.md, "Badge row". Slot 11
-     (DOI) is left out until Zenodo mints a concept DOI and doi.org resolves it.
-     The FOSSA pair is slot 17: ssrfr is one of the three FOSSA packages. FOSSA
-     keys the project under the account's custom+62973/ prefix. -->
+<!-- The row follows seor's design/fleet-standard.md, "Badge row". The FOSSA
+     pair is slot 17: ssrfr is one of the three FOSSA packages. FOSSA keys the
+     project under the account's custom+62973/ prefix. -->
 
 [![CRAN
 status](https://www.r-pkg.org/badges/version/ssrfr)](https://CRAN.R-project.org/package=ssrfr)
@@ -26,6 +25,7 @@ release](https://img.shields.io/gitlab/v/release/bart-turczynski%2Fssrfr)](https
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![Project Status:
 Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24539098.svg)](https://doi.org/10.5281/zenodo.24539098)
 [![Zenodo](https://img.shields.io/badge/Zenodo-all_software-1682D4?logo=zenodo&logoColor=white)](https://zenodo.org/search?q=metadata.creators.person_or_org.identifiers.identifier:0000-0002-8788-7980)
 [![OpenSSF Best
 Practices](https://www.bestpractices.dev/projects/15191/badge)](https://www.bestpractices.dev/projects/15191)

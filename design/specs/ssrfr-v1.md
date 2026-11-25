@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 version: 1.6.0-draft
 date: 2026-09-25
 tracking: SSRF-xrlijlqq, SSRF-ibxdyzcy

@@ -5,18 +5,23 @@
 
 <!-- badges: start -->
 
-<!-- The row follows seor's design/fleet-standard.md, "Badge row". ssrfr is off
-     CRAN with no GitLab Release and no concept DOI yet, so r-universe takes
-     slot 1 and the CRAN, latest-release, DOI and dependencies badges are left
-     out until each condition holds. The FOSSA pair is slot 17: ssrfr is one of
-     the three FOSSA packages. FOSSA keys the project under the account's
-     custom+62973/ prefix, and it appears after the first `fossa analyze` run
-     on main. -->
+<!-- The row follows seor's design/fleet-standard.md, "Badge row". Slot 11
+     (DOI) is left out until Zenodo mints a concept DOI and doi.org resolves it.
+     The FOSSA pair is slot 17: ssrfr is one of the three FOSSA packages. FOSSA
+     keys the project under the account's custom+62973/ prefix. -->
 
+[![CRAN
+status](https://www.r-pkg.org/badges/version/ssrfr)](https://CRAN.R-project.org/package=ssrfr)
+[![CRAN
+downloads](https://cranlogs.r-pkg.org/badges/ssrfr)](https://CRAN.R-project.org/package=ssrfr)
+[![CRAN
+checks](https://badges.cranchecks.info/worst/ssrfr.svg)](https://cran.r-project.org/web/checks/check_results_ssrfr.html)
 [![r-universe](https://bart-turczynski.r-universe.dev/ssrfr/badges/version)](https://bart-turczynski.r-universe.dev/ssrfr)
 [![Pipeline](https://gitlab.com/bart-turczynski/ssrfr/badges/main/pipeline.svg)](https://gitlab.com/bart-turczynski/ssrfr/-/pipelines)
 [![Coverage](https://gitlab.com/bart-turczynski/ssrfr/badges/main/coverage.svg)](https://gitlab.com/bart-turczynski/ssrfr/-/pipelines)
 [![Docs](https://img.shields.io/website?url=https%3A%2F%2Fbart-turczynski.gitlab.io%2Fssrfr%2F&label=docs&logo=gitlab&logoColor=white&up_message=pkgdown&up_color=1f75cb)](https://bart-turczynski.gitlab.io/ssrfr/)
+[![Latest
+release](https://img.shields.io/gitlab/v/release/bart-turczynski%2Fssrfr)](https://gitlab.com/bart-turczynski/ssrfr/-/releases)
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![Project Status:
@@ -25,6 +30,7 @@ Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repost
 [![OpenSSF Best
 Practices](https://www.bestpractices.dev/projects/15191/badge)](https://www.bestpractices.dev/projects/15191)
 [![License](https://img.shields.io/gitlab/license/bart-turczynski%2Fssrfr)](https://gitlab.com/bart-turczynski/ssrfr/-/blob/main/LICENSE.md)
+[![Dependencies](https://tinyverse.netlify.app/badge/ssrfr)](https://CRAN.R-project.org/package=ssrfr)
 [![Last
 commit](https://img.shields.io/gitlab/last-commit/bart-turczynski%2Fssrfr)](https://gitlab.com/bart-turczynski/ssrfr/-/commits/main)
 [![FOSSA
@@ -62,7 +68,13 @@ libcurl, address classification from
 
 ## Installation
 
-`ssrfr` is not on CRAN yet. Install it from r-universe:
+Install the released version from CRAN:
+
+``` r
+install.packages("ssrfr")
+```
+
+Or install the development version from r-universe:
 
 ``` r
 install.packages(
@@ -71,7 +83,7 @@ install.packages(
 )
 ```
 
-Or install the development version from GitLab:
+Or from GitLab:
 
 ``` r
 # install.packages("remotes")
